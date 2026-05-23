@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./global.css";
-
-const inter = Inter({ subsets: ["latin"] });
+import "./globals.css";
+import Script from "next/script";
 
 export const metadata: Metadata = {
-  title: "InduSpot - 스마트 공단 인프라 수요 분산 AI 플랫폼",
-  description: "실시간 혼잡도 분석 및 TTTV(Total Time to Value) 기반 최적의 대안 매칭 솔루션",
+  title: "InduSpot",
+  description: "산업단지 지도 서비스",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="ko">
-      <body id="induspot-root" className={inter.className}>
+    <html lang="ko" className="h-full">
+      <body className="min-h-full flex flex-col">
         {children}
+        <Script
+          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_API_KEY}&autoload=false`}
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   );
