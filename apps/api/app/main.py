@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.supabase import get_current_user
 from app.core.logging import setup_logging
-from app.routers import recommendations
+from app.routers import recommendations, infrastructures
 
 # 로깅 설정 초기화
 setup_logging()
@@ -25,6 +25,7 @@ app.add_middleware(
 
 # 라우터 연결
 app.include_router(recommendations.router)
+app.include_router(infrastructures.router)
 
 # 1. Health Check Endpoint
 @app.get("/")
