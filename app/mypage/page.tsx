@@ -1,0 +1,236 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  Menu, Bell, Home, Bookmark, User, 
+  Edit2, ChevronRight, LogOut, Shield, 
+  HelpCircle, Settings as SettingsIcon, BellRing, Star
+} from 'lucide-react';
+
+interface UserProfile {
+  name: string;
+  email: string;
+  role: string;
+  routes: number;
+  saved: number;
+  rating: number;
+  alertEnabled: boolean;
+}
+
+export default function MyPage() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('MyPage');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // API Fetch Mockup
+    // ⚠️ 백엔드 데이터 하드코딩 금지 원칙 준수 (실제로는 API에서 가져옴)
+    const fetchProfile = async () => {
+      setIsLoading(true);
+      try {
+        // TODO: 실제 API 호출 로직으로 교체 예정
+        // const response = await fetch('/api/user/profile');
+        // const data = await response.json();
+        // setProfile(data);
+        
+        // UI 확인을 위한 임시 목업 상태 (API 연동 전)
+        setProfile({
+          name: 'Yun Seong',
+          email: 'yun.seong@induspot.global',
+          role: 'Senior Operator',
+          routes: 24,
+          saved: 7,
+          rating: 4.9,
+          alertEnabled: true,
+        });
+      } catch (error) {
+        console.error('Failed to fetch profile', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  const handleUpdateProfile = async (updatedData: Partial<UserProfile>) => {
+    // TODO: 프로필 수정 / 설정 변경 API 연동 로직
+    /*
+    try {
+      await fetch('/api/user/profile', {
+        method: 'PATCH', // or PUT
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+      // 업데이트 성공 처리
+    } catch (error) {
+      console.error(error);
+    }
+    */
+    
+    // 로컬 상태 즉시 업데이트 (Optimistic UI)
+    if (profile) {
+      setProfile({ ...profile, ...updatedData });
+    }
+  };
+
+  const handleTabClick = (tabId: string) => {
+    setActiveTab(tabId);
+    if (tabId === 'Home') router.push('/main');
+    if (tabId === 'Saved') router.push('/saved');
+    if (tabId === 'MyPage') router.push('/mypage');
+  };
+
+  return (
+    <div className="relative w-full min-h-screen bg-[url('/bg.png')] bg-cover bg-center flex flex-col overflow-hidden">
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-[#0b101e]/80 z-0"></div>
+
+      {/* Header */}
+      <header className="flex justify-between items-center p-5 z-10 relative">
+        <button className="text-gray-400 hover:text-white transition-colors">
+          <Menu size={24} />
+        </button>
+        <h1 className="text-xl font-bold text-white tracking-wide">InduSpot</h1>
+        <button className="text-gray-400 hover:text-white transition-colors">
+          <Bell size={24} />
+        </button>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative z-10 px-6 overflow-y-auto pb-[120px] no-scrollbar">
+        {isLoading || !profile ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : (
+          <div className="flex flex-col animate-fade-in mt-4">
+            
+            {/* Profile Section */}
+            <div className="bg-[#131a28]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col items-center shadow-lg mb-4">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 p-0.5 mb-4 shadow-[0_0_15px_rgba(30,92,220,0.5)]">
+                <div className="w-full h-full rounded-full overflow-hidden bg-[#0b101e]">
+                  {/* Placeholder Avatar */}
+                  <div className="w-full h-full flex items-center justify-center text-blue-300">
+                    <User size={40} />
+                  </div>
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-1">{profile.name}</h2>
+              <p className="text-sm text-gray-400 mb-4">{profile.email}</p>
+              
+              <div className="px-4 py-1 rounded-full bg-blue-900/40 border border-blue-500/30 text-blue-300 text-xs font-semibold mb-6">
+                {profile.role}
+              </div>
+
+              <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                <Edit2 size={14} />
+                <span>Edit Profile</span>
+              </button>
+            </div>
+
+            {/* Stats Section */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-[#131a28]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center shadow-md">
+                <div className="text-xl font-bold text-white mb-1">{profile.routes}</div>
+                <div className="text-xs text-gray-400 font-medium">Routes</div>
+              </div>
+              <div className="bg-[#131a28]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center shadow-md">
+                <Bookmark size={20} className="text-[#fca5a5] mb-2" fill="currentColor" />
+                <div className="text-xl font-bold text-white mb-1">{profile.saved}</div>
+                <div className="text-xs text-gray-400 font-medium">Saved</div>
+              </div>
+              <div className="bg-[#131a28]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center shadow-md">
+                <Star size={20} className="text-white mb-2" fill="currentColor" />
+                <div className="text-xl font-bold text-white mb-1">{profile.rating}</div>
+                <div className="text-xs text-gray-400 font-medium">Rating</div>
+              </div>
+            </div>
+
+            {/* Menu List */}
+            <div className="bg-[#131a28]/60 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden shadow-lg mb-6">
+              
+              {/* 이상 혼잡 알림 (Anomaly Alert) Toggle */}
+              <div className="flex items-center justify-between p-5 border-b border-white/5">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+                    <BellRing size={20} className="text-gray-300" />
+                  </div>
+                  <span className="text-white font-medium">이상 혼잡 알림</span>
+                </div>
+                {/* Toggle Switch */}
+                <button 
+                  onClick={() => handleUpdateProfile({ alertEnabled: !profile.alertEnabled })}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors ${profile.alertEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${profile.alertEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {/* Other Menus */}
+              {[
+                { id: 'privacy', icon: Shield, label: 'Privacy', path: '#' },
+                { id: 'help', icon: HelpCircle, label: 'Help & Support', path: '/mypage/support' },
+                { id: 'settings', icon: SettingsIcon, label: 'Settings', path: '#' },
+              ].map((menu, index) => {
+                const Icon = menu.icon;
+                return (
+                  <button 
+                    key={menu.id} 
+                    onClick={() => { if (menu.path !== '#') router.push(menu.path); }}
+                    className={`w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors ${index !== 2 ? 'border-b border-white/5' : ''}`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+                        <Icon size={20} className="text-gray-300" />
+                      </div>
+                      <span className="text-white font-medium">{menu.label}</span>
+                    </div>
+                    <ChevronRight size={20} className="text-gray-500" />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Sign Out Button */}
+            <button className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border border-white/5 bg-transparent hover:bg-white/5 text-gray-500 font-semibold transition-colors mb-4">
+              <LogOut size={18} className="text-[#fca5a5]" />
+              <span className="text-[#fca5a5]/80">SIGN OUT</span>
+            </button>
+
+          </div>
+        )}
+      </main>
+
+      {/* Bottom Navigation Bar */}
+      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
+        {[
+          { id: 'Home', icon: Home, label: 'Home' },
+          { id: 'Saved', icon: Bookmark, label: 'Saved' },
+          { id: 'MyPage', icon: User, label: 'My Page' }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabClick(tab.id)}
+              className={`flex flex-col items-center justify-center transition-colors ${
+                isActive ? 'text-[#104bce]' : 'text-gray-500 hover:text-gray-400'
+              }`}
+            >
+              <div className={`p-2 rounded-xl mb-1 ${isActive ? 'bg-[#104bce]/10' : ''}`}>
+                <Icon size={24} className={isActive ? 'text-[#104bce]' : 'text-gray-500'} />
+              </div>
+              <span className={`text-xs font-medium ${isActive ? 'text-[#104bce]' : ''}`}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
