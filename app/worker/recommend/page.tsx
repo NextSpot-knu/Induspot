@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
-import { getRecommendations, submitFeedback, RecommendationResponse } from "@/apps/web/lib/api-client";
+import { getRecommendations, submitFeedback, RecommendationResponse } from "@/lib/api-client";
 
 // Extend global Window
 declare global {

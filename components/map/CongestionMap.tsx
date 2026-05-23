@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
-import { FacilityWithCongestion } from "@/apps/web/app/worker/map/page";
+import { FacilityWithCongestion } from "@/app/worker/map/page";
 
 interface CongestionMapProps {
   initialFacilities: FacilityWithCongestion[];

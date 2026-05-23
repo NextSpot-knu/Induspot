@@ -1,54 +1,36 @@
-# InduSpot - 스마트 공단 인프라 수요 분산 AI 플랫폼
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-산업단지 내 공용 인프라(식당, 주차장, 회의실, 하역장)의 실시간 혼잡도를 분석하고, 혼잡 발생 시 TTTV(Total Time to Value) 알고리즘 기반 대안 경로 및 시간대를 추천하는 B2B SaaS 모노레포 프로젝트입니다.
+## Getting Started
 
-## 기술 스택
-- **Frontend / BFF**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- **Backend API / ML**: FastAPI (Python 3.11) + Pydantic v2 + Poetry
-- **Database & Auth**: Supabase (PostgreSQL + Realtime + GoTrue)
-- **Vector DB**: Pinecone
-- **Map**: Kakao Maps JavaScript SDK
-- **Container**: Docker & Docker Compose
+First, run the development server:
 
-## 프로젝트 구조
-```text
-induspot/
-├── apps/
-│   ├── web/                  # Next.js 14
-│   └── api/                  # FastAPI (Python 3.11)
-├── packages/
-│   └── shared-types/         # Next.js ↔ FastAPI 공유 타입 정의
-├── migrations/               # Supabase SQL 마이그레이션
-├── docker-compose.yml
-└── README.md
-```
-
-## 시작하기
-
-### 환경 설정
-각 프로젝트 디렉토리 내부의 환경변수 설정 파일(`.env.example`)을 참고하여 실제 `.env` 파일들을 구성하십시오.
-
-1. **Root**: `.env` (공통)
-2. **Web**: `apps/web/.env.local`
-3. **API**: `apps/api/.env`
-
-### 로컬 실행 방법
-
-#### Docker Compose를 통한 FastAPI 및 서비스 실행
 ```bash
-docker-compose up --build
-```
-
-#### 프론트엔드 (Next.js) 로컬 구동
-```bash
-cd apps/web
-npm install
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-#### 백엔드 (FastAPI) 로컬 구동 (Poetry 필요)
-```bash
-cd apps/api
-poetry install
-poetry run uvicorn app.main:app --reload
-```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
