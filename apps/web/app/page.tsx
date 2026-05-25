@@ -1,48 +1,49 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-declare global {
-  interface Window { kakao: any; }
-}
-
-export default function Home() {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const [kakaoLoaded, setKakaoLoaded] = useState(false);
+export default function LoadingPage() {
+  const router = useRouter();
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // kakao가 이미 로드됐으면 바로 실행
-    if (window.kakao?.maps) {
-      setKakaoLoaded(true);
-      return;
-    }
-
-    // 아직 로드 중이면 폴링으로 대기
-    const interval = setInterval(() => {
-      if (window.kakao?.maps) {
-        setKakaoLoaded(true);
-        clearInterval(interval);
-      }
+    // Trigger fade-in animation shortly after mount
+    const timer = setTimeout(() => {
+      setIsVisible(true);
     }, 100);
 
-    return () => clearInterval(interval);
-  }, []);
+    // Redirect to /setup after 3 seconds
+    const redirectTimer = setTimeout(() => {
+      router.push('/setup');
+    }, 3000);
 
-  useEffect(() => {
-    if (!kakaoLoaded || !mapContainerRef.current) return;
-
-    window.kakao.maps.load(() => {
-      const options = {
-        center: new window.kakao.maps.LatLng(35.1595, 129.0536),
-        level: 3,
-      };
-      new window.kakao.maps.Map(mapContainerRef.current!, options);
-    });
-  }, [kakaoLoaded]);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(redirectTimer);
+    };
+  }, [router]);
 
   return (
-    <main className="w-screen h-screen overflow-hidden bg-zinc-100">
-      <div ref={mapContainerRef} className="w-full h-full" />
-    </main>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[url('/bg.png')] bg-cover bg-center relative overflow-hidden">
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-[#0b101e]/70 z-0"></div>
+
+      {/* Background decoration for glassmorphism feel later */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
+
+      <div
+        className={`z-10 flex flex-col items-center text-center transition-opacity duration-1000 ${
+          isVisible ? 'opacity-100 animate-fade-in' : 'opacity-0'
+        }`}
+      >
+        <h1 className="text-5xl font-bold tracking-tight text-white mb-4">
+          InduSpot
+        </h1>
+        <p className="text-lg text-gray-300 font-medium">
+          기다림 없는 스마트한 공단 생활
+        </p>
+      </div>
+    </div>
   );
 }

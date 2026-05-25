@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
-import { getRecommendations, submitFeedback, RecommendationResponse } from "@/apps/web/lib/api-client";
+import { getRecommendations, submitFeedback, RecommendationResponse } from "@/lib/api-client";
 
 // Extend global Window
 declare global {
@@ -26,7 +26,7 @@ const MiniMap = React.memo(({ latitude, longitude, mapLoaded }: MiniMapProps) =>
   const [isSimulation, setIsSimulation] = useState(false);
 
   useEffect(() => {
-    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY;
+    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY;
     const isMock = !appKey || appKey.includes("mock") || appKey.includes("your-");
 
     if (isMock) {

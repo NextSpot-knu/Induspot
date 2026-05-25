@@ -4,8 +4,8 @@ import type { NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // /admin/login 경로는 인증 없이 접근 허용
-  if (pathname === "/admin/login") {
+  // /admin/login 및 /api/admin/login 경로는 인증 없이 접근 허용
+  if (pathname === "/admin/login" || pathname === "/api/admin/login") {
     return NextResponse.next();
   }
 

@@ -1,4 +1,5 @@
-import { supabase } from "./supabase";
+import { createPublicClient } from "./supabase";
+const supabase = createPublicClient();
 
 // 헬퍼: snake_case -> camelCase
 function snakeToCamel(s: string): string {

@@ -1,6 +1,6 @@
 import React from "react";
 import { createAdminClient } from "@/lib/supabase";
-import CongestionMap from "@/apps/web/components/map/CongestionMap";
+import CongestionMap from "@/components/map/CongestionMap";
 
 export const revalidate = 0;
 
