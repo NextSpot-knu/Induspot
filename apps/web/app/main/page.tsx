@@ -98,11 +98,6 @@ export default function MainPage() {
         });
 
         setFacilities(mapped);
-        if (mapped.length > 0) {
-          // Initialize with first parking spot or cafeteria
-          const parkings = mapped.filter(x => x.type === 'parking');
-          setSelectedFacility(parkings.length > 0 ? parkings[0] : mapped[0]);
-        }
       } catch (err) {
         console.error("Error loading facilities:", err);
       }
@@ -110,6 +105,285 @@ export default function MainPage() {
 
     loadFacilities();
   }, []);
+
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 37.3200, lng: 126.8120 });
+  const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Load user profile & current location
+  useEffect(() => {
+    async function loadUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+        const { data: profile } = await supabase
+          .from("users")
+          .select("preferred_categories")
+          .eq("id", session.user.id)
+          .single();
+        if (profile?.preferred_categories) {
+          setPreferredCategories(profile.preferred_categories);
+        }
+      } else {
+        setUserId("a2222222-2222-2222-2222-222222222222"); // Fallback mock user ID
+      }
+    }
+    loadUser();
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.warn("Geolocation failed, using default:", error);
+        }
+      );
+    }
+  }, []);
+
+  // Save selected facility ID to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (selectedFacility) {
+        sessionStorage.setItem('induspot_selected_facility_id', selectedFacility.id);
+      } else {
+        sessionStorage.removeItem('induspot_selected_facility_id');
+      }
+    }
+  }, [selectedFacility]);
+
+  // Load saved IDs, rejected IDs, and active filter from storage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('induspot_saved_facilities');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const ids = new Set<string>(parsed.map((item: any) => item.id));
+          setSavedIds(ids);
+        }
+      } catch (e) {
+        console.error("Failed to load saved IDs from localStorage:", e);
+      }
+
+      try {
+        const rejected = sessionStorage.getItem('induspot_rejected_ids');
+        if (rejected) {
+          setRejectedIds(new Set(JSON.parse(rejected)));
+        }
+      } catch (e) {
+        console.error("Failed to load rejected IDs from sessionStorage:", e);
+      }
+
+      try {
+        const savedFilter = sessionStorage.getItem('induspot_active_filter');
+        if (savedFilter) {
+          setActiveFilter(savedFilter);
+        }
+      } catch (e) {
+        console.error("Failed to load active filter from sessionStorage:", e);
+      }
+    }
+  }, []);
+
+  const CATEGORY_VECTORS: Record<string, number[]> = {
+    cafeteria: [1.0, 0.0, 0.0, 0.0, 0.2, 0.1, 0.0, 0.0],
+    parking: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.1],
+    meeting_room: [0.0, 0.0, 1.0, 0.0, 0.1, 0.0, 0.0, 0.2],
+    loading_dock: [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0]
+  };
+
+  const calculateHaversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const calculateTTTV = (facility: any) => {
+    if (!facility) return { score: 0, preferencePercent: 0, expectedWait: 0, expectedTravel: 0, timeToService: 0 };
+    
+    // 1. Cosine similarity
+    const userVec = [0, 0, 0, 0, 0, 0, 0, 0];
+    let count = 0;
+    const cats = preferredCategories.length > 0 ? preferredCategories : Object.keys(CATEGORY_VECTORS);
+    cats.forEach(c => {
+      if (CATEGORY_VECTORS[c]) {
+        for (let i = 0; i < 8; i++) {
+          userVec[i] += CATEGORY_VECTORS[c][i];
+        }
+        count++;
+      }
+    });
+    const normalizedUserVec = count > 0 ? userVec.map(v => v / count) : [1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8)];
+    let userNorm = Math.sqrt(normalizedUserVec.reduce((sum, v) => sum + v*v, 0));
+    const userVecFinal = normalizedUserVec.map(v => userNorm > 0 ? v / userNorm : v);
+
+    let facVec = [...(CATEGORY_VECTORS[facility.type] || [0,0,0,0,0,0,0,0])];
+    if (facility.features) {
+      if (facility.features.has_ev_charger && facility.type === 'parking') {
+        facVec[6] += 0.3;
+      }
+      if (facility.features.has_vegetarian && facility.type === 'cafeteria') {
+        facVec[4] += 0.2;
+      }
+    }
+    let facNorm = Math.sqrt(facVec.reduce((sum, v) => sum + v*v, 0));
+    const facVecFinal = facVec.map(v => facNorm > 0 ? v / facNorm : v);
+
+    let preferenceMatching = 0;
+    for (let i = 0; i < 8; i++) {
+      preferenceMatching += userVecFinal[i] * facVecFinal[i];
+    }
+    preferenceMatching = Math.max(0, Math.min(1, preferenceMatching));
+
+    // 2. Expected Wait
+    const defaultTimes: Record<string, number> = {
+      cafeteria: 20,
+      parking: 5,
+      meeting_room: 10,
+      loading_dock: 30
+    };
+    const avgProcessTime = facility.features?.average_processing_time ?? defaultTimes[facility.type] ?? 15;
+    const hour = new Date().getHours();
+    let timeMultiplier = 1.0;
+    if (hour >= 12 && hour < 14) timeMultiplier = 1.3;
+    else if (hour === 7 || hour === 15) timeMultiplier = 1.2;
+
+    const expectedWait = facility.congestionLevel * avgProcessTime * timeMultiplier;
+
+    // 3. Expected Travel
+    const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, facility.latitude, facility.longitude);
+    const expectedTravel = distanceM / 66.67;
+
+    // 4. TTTV Score
+    const w1 = 0.4, w2 = 0.4, w3 = 0.2;
+    const timeCost = Math.min(1.0, (expectedWait + expectedTravel) / 60.0);
+    const incentive = Math.max(0, 0.7 - facility.congestionLevel);
+    const score = (w1 * preferenceMatching) - (w2 * timeCost) + (w3 * incentive);
+    const finalScore = Math.max(0, Math.min(1, score));
+
+    return {
+      score: Math.round(finalScore * 100) / 100,
+      preferencePercent: Math.round(preferenceMatching * 100),
+      expectedWait: Math.round(expectedWait * 10) / 10,
+      expectedTravel: Math.round(expectedTravel * 10) / 10,
+      timeToService: Math.round((expectedWait + expectedTravel) * 10) / 10
+    };
+  };
+
+  // Synchronize AI recommendations on map and set selected facility to the top recommended spot
+  useEffect(() => {
+    if (facilities.length === 0) return;
+
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria',
+      '주차장': 'parking',
+      '회의실': 'meeting_room',
+      '휴게실': 'loading_dock'
+    };
+    const targetType = filterMap[activeFilter];
+    
+    // Filter facilities of active type, excluding rejected and saved ones
+    const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
+    
+    if (candidates.length > 0) {
+      // Calculate TTTV and sort
+      const scored = candidates.map(f => ({
+        ...f,
+        tttv: calculateTTTV(f)
+      }));
+      scored.sort((a, b) => b.tttv.score - a.tttv.score);
+      
+      // Try to restore previous selection if it is still a valid candidate
+      let restoredFacility = null;
+      if (typeof window !== 'undefined') {
+        const savedId = sessionStorage.getItem('induspot_selected_facility_id');
+        if (savedId) {
+          restoredFacility = scored.find(f => f.id === savedId);
+        }
+      }
+
+      if (restoredFacility) {
+        setSelectedFacility(restoredFacility);
+      } else {
+        setSelectedFacility(scored[0]);
+      }
+    } else {
+      setSelectedFacility(null);
+    }
+  }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories]);
+
+  // Action Button Handlers
+  const handleAccept = (fac: any) => {
+    if (!fac) return;
+    const destUrl = `https://map.kakao.com/link/to/${encodeURIComponent(fac.name)},${fac.latitude},${fac.longitude}`;
+    window.open(destUrl, '_blank');
+    
+    let greeting = "즐거운 시간 되세요!";
+    if (fac.type === "cafeteria") greeting = "맛있게 드세요!";
+    else if (fac.type === "parking") greeting = "안전 주차 하세요!";
+    else if (fac.type === "meeting_room") greeting = "성공적인 회의 되세요!";
+    
+    alert(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
+  };
+
+  const handlePutOff = (fac: any) => {
+    if (!fac) return;
+    
+    setSavedIds(prev => {
+      const next = new Set(prev);
+      next.add(fac.id);
+      return next;
+    });
+
+    try {
+      const existing = localStorage.getItem('induspot_saved_facilities');
+      const bookmarks = existing ? JSON.parse(existing) : [];
+      
+      const tttv = calculateTTTV(fac);
+      if (!bookmarks.some((b: any) => b.id === fac.id)) {
+        bookmarks.push({
+          id: fac.id,
+          name: fac.name,
+          category: fac.type === 'cafeteria' ? '식당' : fac.type === 'parking' ? '주차장' : fac.type === 'meeting_room' ? '회의실' : '휴게실',
+          trafficStatus: fac.congestionLevel >= 0.7 ? 'red' : fac.congestionLevel >= 0.3 ? 'yellow' : 'green',
+          waitTime: `${tttv?.expectedWait || 0}분`
+        });
+        localStorage.setItem('induspot_saved_facilities', JSON.stringify(bookmarks));
+      }
+    } catch (e) {
+      console.error("Failed to save bookmark:", e);
+    }
+
+    alert(`'${fac.name}'이(가) Saved 탭에 저장되었습니다! 다음 추천을 불러옵니다.`);
+  };
+
+  const handleReject = (fac: any) => {
+    if (!fac) return;
+    
+    setRejectedIds(prev => {
+      const next = new Set(prev);
+      next.add(fac.id);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('induspot_rejected_ids', JSON.stringify(Array.from(next)));
+      }
+      return next;
+    });
+    
+    alert(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
+  };
 
   // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
   useEffect(() => {
@@ -122,13 +396,40 @@ export default function MainPage() {
   const initMap = () => {
     if (window.kakao && window.kakao.maps && mapContainerRef.current) {
       window.kakao.maps.load(() => {
+        let centerLat = 37.3200;
+        let centerLng = 126.8120;
+        let level = 4;
+
+        if (typeof window !== 'undefined') {
+          const savedLat = sessionStorage.getItem('induspot_map_center_lat');
+          const savedLng = sessionStorage.getItem('induspot_map_center_lng');
+          const savedLevel = sessionStorage.getItem('induspot_map_level');
+          
+          if (savedLat && savedLng) {
+            centerLat = parseFloat(savedLat);
+            centerLng = parseFloat(savedLng);
+          }
+          if (savedLevel) {
+            level = parseInt(savedLevel, 10);
+          }
+        }
+
         const options = {
-          center: new window.kakao.maps.LatLng(37.3200, 126.8120), // Ansan Complex Center
-          level: 4,
+          center: new window.kakao.maps.LatLng(centerLat, centerLng),
+          level: level,
         };
         const map = new window.kakao.maps.Map(mapContainerRef.current, options);
         mapInstanceRef.current = map;
         setMapLoaded(true);
+
+        // Save center and level on map idle
+        window.kakao.maps.event.addListener(map, 'idle', () => {
+          const center = map.getCenter();
+          const lvl = map.getLevel();
+          sessionStorage.setItem('induspot_map_center_lat', center.getLat().toString());
+          sessionStorage.setItem('induspot_map_center_lng', center.getLng().toString());
+          sessionStorage.setItem('induspot_map_level', lvl.toString());
+        });
       });
     }
   };
@@ -152,11 +453,6 @@ export default function MainPage() {
     const targetType = filterMap[activeFilter];
 
     const filtered = facilities.filter(f => f.type === targetType);
-    
-    // Automatically select the first facility of the active filter
-    if (filtered.length > 0) {
-      setSelectedFacility(filtered[0]);
-    }
 
     const newMarkers = filtered.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(
@@ -243,7 +539,12 @@ export default function MainPage() {
             return (
               <button
                 key={filter.id}
-                onClick={() => setActiveFilter(filter.id)}
+                onClick={() => {
+                  setActiveFilter(filter.id);
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('induspot_active_filter', filter.id);
+                  }
+                }}
                 className={`flex items-center px-4 py-2 rounded-full border backdrop-blur-md whitespace-nowrap transition-all ${
                   isActive 
                     ? 'bg-blue-600/30 border-blue-400 text-white' 
@@ -259,23 +560,27 @@ export default function MainPage() {
       </div>
 
       {/* AI Recommendation Card (Floating Bottom Sheet) */}
-      {selectedFacility && (
-        <div className="absolute bottom-[90px] w-full z-20 px-4">
-          <RecommendationCard 
-            title={selectedFacility.name}
-            matchPercentage={Math.max(10, Math.min(100, Math.round((1 - selectedFacility.congestionLevel) * 100)))}
-            description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡 (이용 자제 권장)' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유 (추천)'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}`}
-            onAccept={() => {
-              console.log('Accept Route clicked for:', selectedFacility.name);
-              // 안내 시작 로직
-            }}
-            onReject={() => {
-              console.log('Reject clicked - Recommending new spot');
-              // 다른 장소 추천 로직
-            }}
-          />
-        </div>
-      )}
+      {selectedFacility && (() => {
+        const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
+        return (
+          <div className="absolute bottom-[90px] w-full z-20 px-4">
+            <RecommendationCard 
+              title={selectedFacility.name}
+              description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
+              onAccept={() => handleAccept(selectedFacility)}
+              onReject={() => handleReject(selectedFacility)}
+              onPutOff={() => handlePutOff(selectedFacility)}
+              tttvScore={tttv.score}
+              preferencePercent={tttv.preferencePercent}
+              expectedWait={tttv.expectedWait}
+              expectedTravel={tttv.expectedTravel}
+              timeToService={tttv.timeToService}
+              facilityType={selectedFacility.type}
+              facility={selectedFacility}
+            />
+          </div>
+        );
+      })()}
 
       {/* Bottom Navigation Bar */}
       <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">

@@ -11,6 +11,8 @@ interface BookmarkData {
   category: string;
   trafficStatus: 'red' | 'yellow' | 'green';
   waitTime: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export default function SavedPage() {
@@ -27,13 +29,12 @@ export default function SavedPage() {
     const fetchBookmarks = async () => {
       setIsLoading(true);
       try {
-        // TODO: 실제 API 호출 로직으로 교체 예정
-        // const response = await fetch('/api/bookmarks');
-        // const data = await response.json();
-        // setBookmarks(data);
-        
-        // 현재는 API가 없으므로 빈 배열 상태로 설정하여 Empty State 렌더링
-        setBookmarks([]);
+        const saved = localStorage.getItem('induspot_saved_facilities');
+        if (saved) {
+          setBookmarks(JSON.parse(saved));
+        } else {
+          setBookmarks([]);
+        }
       } catch (error) {
         console.error('Failed to fetch bookmarks', error);
       } finally {
@@ -139,12 +140,20 @@ export default function SavedPage() {
         <div className="absolute bottom-[90px] w-full z-20 px-4 animate-slide-up">
           <RecommendationCard 
             title={selectedBookmark.name}
-            matchPercentage={100} // 예시: 북마크된 것은 100% 매치로 표시하거나 백엔드 데이터 사용
-            description={`현재 혼잡도: ${selectedBookmark.trafficStatus.toUpperCase()}. 예상 대기 시간: ${selectedBookmark.waitTime}.`}
-            onAccept={() => console.log('Accept Route clicked', selectedBookmark.id)}
+            matchPercentage={100}
+            description={`현재 혼잡도: ${selectedBookmark.trafficStatus === 'red' ? '혼잡' : selectedBookmark.trafficStatus === 'yellow' ? '보통' : '여유'}. 예상 대기 시간: ${selectedBookmark.waitTime}.`}
+            onAccept={() => {
+              const destUrl = selectedBookmark.latitude && selectedBookmark.longitude
+                ? `https://map.kakao.com/link/to/${encodeURIComponent(selectedBookmark.name)},${selectedBookmark.latitude},${selectedBookmark.longitude}`
+                : `https://map.kakao.com/?q=${encodeURIComponent(selectedBookmark.name)}`;
+              window.open(destUrl, '_blank');
+            }}
             onReject={() => {
-              console.log('Reject clicked - closing card', selectedBookmark.id);
-              setSelectedBookmark(null); // 거절 시 카드 닫기 시뮬레이션
+              const updated = bookmarks.filter(b => b.id !== selectedBookmark.id);
+              setBookmarks(updated);
+              localStorage.setItem('induspot_saved_facilities', JSON.stringify(updated));
+              setSelectedBookmark(null);
+              alert(`'${selectedBookmark.name}'이(가) 저장된 목록에서 삭제되었습니다.`);
             }}
           />
         </div>
