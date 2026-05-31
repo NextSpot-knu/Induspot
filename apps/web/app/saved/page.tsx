@@ -185,9 +185,20 @@ export default function SavedPage() {
                   </div>
                   <h3 className="text-lg font-bold text-white">{bookmark.name}</h3>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium text-gray-300 mb-1">Wait Time</div>
-                  <div className="text-lg font-bold text-white">{bookmark.waitTime}</div>
+                
+                <div className="flex flex-col items-end gap-1 text-right pr-8 md:pr-12">
+                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
+                    <span className="text-gray-400">예상 대기:</span>
+                    <span className="font-semibold text-gray-200">{(bookmark.tttv?.expectedWait ?? parseInt(bookmark.waitTime)) || 0}분</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
+                    <span className="text-gray-400">예상 이동:</span>
+                    <span className="font-semibold text-gray-200">{bookmark.tttv?.expectedTravel ?? 0}분</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm mt-0.5">
+                    <span className="text-blue-300/80 font-medium">총 소요:</span>
+                    <span className="font-bold text-blue-400 text-sm sm:text-base">{(bookmark.tttv?.timeToService ?? parseInt(bookmark.waitTime)) || 0}분</span>
+                  </div>
                 </div>
                 
                 {/* Delete Button */}
