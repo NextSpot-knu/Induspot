@@ -15,49 +15,42 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
     let credentials;
     try {
       credentials = JSON.parse(rawCredentials);
-    } catch (parseErr: any) {
+    } catch (parseErr: unknown) {
       console.error("Failed to parse GCP_SERVICE_ACCOUNT_KEY JSON:", parseErr);
       return NextResponse.json({ error: "Invalid GCP_SERVICE_ACCOUNT_KEY format" }, { status: 500 });
     }
     
-    // [디버그] 서비스 계정 이메일 확인 — 403 IAM 권한 진단용
     console.log("[Proxy] Using service account:", credentials.client_email ?? "UNKNOWN");
     
     // Catch-all 배열을 파싱하여 하위 API 경로 동적 재구성
     const subPath = params.path ? `/${params.path.join("/")}` : "";
-    // 기존 URL의 쿼리 스트링(?key=value)이 있다면 그대로 추출하여 결합
     const searchParams = new URL(request.url).search; 
     const finalUrl = `${targetAudience}${subPath}${searchParams}`;
 
-    const auth = new GoogleAuth({
-      credentials,
-      // scopes는 OAuth2 액세스 토큰 방식 전용 — getIdTokenClient(OIDC)와 공존 불가
-    });
+    const auth = new GoogleAuth({ credentials });
     
     const client = await auth.getIdTokenClient(targetAudience);
-    const authHeaders = await client.getRequestHeaders(targetAudience);
-    const authHeaderKeys = Object.keys(authHeaders);
-    const authHeaderDump = JSON.stringify(
-      Object.fromEntries(
-        Object.entries(authHeaders).map(([k, v]) => [k, typeof v === 'string' ? v.substring(0, 40) + '...' : v])
-      )
-    );
+    // getRequestHeaders()는 { Authorization: 'Bearer xxx' } 형태의 plain object를 반환
+    const idTokenHeaders = await client.getRequestHeaders(targetAudience);
+    // Authorization 키에서 토큰 추출 (plain object이므로 bracket notation 사용)
+    const authHeaderValue = idTokenHeaders.Authorization || idTokenHeaders.authorization || "";
+
+    console.log("[Proxy] OIDC token present:", !!authHeaderValue, "| Target:", finalUrl);
 
     const headers = new Headers();
-    // Copy incoming headers that are safe to copy
+    // 안전한 수신 헤더 복사
     const headersToCopy = ["content-type", "accept", "accept-language"];
     for (const h of headersToCopy) {
       const val = request.headers.get(h);
       if (val) headers.set(h, val);
     }
 
-    // Attach Google OIDC Token
-    const authHeaderValue = authHeaders["Authorization"] || authHeaders["authorization"] || "";
+    // Google OIDC 토큰 주입 (Cloud Run 인증용)
     if (authHeaderValue) {
-      headers.set("authorization", authHeaderValue);
+      headers.set("Authorization", authHeaderValue);
     }
 
-    // Attach original Supabase JWT token as X-Forwarded-Authorization
+    // 원본 Supabase JWT 토큰을 별도 헤더로 전달
     const incomingAuth = request.headers.get("authorization");
     if (incomingAuth) {
       headers.set("X-Forwarded-Authorization", incomingAuth);
@@ -68,20 +61,19 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
       headers,
     };
 
-    // GET 및 HEAD 메서드는 body를 가질 수 없으므로 제외
+    // GET/HEAD는 body를 가질 수 없으므로 제외
     if (request.method !== "GET" && request.method !== "HEAD") {
       try {
         const reqBody = await request.json();
         fetchOptions.body = JSON.stringify(reqBody);
-      } catch (jsonErr) {
-        // Fallback to text body if JSON parsing fails
+      } catch {
         try {
           const textBody = await request.text();
           if (textBody) {
             fetchOptions.body = textBody;
           }
         } catch {
-          // Do nothing
+          // body 없는 POST 등 허용
         }
       }
     }
@@ -89,7 +81,7 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
     const response = await fetch(finalUrl, fetchOptions);
     const responseText = await response.text();
 
-    // [디버그] 루트 진단: /api/proxy 루트 요청 시 상세 정보 반환
+    // [디버그] 루트 GET 진단 — 배포 후 /api/proxy 접속 시 상태 확인용
     if (!subPath && request.method === "GET") {
       return NextResponse.json({
         debug: true,
@@ -98,9 +90,8 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
         finalUrl,
         backendStatus: response.status,
         backendStatusText: response.statusText,
-        authHeaderSent: authHeaderValue ? `${authHeaderValue.substring(0, 30)}...` : "EMPTY",
-        authHeaderKeys,
-        authHeaderDump,
+        oidcTokenPresent: !!authHeaderValue,
+        oidcTokenPrefix: authHeaderValue ? String(authHeaderValue).substring(0, 30) + "..." : "NONE",
         backendResponse: responseText.substring(0, 500),
       }, { status: 200 });
     }
@@ -117,13 +108,14 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
       statusText: response.statusText,
     });
 
-  } catch (error: any) {
-    console.error("Reverse Proxy error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Reverse Proxy error:", message);
+    return NextResponse.json({ error: "Internal Server Error", message }, { status: 500 });
   }
 }
 
-// Next.js App Router 규격에 맞추어 HTTP Method 핸들러들을 개방 (Next.js 15+ 비동기 params 처리 대응)
+// Next.js App Router HTTP Method 핸들러 (Next.js 15+ 비동기 params 대응)
 export async function GET(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
   const resolvedParams = await context.params;
   return forwardRequest(request, resolvedParams);
