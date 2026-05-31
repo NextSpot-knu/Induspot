@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
 
-async function handleProxy(request: NextRequest, method: string) {
+async function handleProxy(
+  request: NextRequest,
+  method: string,
+  context: { params: Promise<{ path?: string[] }> }
+) {
   try {
     const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
     if (!serviceAccountKey) {
@@ -24,11 +28,18 @@ async function handleProxy(request: NextRequest, method: string) {
     }
 
     // Target audience URL (Cloud Run API)
-    const targetAudience = "https://induspot-backend-knudc-henryseo711-an.a.run.app";
 
-    // 1. Get query parameter for target endpoint path (e.g. ?path=/api/v1/recommendations)
+    const targetAudience = 'https://induspot-backend-768699236852.asia-northeast3.run.app';
+
+    // 1. Get path from optional catch-all params
+    const { path: pathArr } = await context.params;
+    let subPath = pathArr && pathArr.length > 0 ? `/${pathArr.join("/")}` : "";
+
+    // 2. If path is not in URL path, check query parameters (e.g. ?path=/api/v1/recommendations)
     const searchParams = request.nextUrl.searchParams;
-    const subPath = searchParams.get("path") || searchParams.get("subPath") || "";
+    if (!subPath) {
+      subPath = searchParams.get("path") || searchParams.get("subPath") || "";
+    }
 
     // Forward other query parameters if they exist
     const forwardedSearchParams = new URLSearchParams(searchParams);
@@ -40,7 +51,7 @@ async function handleProxy(request: NextRequest, method: string) {
     const targetUrl = `${targetAudience.replace(/\/$/, "")}${subPath}${queryString ? `?${queryString}` : ""}`;
     console.log(`Proxying ${method} request to target: ${targetUrl}`);
 
-    // 2. Generate Google OIDC ID Token using the parsed credentials
+    // 3. Generate Google OIDC ID Token using the parsed credentials
     let authHeaderValue = "";
     try {
       const auth = new GoogleAuth({
@@ -58,7 +69,7 @@ async function handleProxy(request: NextRequest, method: string) {
       );
     }
 
-    // 3. Prepare headers
+    // 4. Prepare headers
     const headers = new Headers();
     // Copy incoming headers that are safe to copy
     const headersToCopy = ["content-type", "accept", "accept-language"];
@@ -78,7 +89,7 @@ async function handleProxy(request: NextRequest, method: string) {
       headers.set("X-Forwarded-Authorization", incomingAuth);
     }
 
-    // 4. Parse body from incoming request if not GET/HEAD
+    // 5. Parse body from incoming request if not GET/HEAD
     let body: any = null;
     if (method !== "GET" && method !== "HEAD") {
       const contentType = request.headers.get("content-type") || "";
@@ -93,7 +104,7 @@ async function handleProxy(request: NextRequest, method: string) {
       }
     }
 
-    // 5. Send fetch request to GCP Cloud Run target
+    // 6. Send fetch request to GCP Cloud Run target
     const response = await fetch(targetUrl, {
       method,
       headers,
@@ -123,22 +134,22 @@ async function handleProxy(request: NextRequest, method: string) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  return handleProxy(request, "POST");
+export async function POST(request: NextRequest, context: any) {
+  return handleProxy(request, "POST", context);
 }
 
-export async function GET(request: NextRequest) {
-  return handleProxy(request, "GET");
+export async function GET(request: NextRequest, context: any) {
+  return handleProxy(request, "GET", context);
 }
 
-export async function PUT(request: NextRequest) {
-  return handleProxy(request, "PUT");
+export async function PUT(request: NextRequest, context: any) {
+  return handleProxy(request, "PUT", context);
 }
 
-export async function DELETE(request: NextRequest) {
-  return handleProxy(request, "DELETE");
+export async function DELETE(request: NextRequest, context: any) {
+  return handleProxy(request, "DELETE", context);
 }
 
-export async function PATCH(request: NextRequest) {
-  return handleProxy(request, "PATCH");
+export async function PATCH(request: NextRequest, context: any) {
+  return handleProxy(request, "PATCH", context);
 }
