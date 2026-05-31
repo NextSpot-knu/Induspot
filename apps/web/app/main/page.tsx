@@ -67,6 +67,20 @@ export default function MainPage() {
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isCardHidden, setIsCardHidden] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+  };
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   const router = useRouter();
 
@@ -295,16 +309,8 @@ export default function MainPage() {
     userMarkerRef.current = userMarker;
   }, [userLocation, mapLoaded]);
 
-  // Save selected facility ID to sessionStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (selectedFacility) {
-        sessionStorage.setItem('induspot_selected_facility_id', selectedFacility.id);
-      } else {
-        sessionStorage.removeItem('induspot_selected_facility_id');
-      }
-    }
-  }, [selectedFacility]);
+  // (selected facility ID sessionStorage sync removed – no longer used)
+
 
   // Load saved IDs, rejected IDs, and active filter from storage on mount
   useEffect(() => {
@@ -409,67 +415,63 @@ export default function MainPage() {
     if (hour >= 12 && hour < 14) timeMultiplier = 1.3;
     else if (hour === 7 || hour === 15) timeMultiplier = 1.2;
 
-    const expectedWait = facility.congestionLevel * avgProcessTime * timeMultiplier;
+    const expectedWait = (facility.congestionLevel ?? 0) * avgProcessTime * timeMultiplier;
 
     // 3. Expected Travel
-    const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, facility.latitude, facility.longitude);
+    const fLat = typeof facility.latitude === 'number' ? facility.latitude : userLocation.lat;
+    const fLng = typeof facility.longitude === 'number' ? facility.longitude : userLocation.lng;
+    const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, fLat, fLng);
     const expectedTravel = distanceM / 66.67;
 
-    // 4. TTTV Score
-    const w1 = 0.4, w2 = 0.4, w3 = 0.2;
+    // 4. TTTV Score (황금비: 0.45 : 0.25 : 0.30) 및 Min-Max 정규화 적용
+    const w1 = 0.45, w2 = 0.25, w3 = 0.30;
     const timeCost = Math.min(1.0, (expectedWait + expectedTravel) / 60.0);
-    const incentive = Math.max(0, 0.7 - facility.congestionLevel);
+    const incentive = Math.max(0, 0.7 - (facility.congestionLevel ?? 0));
     const score = (w1 * preferenceMatching) - (w2 * timeCost) + (w3 * incentive);
-    const finalScore = Math.max(0, Math.min(1, score));
+    
+    // 시간비용 감산 패널티로 인한 점수 하향 왜곡 방지를 위해 Min-Max 정규화 적용
+    const normalized = (score + w2) / (w1 + w2 + w3);
+    const finalScore = Math.max(0, Math.min(1, normalized));
 
     return {
-      score: Math.round(finalScore * 100),
-      preferencePercent: Math.round(preferenceMatching * 100),
-      expectedWait: Math.round(expectedWait * 10) / 10,
-      expectedTravel: Math.round(expectedTravel * 10) / 10,
-      timeToService: Math.round((expectedWait + expectedTravel) * 10) / 10
+      score: isNaN(finalScore) ? 0 : Math.round(finalScore * 100),
+      preferencePercent: isNaN(preferenceMatching) ? 0 : Math.round(preferenceMatching * 100),
+      expectedWait: isNaN(expectedWait) ? 0 : Math.round(expectedWait * 10) / 10,
+      expectedTravel: isNaN(expectedTravel) ? 0 : Math.round(expectedTravel * 10) / 10,
+      timeToService: isNaN(expectedWait + expectedTravel) ? 0 : Math.round((expectedWait + expectedTravel) * 10) / 10
     };
   };
 
-  // Synchronize AI recommendations on map and set selected facility to the top recommended spot
+  // Synchronize AI recommendations: always show the #1 scored candidate for the active filter.
+  // Runs whenever facilities, filter, rejected/saved sets, location, or preferences change.
   useEffect(() => {
-    if (facilities.length === 0) return;
+    try {
+      if (facilities.length === 0) return;
 
-    const filterMap: Record<string, string> = {
-      '식당': 'cafeteria',
-      '주차장': 'parking',
-      '회의실': 'meeting_room',
-      '휴게실': 'loading_dock'
-    };
-    const targetType = filterMap[activeFilter];
-    
-    // Filter facilities of active type, excluding rejected and saved ones
-    const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
-    
-    if (candidates.length > 0) {
-      // Calculate TTTV and sort
-      const scored = candidates.map(f => ({
-        ...f,
-        tttv: calculateTTTV(f)
-      }));
-      scored.sort((a, b) => b.tttv.score - a.tttv.score);
-      
-      // Try to restore previous selection if it is still a valid candidate
-      let restoredFacility = null;
-      if (typeof window !== 'undefined') {
-        const savedId = sessionStorage.getItem('induspot_selected_facility_id');
-        if (savedId) {
-          restoredFacility = scored.find(f => f.id === savedId);
-        }
-      }
+      const filterMap: Record<string, string> = {
+        '식당': 'cafeteria',
+        '주차장': 'parking',
+        '회의실': 'meeting_room',
+        '휴게실': 'loading_dock'
+      };
+      const targetType = filterMap[activeFilter];
 
-      if (restoredFacility) {
-        setSelectedFacility(restoredFacility);
-      } else {
+      // Candidates: active filter type, not rejected, not saved/put-off
+      const candidates = facilities.filter(
+        f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id)
+      );
+
+      if (candidates.length > 0) {
+        const scored = candidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+        scored.sort((a, b) => b.tttv.score - a.tttv.score);
+        // Always show #1 automatically – guarantees card opens on page load and after any action
         setSelectedFacility(scored[0]);
+        setIsCardHidden(false);
+      } else {
+        setSelectedFacility(null);
       }
-    } else {
-      setSelectedFacility(null);
+    } catch (err) {
+      console.error("Error in recommendation synchronization effect:", err);
     }
   }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories]);
 
@@ -482,7 +484,7 @@ export default function MainPage() {
     else if (fac.type === "parking") greeting = "안전 주차 하세요!";
     else if (fac.type === "meeting_room") greeting = "성공적인 회의 되세요!";
     
-    alert(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
+    showToast(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
@@ -527,6 +529,34 @@ export default function MainPage() {
   const handlePutOff = (fac: any) => {
     if (!fac) return;
     
+    // Clear selection from sessionStorage immediately to prevent restoration logic from sticking to this item
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('induspot_selected_facility_id');
+      } catch (e) {}
+    }
+
+    // ★ Compute next facility BEFORE state update to avoid async race condition
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'loading_dock'
+    };
+    const targetType = filterMap[activeFilter];
+    // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
+    const nextSavedIds = new Set(savedIds);
+    nextSavedIds.add(fac.id);
+    const nextCandidates = facilities.filter(f =>
+      f.type === targetType && !rejectedIds.has(f.id) && !nextSavedIds.has(f.id)
+    );
+    if (nextCandidates.length > 0) {
+      const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+      nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
+      setSelectedFacility(nextScored[0]);
+    } else {
+      setSelectedFacility(null);
+    }
+    // ★ Force card open so the next recommendation is visible
+    setIsCardHidden(false);
+
     setSavedIds(prev => {
       const next = new Set(prev);
       next.add(fac.id);
@@ -552,22 +582,54 @@ export default function MainPage() {
       console.error("Failed to save bookmark:", e);
     }
 
-    alert(`'${fac.name}'이(가) Saved 탭에 저장되었습니다! 다음 추천을 불러옵니다.`);
+    showToast(`'${fac.name}'이(가) Saved 탭에 저장되었습니다! 다음 추천을 불러옵니다.`);
   };
 
   const handleReject = (fac: any) => {
     if (!fac) return;
     
+    // Clear selection from sessionStorage immediately to prevent restoration logic from sticking to this item
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('induspot_selected_facility_id');
+      } catch (e) {}
+    }
+
+    // ★ Compute next facility BEFORE state update to avoid async race condition
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'loading_dock'
+    };
+    const targetType = filterMap[activeFilter];
+    // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
+    const nextRejectedIds = new Set(rejectedIds);
+    nextRejectedIds.add(fac.id);
+    const nextCandidates = facilities.filter(f =>
+      f.type === targetType && !nextRejectedIds.has(f.id) && !savedIds.has(f.id)
+    );
+    if (nextCandidates.length > 0) {
+      const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+      nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
+      setSelectedFacility(nextScored[0]);
+    } else {
+      setSelectedFacility(null);
+    }
+    // ★ Force card open so the next recommendation is visible
+    setIsCardHidden(false);
+
     setRejectedIds(prev => {
       const next = new Set(prev);
       next.add(fac.id);
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('induspot_rejected_ids', JSON.stringify(Array.from(next)));
+        try {
+          sessionStorage.setItem('induspot_rejected_ids', JSON.stringify(Array.from(next)));
+        } catch (e) {
+          console.error("Failed to save rejected IDs to sessionStorage:", e);
+        }
       }
       return next;
     });
     
-    alert(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
+    showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
   // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
@@ -769,6 +831,7 @@ export default function MainPage() {
                 key={filter.id}
                 onClick={() => {
                   setActiveFilter(filter.id);
+                  setIsCardHidden(false);
                   if (typeof window !== 'undefined') {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
@@ -789,30 +852,44 @@ export default function MainPage() {
 
       {/* AI Recommendation Card (Floating Bottom Sheet) */}
       {selectedFacility && !isCardHidden && (() => {
-        const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
-        return (
-          <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
-            <RecommendationCard 
-              title={selectedFacility.name}
-              description={
-                selectedFacility.type === 'parking'
-                  ? `실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'}`
-                  : `실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`
-              }
-              onAccept={() => handleAccept(selectedFacility)}
-              onReject={() => handleReject(selectedFacility)}
-              onPutOff={() => handlePutOff(selectedFacility)}
-              onClose={() => setIsCardHidden(true)}
-              tttvScore={tttv.score}
-              preferencePercent={tttv.preferencePercent}
-              expectedWait={tttv.expectedWait}
-              expectedTravel={tttv.expectedTravel}
-              timeToService={tttv.timeToService}
-              facilityType={selectedFacility.type}
-              facility={selectedFacility}
-            />
-          </div>
-        );
+        try {
+          const targetType = selectedFacility.type;
+          const activeCandidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id));
+          const activeScored = activeCandidates.map(f => ({
+            ...f,
+            tttv: calculateTTTV(f)
+          })).sort((a, b) => b.tttv.score - a.tttv.score);
+          
+          const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
+          const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
+          const totalCandidates = activeScored.length;
+
+          const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
+          return (
+            <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
+              <RecommendationCard 
+                title={selectedFacility.name}
+                description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
+                onAccept={() => handleAccept(selectedFacility)}
+                onReject={() => handleReject(selectedFacility)}
+                onPutOff={() => handlePutOff(selectedFacility)}
+                onClose={() => setIsCardHidden(true)}
+                tttvScore={tttv.score}
+                preferencePercent={tttv.preferencePercent}
+                expectedWait={tttv.expectedWait}
+                expectedTravel={tttv.expectedTravel}
+                timeToService={tttv.timeToService}
+                facilityType={selectedFacility.type}
+                facility={selectedFacility}
+                rank={rank}
+                totalCandidates={totalCandidates}
+              />
+            </div>
+          );
+        } catch (err) {
+          console.error("Error rendering RecommendationCard IIFE:", err);
+          return null;
+        }
       })()}
 
       {/* Test Mock Locations Sidebar (Right Side) */}
@@ -842,7 +919,7 @@ export default function MainPage() {
                     if (typeof window !== 'undefined') {
                       sessionStorage.removeItem('induspot_selected_facility_id');
                     }
-                    alert(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
+                    showToast(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
                   }}
                   className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
                     isCurrent
@@ -860,7 +937,7 @@ export default function MainPage() {
 
       {/* Restore Card Trigger Button when hidden */}
       {selectedFacility && isCardHidden && (
-        <div className="absolute bottom-[100px] right-4 z-20">
+        <div className="absolute bottom-[160px] right-4 z-20">
           <button
             onClick={() => setIsCardHidden(false)}
             className="flex items-center gap-2 px-4 py-3 bg-[#111622]/90 hover:bg-[#1b2336] text-white border border-blue-500/30 hover:border-blue-400 rounded-full font-bold text-xs shadow-lg shadow-blue-500/10 active:scale-95 transition-all pointer-events-auto"
@@ -898,6 +975,15 @@ export default function MainPage() {
           );
         })}
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-[350px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
+          <div className="bg-black/85 backdrop-blur-md text-white text-xs sm:text-sm px-5 py-3 rounded-full shadow-lg text-center font-medium break-keep">
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

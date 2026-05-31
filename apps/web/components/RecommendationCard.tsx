@@ -18,6 +18,8 @@ interface RecommendationCardProps {
   timeToService?: number;
   facilityType?: string;
   facility?: any;
+  rank?: number;
+  totalCandidates?: number;
 }
 
 export function RecommendationCard({
@@ -35,6 +37,8 @@ export function RecommendationCard({
   timeToService,
   facilityType,
   facility,
+  rank,
+  totalCandidates,
 }: RecommendationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [translateY, setTranslateY] = useState(0);
@@ -187,6 +191,11 @@ export function RecommendationCard({
           <div className="flex items-center gap-1.5 text-blue-400 mb-1.5 text-xs font-semibold tracking-wider">
             <Sparkles size={14} className="animate-pulse" />
             <span>AI 추천 대안 경로</span>
+            {rank && totalCandidates && (
+              <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-md ml-1.5">
+                대안 {totalCandidates}개 중 {rank}등
+              </span>
+            )}
           </div>
           <h3 className="text-xl font-bold text-white tracking-tight">{title}</h3>
           

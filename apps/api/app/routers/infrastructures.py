@@ -110,3 +110,66 @@ async def get_infrastructures(
     except Exception as e:
         logger.error("infrastructures_fetch_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"시설 데이터 조회 실패: {str(e)}")
+
+
+@router.post("/admin/simulate-peak")
+async def simulate_peak():
+    """
+    데모 전용 피크타임 혼잡도 데이터 모의 발생 API.
+    실행 시 모든 시설에 대해 실시간 랜덤 혼잡 로그(여유 15개, 보통 15개, 혼잡 10개)를 생성 및 DB에 삽입합니다.
+    """
+    try:
+        # 1. 모든 시설 목록 가져오기
+        res = await asyncio.to_thread(supabase_client.table("facilities").select("id, name, type, capacity").execute)
+        facilities = res.data
+        if not facilities:
+            raise HTTPException(status_code=404, detail="시설 목록을 찾을 수 없습니다.")
+        
+        # 2. 혼잡도 구간 무작위 셔플 및 분할 배정
+        import random
+        from datetime import datetime, timezone
+        
+        shuffled = list(facilities)
+        random.shuffle(shuffled)
+        
+        logs = []
+        now_str = datetime.now(timezone.utc).isoformat()
+        
+        for idx, f in enumerate(shuffled):
+            fid = f["id"]
+            capacity = f["capacity"]
+            
+            if idx < 15:
+                # 여유 (0.05 ~ 0.28)
+                level = round(random.uniform(0.05, 0.28), 2)
+            elif idx < 30:
+                # 보통 (0.35 ~ 0.65)
+                level = round(random.uniform(0.35, 0.65), 2)
+            else:
+                # 혼잡 (0.72 ~ 0.95)
+                level = round(random.uniform(0.72, 0.95), 2)
+                
+            current_count = int(capacity * level)
+            source = "iot_sensor" if f["type"] in ["parking", "loading_dock"] else "cctv"
+            
+            logs.append({
+                "facility_id": fid,
+                "congestion_level": level,
+                "current_count": current_count,
+                "source": source,
+                "timestamp": now_str
+            })
+            
+        # 3. DB에 INSERT (10개 청크씩)
+        inserted_count = 0
+        for i in range(0, len(logs), 10):
+            chunk = logs[i:i+10]
+            res_insert = await asyncio.to_thread(supabase_client.table("congestion_logs").insert(chunk).execute)
+            inserted_count += len(res_insert.data)
+            
+        logger.info("simulate_peak_success", inserted_logs=inserted_count)
+        return {"status": "success", "message": f"모의 피크타임 혼잡 로그 {inserted_count}개가 성공적으로 삽입되었습니다."}
+        
+    except Exception as e:
+        logger.error("simulate_peak_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"피크타임 모의 생성 실패: {str(e)}")

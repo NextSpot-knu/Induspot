@@ -126,6 +126,8 @@ export interface RecommendationResponse {
     incentive: number;
   };
   distanceM: number;
+  rank: number;
+  totalCandidates: number;
 }
 
 export async function getRecommendations(
