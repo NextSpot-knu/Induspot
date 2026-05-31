@@ -20,8 +20,6 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
       return NextResponse.json({ error: "Invalid GCP_SERVICE_ACCOUNT_KEY format" }, { status: 500 });
     }
     
-    console.log("[Proxy] Using service account:", credentials.client_email ?? "UNKNOWN");
-    
     // Catch-all 배열을 파싱하여 하위 API 경로 동적 재구성
     const subPath = params.path ? `/${params.path.join("/")}` : "";
     const searchParams = new URL(request.url).search; 
@@ -43,8 +41,6 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
       const obj = rawHeaders as Record<string, string>;
       authHeaderValue = obj["Authorization"] || obj["authorization"] || "";
     }
-
-    console.log("[Proxy] OIDC token present:", !!authHeaderValue, "| Target:", finalUrl);
 
     const headers = new Headers();
     // 안전한 수신 헤더 복사
@@ -89,27 +85,6 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
 
     const response = await fetch(finalUrl, fetchOptions);
     const responseText = await response.text();
-
-    // [디버그] 루트 GET 진단 — 배포 후 /api/proxy 접속 시 상태 확인용
-    if (!subPath && request.method === "GET") {
-      return NextResponse.json({
-        debug: true,
-        serviceAccount: credentials.client_email ?? "UNKNOWN",
-        targetAudience,
-        finalUrl,
-        backendStatus: response.status,
-        backendStatusText: response.statusText,
-        oidcTokenPresent: !!authHeaderValue,
-        oidcTokenPrefix: authHeaderValue ? String(authHeaderValue).substring(0, 30) + "..." : "NONE",
-        headersDebug: {
-          typeofRaw: typeof rawHeaders,
-          hasGetMethod: typeof (rawHeaders as { get?: unknown }).get === "function",
-          constructorName: rawHeaders?.constructor?.name ?? "null",
-          keys: rawHeaders && typeof rawHeaders === "object" ? Object.keys(rawHeaders as object) : [],
-        },
-        backendResponse: responseText.substring(0, 500),
-      }, { status: 200 });
-    }
 
     let responseData;
     try {
