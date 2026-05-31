@@ -760,7 +760,7 @@ export default function MainPage() {
 
       {/* Restore Card Trigger Button when hidden */}
       {selectedFacility && isCardHidden && (
-        <div className="absolute bottom-[100px] right-4 z-20">
+        <div className="absolute bottom-[160px] right-4 z-20">
           <button
             onClick={() => setIsCardHidden(false)}
             className="flex items-center gap-2 px-4 py-3 bg-[#111622]/90 hover:bg-[#1b2336] text-white border border-blue-500/30 hover:border-blue-400 rounded-full font-bold text-xs shadow-lg shadow-blue-500/10 active:scale-95 transition-all pointer-events-auto"
@@ -801,7 +801,7 @@ export default function MainPage() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-28 left-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
+        <div className="fixed bottom-[350px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
           <div className="bg-black/85 backdrop-blur-md text-white text-xs sm:text-sm px-5 py-3 rounded-full shadow-lg text-center font-medium break-keep">
             {toastMessage}
           </div>
