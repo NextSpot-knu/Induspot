@@ -59,6 +59,7 @@ export default function MainPage() {
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
+  const isInitialLoadRef = useRef(true);
 
   const [activeTab, setActiveTab] = useState('Home');
   const [activeFilter, setActiveFilter] = useState('주차장');
@@ -244,10 +245,14 @@ export default function MainPage() {
   // Save selected facility ID to sessionStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (selectedFacility) {
-        sessionStorage.setItem('induspot_selected_facility_id', selectedFacility.id);
-      } else {
-        sessionStorage.removeItem('induspot_selected_facility_id');
+      try {
+        if (selectedFacility) {
+          sessionStorage.setItem('induspot_selected_facility_id', selectedFacility.id);
+        } else {
+          sessionStorage.removeItem('induspot_selected_facility_id');
+        }
+      } catch (e) {
+        console.error("Failed to save selected facility ID to sessionStorage:", e);
       }
     }
   }, [selectedFacility]);
@@ -255,12 +260,6 @@ export default function MainPage() {
   // Load saved IDs, rejected IDs, and active filter from storage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.removeItem('induspot_selected_facility_id');
-      } catch (e) {
-        console.error("Failed to clear selected facility ID on mount:", e);
-      }
-
       try {
         const saved = localStorage.getItem('induspot_saved_facilities');
         if (saved) {
@@ -411,11 +410,19 @@ export default function MainPage() {
       
       // Try to restore previous selection if it is still a valid candidate
       let restoredFacility = null;
-      if (typeof window !== 'undefined') {
-        const savedId = sessionStorage.getItem('induspot_selected_facility_id');
-        if (savedId) {
-          restoredFacility = scored.find(f => f.id === savedId);
+      if (!isInitialLoadRef.current) {
+        if (typeof window !== 'undefined') {
+          try {
+            const savedId = sessionStorage.getItem('induspot_selected_facility_id');
+            if (savedId) {
+              restoredFacility = scored.find(f => f.id === savedId);
+            }
+          } catch (e) {
+            console.error("Failed to restore selected facility ID from sessionStorage:", e);
+          }
         }
+      } else {
+        isInitialLoadRef.current = false;
       }
 
       if (restoredFacility) {
@@ -517,7 +524,11 @@ export default function MainPage() {
       const next = new Set(prev);
       next.add(fac.id);
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('induspot_rejected_ids', JSON.stringify(Array.from(next)));
+        try {
+          sessionStorage.setItem('induspot_rejected_ids', JSON.stringify(Array.from(next)));
+        } catch (e) {
+          console.error("Failed to save rejected IDs to sessionStorage:", e);
+        }
       }
       return next;
     });
