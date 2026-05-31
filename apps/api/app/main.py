@@ -5,6 +5,7 @@ from app.core.supabase import get_current_user
 from app.core.logging import setup_logging
 from app.routers import recommendations, infrastructures
 
+
 # 로깅 설정 초기화
 setup_logging()
 
@@ -14,10 +15,11 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS 설정
+
+#CORS 설정 //  app = FastAPI() 선언문 하단에 정확히 삽입하십시오.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
