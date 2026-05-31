@@ -502,6 +502,27 @@ export default function MainPage() {
       } catch (e) {}
     }
 
+    // ★ Compute next facility BEFORE state update to avoid async race condition
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'loading_dock'
+    };
+    const targetType = filterMap[activeFilter];
+    // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
+    const nextSavedIds = new Set(savedIds);
+    nextSavedIds.add(fac.id);
+    const nextCandidates = facilities.filter(f =>
+      f.type === targetType && !rejectedIds.has(f.id) && !nextSavedIds.has(f.id)
+    );
+    if (nextCandidates.length > 0) {
+      const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+      nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
+      setSelectedFacility(nextScored[0]);
+    } else {
+      setSelectedFacility(null);
+    }
+    // ★ Force card open so the next recommendation is visible
+    setIsCardHidden(false);
+
     setSavedIds(prev => {
       const next = new Set(prev);
       next.add(fac.id);
@@ -539,6 +560,27 @@ export default function MainPage() {
         sessionStorage.removeItem('induspot_selected_facility_id');
       } catch (e) {}
     }
+
+    // ★ Compute next facility BEFORE state update to avoid async race condition
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'loading_dock'
+    };
+    const targetType = filterMap[activeFilter];
+    // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
+    const nextRejectedIds = new Set(rejectedIds);
+    nextRejectedIds.add(fac.id);
+    const nextCandidates = facilities.filter(f =>
+      f.type === targetType && !nextRejectedIds.has(f.id) && !savedIds.has(f.id)
+    );
+    if (nextCandidates.length > 0) {
+      const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+      nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
+      setSelectedFacility(nextScored[0]);
+    } else {
+      setSelectedFacility(null);
+    }
+    // ★ Force card open so the next recommendation is visible
+    setIsCardHidden(false);
 
     setRejectedIds(prev => {
       const next = new Set(prev);
