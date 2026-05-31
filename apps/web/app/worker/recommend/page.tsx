@@ -785,8 +785,21 @@ function RecommendContent() {
                       <span className="font-bold text-sky-300">{preferencePct}%</span>
                     </div>
                     <div className="text-center border-l border-r border-white/5">
-                      <span className="text-slate-500 block text-[9px] uppercase">예상 대기</span>
-                      <span className="font-bold text-amber-400">{waitTime}분</span>
+                      {rec.facility.type === 'parking' ? (
+                        <>
+                          <span className="text-slate-500 block text-[9px] uppercase">주차자리</span>
+                          <span className="font-bold text-amber-400">
+                            {rec.facility.capacity && rec.facility.currentCount !== undefined 
+                              ? `${Math.max(0, rec.facility.capacity - rec.facility.currentCount)} / ${rec.facility.capacity}`
+                              : '-'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-slate-500 block text-[9px] uppercase">예상 대기</span>
+                          <span className="font-bold text-amber-400">{waitTime}분</span>
+                        </>
+                      )}
                     </div>
                     <div className="text-center">
                       <span className="text-slate-500 block text-[9px] uppercase">예상 도보</span>

@@ -40,6 +40,12 @@ export function RecommendationCard({
   const [translateY, setTranslateY] = useState(0);
   const [startY, setStartY] = useState<number | null>(null);
   
+  // Meeting room mock state
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingTime, setBookingTime] = useState('09:00');
+  const [bookingName, setBookingName] = useState('');
+  
   const [placeInfo, setPlaceInfo] = useState<{
     address?: string;
     phone?: string;
@@ -197,7 +203,7 @@ export function RecommendationCard({
             className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-purple-500/30 bg-purple-500/10 cursor-pointer shadow-md"
             onClick={toggleExpand}
           >
-            <span className="text-white font-black text-base">{Math.round(tttvScore)}</span>
+            <span className="text-white font-black text-base">{Math.round(tttvScore || 0)}</span>
             <span className="text-[9px] text-purple-300 font-bold uppercase">TTTV</span>
           </div>
         ) : (
@@ -211,28 +217,86 @@ export function RecommendationCard({
       </div>
 
       {/* TTTV Metric Grid (Only if metrics are provided) */}
-      {hasTttvMetrics && (
+      {hasTttvMetrics && facilityType !== 'loading_dock' && (
         <div className="flex flex-col gap-2 mt-1">
-          {/* Main 3 Metrics */}
-          <div className="grid grid-cols-3 gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px]">
-            <div className="text-center">
-              <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">선호 일치율</span>
-              <span className="font-extrabold text-sky-400">{preferencePercent}%</span>
-            </div>
-            <div className="text-center border-x border-white/10">
-              <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 대기</span>
-              <span className="font-extrabold text-amber-400">{expectedWait}분</span>
-            </div>
-            <div className="text-center">
-              <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 이동</span>
-              <span className="font-extrabold text-emerald-400">{expectedTravel}분</span>
-            </div>
+          {/* Main Metrics */}
+          <div className={`grid gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px] ${facilityType === 'meeting_room' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {facilityType === 'meeting_room' ? (
+              <>
+                <div className="text-center">
+                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">현재 이용현황</span>
+                  <span className="font-extrabold text-sky-400">
+                    {facility?.congestionLevel >= 0.7 ? '사용중' : '비어있음'}
+                  </span>
+                </div>
+                <div className="text-center border-l border-white/10">
+                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">남은 시간</span>
+                  <span className="font-extrabold text-amber-400">
+                    {facility?.congestionLevel >= 0.7 ? `${facility?.features?.remainingMinutes || 15}분` : '-'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center">
+                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">선호 일치율</span>
+                  <span className="font-extrabold text-sky-400">{preferencePercent}%</span>
+                </div>
+                <div className="text-center border-x border-white/10">
+                  {facilityType === 'parking' ? (
+                    <>
+                      <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">주차자리</span>
+                      <span className="font-extrabold text-amber-400">
+                        {facility?.capacity && facility?.currentCount !== undefined 
+                          ? `${Math.max(0, facility.capacity - facility.currentCount)} / ${facility.capacity}`
+                          : '-'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 대기</span>
+                      <span className="font-extrabold text-amber-400">{expectedWait}분</span>
+                    </>
+                  )}
+                </div>
+                <div className="text-center">
+                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 이동</span>
+                  <span className="font-extrabold text-emerald-400">{expectedTravel}분</span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Time to Service (Time cost sum) */}
-          <div className="flex justify-between items-center bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-2 text-xs font-semibold shadow-inner">
-            <span className="text-blue-300 font-medium">서비스 이용까지 (대기 + 이동)</span>
-            <span className="text-white font-black text-sm">{timeToService}분</span>
+          {facilityType !== 'meeting_room' && (
+            <div className="flex justify-between items-center bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-2 text-xs font-semibold shadow-inner">
+              <span className="text-blue-300 font-medium">서비스 이용까지 (대기 + 이동)</span>
+              <span className="text-white font-black text-sm">{timeToService}분</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 휴게실 특화 UI (TTTV 미사용) */}
+      {facilityType === 'loading_dock' && (
+        <div className="flex flex-col gap-2 mt-1">
+          <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
+            <span className="text-slate-300 font-medium">안마의자 이용현황</span>
+            <span className="font-extrabold text-amber-400">
+              {facility?.features?.massageChairs ? `${facility.features.massageChairs.inUse} / ${facility.features.massageChairs.total}` : '0 / 3'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
+            <span className="text-slate-300 font-medium">수면캡슐 이용현황</span>
+            <span className="font-extrabold text-sky-400">
+              {facility?.features?.sleepCapsules ? `${facility.features.sleepCapsules.inUse} / ${facility.features.sleepCapsules.total}` : '0 / 2'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
+            <span className="text-slate-300 font-medium">플레이스테이션 이용현황</span>
+            <span className="font-extrabold text-purple-400">
+              {facility?.features?.playstation ? `${facility.features.playstation.inUse} / ${facility.features.playstation.total}` : '0 / 1'}
+            </span>
           </div>
         </div>
       )}
@@ -301,29 +365,117 @@ export function RecommendationCard({
         </div>
       </div>
 
-      {/* Action Buttons: Reject, Put off, Accept Route */}
-      <div className="flex gap-2 mt-1">
-        <button
-          onClick={onReject}
-          className="flex-1 bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/30 text-gray-300 font-bold py-3 rounded-2xl border border-white/10 transition-all text-xs focus:outline-none"
-        >
-          Reject
-        </button>
-        {onPutOff && (
+      {/* Action Buttons: Reject, Put off, Accept Route (or custom for meeting rooms) */}
+      {facilityType === 'loading_dock' ? null : facilityType === 'meeting_room' ? (
+        <div className="flex gap-2 mt-1">
           <button
-            onClick={onPutOff}
-            className="flex-1 bg-white/5 hover:bg-amber-500/10 hover:text-amber-400 hover:border-amber-500/30 text-gray-300 font-bold py-3 rounded-2xl border border-white/10 transition-all text-xs focus:outline-none"
+            onClick={() => setShowScheduleModal(true)}
+            className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 font-bold py-3 rounded-2xl border border-white/10 transition-all text-xs"
           >
-            Put off
+            예약 현황
           </button>
-        )}
-        <button
-          onClick={onAccept}
-          className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-2xl transition-all text-xs shadow-md shadow-blue-500/20 focus:outline-none"
-        >
-          Accept Route
-        </button>
-      </div>
+          <button
+            onClick={() => setShowBookingModal(true)}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-2xl transition-all text-xs shadow-md shadow-blue-500/20"
+          >
+            예약하기
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={onReject}
+            className="flex-1 bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/30 text-gray-300 font-bold py-3 rounded-2xl border border-white/10 transition-all text-xs focus:outline-none"
+          >
+            Reject
+          </button>
+          {onPutOff && (
+            <button
+              onClick={onPutOff}
+              className="flex-1 bg-white/5 hover:bg-amber-500/10 hover:text-amber-400 hover:border-amber-500/30 text-gray-300 font-bold py-3 rounded-2xl border border-white/10 transition-all text-xs focus:outline-none"
+            >
+              Put off
+            </button>
+          )}
+          <button
+            onClick={onAccept}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-2xl transition-all text-xs shadow-md shadow-blue-500/20 focus:outline-none"
+          >
+            Accept Route
+          </button>
+        </div>
+      )}
+
+      {/* Meeting Room Schedule Modal (Mock) */}
+      {showScheduleModal && (
+        <div className="absolute inset-0 z-50 bg-[#111622]/95 backdrop-blur-xl flex flex-col p-5">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="text-white font-bold text-lg">오늘 예약 현황</h4>
+            <button onClick={() => setShowScheduleModal(false)} className="text-gray-400 hover:text-white">✕</button>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            {['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'].map((time, idx) => {
+              const isBooked = idx % 3 === 1 || idx % 4 === 2; // dummy logic
+              return (
+                <div key={time} className={`flex items-center justify-between p-3 rounded-xl border ${isBooked ? 'bg-white/5 border-white/10' : 'bg-blue-500/10 border-blue-500/20'}`}>
+                  <span className="text-sm font-bold text-slate-300">{time} ~</span>
+                  {isBooked ? (
+                    <span className="text-xs text-slate-400">예약됨 (홍길동)</span>
+                  ) : (
+                    <span className="text-xs text-blue-400 font-bold">예약 가능</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Meeting Room Booking Modal (Mock) */}
+      {showBookingModal && (
+        <div className="absolute inset-0 z-50 bg-[#111622]/95 backdrop-blur-xl flex flex-col p-5 justify-center">
+          <div className="flex justify-between items-center mb-6">
+            <h4 className="text-white font-bold text-lg">회의실 예약하기</h4>
+            <button onClick={() => setShowBookingModal(false)} className="text-gray-400 hover:text-white">✕</button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">예약 시간 (비어있는 시간대)</label>
+              <select 
+                className="w-full bg-black/50 border border-white/20 text-white rounded-xl p-3 outline-none"
+                value={bookingTime}
+                onChange={(e) => setBookingTime(e.target.value)}
+              >
+                <option value="09:00">09:00 ~ 09:30</option>
+                <option value="11:00">11:00 ~ 11:30</option>
+                <option value="13:30">13:30 ~ 14:00</option>
+                <option value="15:00">15:00 ~ 15:30</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">예약자명</label>
+              <input 
+                type="text" 
+                placeholder="이름을 입력하세요"
+                className="w-full bg-black/50 border border-white/20 text-white rounded-xl p-3 outline-none"
+                value={bookingName}
+                onChange={(e) => setBookingName(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => {
+                if (!bookingName) return alert('예약자명을 입력해주세요.');
+                alert(`${bookingName}님, ${bookingTime} 예약이 완료되었습니다.`);
+                setShowBookingModal(false);
+                setBookingName('');
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl mt-4"
+            >
+              예약 완료
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

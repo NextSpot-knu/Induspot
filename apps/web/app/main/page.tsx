@@ -59,6 +59,7 @@ export default function MainPage() {
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
+  const activeOverlayRef = useRef<any>(null);
 
   const [activeTab, setActiveTab] = useState('Home');
   const [activeFilter, setActiveFilter] = useState('주차장');
@@ -138,7 +139,74 @@ export default function MainPage() {
           };
         });
 
-        setFacilities(mapped);
+        // --- Mock Data Injection for Lounges and Meeting Rooms ---
+        const companyLat = 36.109031;
+        const companyLng = 128.388471;
+        
+        const dummyLoungesSub = Array.from({length: 5}).map((_, i) => ({
+           id: `dummy-lounge-${i}`,
+           name: `사내 휴게실 ${i+1}`,
+           type: 'loading_dock',
+           capacity: 10,
+           congestionLevel: Math.random(),
+           currentCount: Math.floor(Math.random() * 10),
+           features: {
+             massageChairs: { total: 3, inUse: Math.floor(Math.random() * 4) },
+             sleepCapsules: { total: 2, inUse: Math.floor(Math.random() * 3) },
+             playstation: { total: 1, inUse: Math.floor(Math.random() * 2) }
+           }
+        }));
+
+        const dummyLoungeGroup = {
+           id: `dummy-lounge-group`,
+           name: `사내 휴게실 모음`,
+           type: 'loading_dock',
+           latitude: companyLat,
+           longitude: companyLng,
+           congestionLevel: dummyLoungesSub.reduce((acc, curr) => acc + curr.congestionLevel, 0) / 5,
+           isGroup: true,
+           subFacilities: dummyLoungesSub
+        };
+        
+        const dummyMeetingsInsideSub = Array.from({length: 8}).map((_, i) => ({
+           id: `dummy-meeting-in-${i}`,
+           name: `사내 회의실 ${i+1}호`,
+           type: 'meeting_room',
+           capacity: 8,
+           congestionLevel: Math.random(),
+           currentCount: Math.floor(Math.random() * 8),
+           features: {
+             remainingMinutes: Math.floor(Math.random() * 60)
+           }
+        }));
+
+        const dummyMeetingGroup = {
+           id: `dummy-meeting-group`,
+           name: `사내 회의실 모음`,
+           type: 'meeting_room',
+           latitude: companyLat,
+           longitude: companyLng,
+           congestionLevel: dummyMeetingsInsideSub.reduce((acc, curr) => acc + curr.congestionLevel, 0) / 8,
+           isGroup: true,
+           subFacilities: dummyMeetingsInsideSub
+        };
+
+        const dummyMeetingsOutside = Array.from({length: 2}).map((_, i) => ({
+           id: `dummy-meeting-out-${i}`,
+           name: `외부 공유오피스 회의실 ${['A','B'][i]}`,
+           type: 'meeting_room',
+           latitude: companyLat + (Math.random() > 0.5 ? 0.006 : -0.006) + (Math.random() * 0.001),
+           longitude: companyLng - 0.02 + (Math.random() * 0.005),
+           capacity: 12,
+           congestionLevel: Math.random(),
+           currentCount: Math.floor(Math.random() * 12),
+           features: {
+             remainingMinutes: Math.floor(Math.random() * 60)
+           }
+        }));
+
+        const finalFacilities = [...mapped, dummyLoungeGroup, dummyMeetingGroup, ...dummyMeetingsOutside];
+        setFacilities(finalFacilities);
       } catch (err) {
         console.error("Error loading facilities:", err);
       }
@@ -586,9 +654,51 @@ export default function MainPage() {
 
       kakao.maps.event.addListener(marker, "click", () => {
         console.log("Marker clicked:", f.name);
-        setSelectedFacility(f);
-        setIsCardHidden(false);
-        mapInstanceRef.current.panTo(new kakao.maps.LatLng(f.latitude, f.longitude));
+        
+        if (activeOverlayRef.current) {
+          activeOverlayRef.current.setMap(null);
+          activeOverlayRef.current = null;
+        }
+
+        if (f.isGroup) {
+          const content = document.createElement('div');
+          content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[160px] max-h-[250px] overflow-y-auto pointer-events-auto';
+          
+          const titleEl = document.createElement('div');
+          titleEl.className = 'text-[10px] text-blue-400 font-bold px-2 py-1 mb-1 border-b border-white/10 uppercase tracking-wider';
+          titleEl.innerText = f.name;
+          content.appendChild(titleEl);
+
+          f.subFacilities.forEach((sub: any) => {
+            const btn = document.createElement('button');
+            btn.className = 'text-left text-white text-xs px-3 py-2.5 hover:bg-white/10 rounded-xl transition-colors font-semibold truncate cursor-pointer';
+            btn.innerText = sub.name;
+            btn.onclick = () => {
+              setSelectedFacility(sub);
+              setIsCardHidden(false);
+              if (activeOverlayRef.current) {
+                activeOverlayRef.current.setMap(null);
+                activeOverlayRef.current = null;
+              }
+            };
+            content.appendChild(btn);
+          });
+
+          const overlay = new window.kakao.maps.CustomOverlay({
+            position: marker.getPosition(),
+            content: content,
+            yAnchor: 1.3,
+            zIndex: 50
+          });
+          
+          overlay.setMap(mapInstanceRef.current);
+          activeOverlayRef.current = overlay;
+          mapInstanceRef.current.panTo(marker.getPosition());
+        } else {
+          setSelectedFacility(f);
+          setIsCardHidden(false);
+          mapInstanceRef.current.panTo(new kakao.maps.LatLng(f.latitude, f.longitude));
+        }
       });
 
       marker.setMap(mapInstanceRef.current);
@@ -684,7 +794,11 @@ export default function MainPage() {
           <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
             <RecommendationCard 
               title={selectedFacility.name}
-              description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
+              description={
+                selectedFacility.type === 'parking'
+                  ? `실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'}`
+                  : `실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`
+              }
               onAccept={() => handleAccept(selectedFacility)}
               onReject={() => handleReject(selectedFacility)}
               onPutOff={() => handlePutOff(selectedFacility)}
