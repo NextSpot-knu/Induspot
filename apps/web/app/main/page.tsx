@@ -31,7 +31,7 @@ const getMarkerSvg = (type: string, level: number) => {
   else if (type === "loading_dock") emoji = "🚚";
 
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="23" viewBox="0 0 36 46">
       <path fill="${color}" stroke="%23ffffff" stroke-width="2" d="M18 0C8.1 0 0 8.1 0 18c0 13.5 16.5 26.5 17.1 27.1a1.2 1.2 0 0 0 1.8 0c.6-.6 17.1-13.6 17.1-27.1C36 8.1 27.9 0 18 0z"/>
       <circle cx="18" cy="18" r="11" fill="%23ffffff"/>
       <text x="18" y="22" font-size="12" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
@@ -465,8 +465,8 @@ export default function MainPage() {
     const newMarkers = filtered.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel),
-        new kakao.maps.Size(36, 46),
-        { offset: new kakao.maps.Point(18, 46) }
+        new kakao.maps.Size(18, 23),
+        { offset: new kakao.maps.Point(9, 23) }
       );
 
       const marker = new kakao.maps.Marker({
@@ -578,6 +578,7 @@ export default function MainPage() {
               onAccept={() => handleAccept(selectedFacility)}
               onReject={() => handleReject(selectedFacility)}
               onPutOff={() => handlePutOff(selectedFacility)}
+              onClose={() => setSelectedFacility(null)}
               tttvScore={tttv.score}
               preferencePercent={tttv.preferencePercent}
               expectedWait={tttv.expectedWait}

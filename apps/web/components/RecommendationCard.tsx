@@ -10,6 +10,7 @@ interface RecommendationCardProps {
   onAccept: () => void;
   onReject: () => void;
   onPutOff?: () => void;
+  onClose?: () => void; // Added close/hide callback
   tttvScore?: number;
   preferencePercent?: number;
   expectedWait?: number;
@@ -26,6 +27,7 @@ export function RecommendationCard({
   onAccept,
   onReject,
   onPutOff,
+  onClose,
   tttvScore,
   preferencePercent,
   expectedWait,
@@ -111,10 +113,8 @@ export function RecommendationCard({
         setTranslateY(diff);
       }
     } else {
-      // Pulling up to open
-      if (diff < 0) {
-        setTranslateY(diff);
-      }
+      // Pulling up to open or pulling down to hide card
+      setTranslateY(diff);
     }
   };
 
@@ -128,6 +128,12 @@ export function RecommendationCard({
         setIsExpanded(false);
       }
     } else {
+      // If pulled down in normal state, trigger close/hide
+      if (translateY > 70) {
+        if (onClose) {
+          onClose();
+        }
+      }
       // If pulled up sufficiently, expand
       if (translateY < -70) {
         setIsExpanded(true);
