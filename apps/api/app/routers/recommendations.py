@@ -192,7 +192,7 @@ async def get_recommendations(
             tttv_score=item["tttv_score"],
             breakdown=item["breakdown"],
             distance_m=item["distance_m"],
-            reason=reasons[idx]
+            reason=reasons[idx],
             rank=idx + 1,
             total_candidates=total_count
         ))
