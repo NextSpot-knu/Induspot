@@ -13,6 +13,7 @@ interface BookmarkData {
   waitTime: string;
   latitude?: number;
   longitude?: number;
+  tttv?: any;
 }
 
 export default function SavedPage() {
@@ -45,7 +46,17 @@ export default function SavedPage() {
       try {
         const saved = localStorage.getItem('induspot_saved_facilities');
         if (saved) {
-          setBookmarks(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          const compareBookmarks = (a: any, b: any) => {
+            if (!a.tttv || !b.tttv) return (a.name || '').localeCompare(b.name || '', 'ko-KR');
+            if (b.tttv.score !== a.tttv.score) return b.tttv.score - a.tttv.score;
+            if (a.tttv.timeToService !== b.tttv.timeToService) return a.tttv.timeToService - b.tttv.timeToService;
+            if (b.tttv.preferencePercent !== a.tttv.preferencePercent) return b.tttv.preferencePercent - a.tttv.preferencePercent;
+            if (a.tttv.expectedTravel !== b.tttv.expectedTravel) return a.tttv.expectedTravel - b.tttv.expectedTravel;
+            return (a.name || '').localeCompare(b.name || '', 'ko-KR');
+          };
+          parsed.sort(compareBookmarks);
+          setBookmarks(parsed);
         } else {
           setBookmarks([]);
         }
@@ -120,18 +131,23 @@ export default function SavedPage() {
         ) : (
           // List State
           <div className="flex flex-col gap-4">
-            {bookmarks.map((bookmark) => (
+            {bookmarks.map((bookmark, index) => (
               <button
                 key={bookmark.id}
                 onClick={() => setSelectedBookmark(bookmark)}
-                className={`flex justify-between items-center p-4 rounded-2xl border backdrop-blur-md transition-all text-left ${
+                className={`flex justify-between items-center p-4 rounded-2xl border backdrop-blur-md transition-all text-left relative overflow-hidden ${
                   selectedBookmark?.id === bookmark.id
                     ? 'bg-blue-600/20 border-blue-500'
                     : 'bg-white/5 border-white/10 hover:bg-white/10'
                 }`}
               >
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
+                {/* 랭크 표시 뱃지 */}
+                <div className="absolute top-0 left-0 bg-blue-600/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-br-lg z-10">
+                  {index + 1}위
+                </div>
+                
+                <div className="pl-4">
+                  <div className="flex items-center gap-2 mb-1 mt-1">
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/10 text-gray-300">
                       {bookmark.category}
                     </span>

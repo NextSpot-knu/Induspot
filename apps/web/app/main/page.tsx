@@ -589,7 +589,8 @@ export default function MainPage() {
           name: fac.name,
           category: fac.type === 'cafeteria' ? '식당' : fac.type === 'parking' ? '주차장' : fac.type === 'meeting_room' ? '회의실' : '휴게실',
           trafficStatus: fac.congestionLevel >= 0.7 ? 'red' : fac.congestionLevel >= 0.3 ? 'yellow' : 'green',
-          waitTime: `${tttv?.expectedWait || 0}분`
+          waitTime: `${tttv?.expectedWait || 0}분`,
+          tttv: tttv
         });
         localStorage.setItem('induspot_saved_facilities', JSON.stringify(bookmarks));
       }
