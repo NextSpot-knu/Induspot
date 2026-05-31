@@ -1,23 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Send, CheckCircle } from 'lucide-react';
+import { createPublicClient } from '@/lib/supabase';
 
 export default function UserSupportForm() {
   const router = useRouter();
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ type: '앱 버그', title: '', content: '' });
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('사용자');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const supabase = createPublicClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUserId(session.user.id);
+          const name = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '사용자';
+          setUserName(name);
+        } else {
+          setUserId("a2222222-2222-2222-2222-222222222222");
+          setUserName("임시 사용자");
+        }
+      } catch (err) {
+        console.error('Failed to load user session:', err);
+      }
+    }
+    loadUser();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.content) return;
 
-    // TODO: 백엔드로 전송 로직 (POST /api/support)
-    console.log('문의 제출됨:', formData);
+    setIsSubmitting(true);
+    try {
+      const supabase = createPublicClient();
+      const { error } = await supabase.from('inquiries').insert([
+        {
+          user_id: userId,
+          user_name: userName,
+          type: formData.type,
+          title: formData.title,
+          content: formData.content,
+          status: 'new'
+        }
+      ]);
 
-    // 완료 화면으로 전환 (Mocking)
-    setIsSubmitted(true);
+      if (error) {
+        throw error;
+      }
+
+      setIsSubmitted(true);
+    } catch (err) {
+      console.error('Failed to submit inquiry:', err);
+      alert('문의 제출에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -99,10 +143,11 @@ export default function UserSupportForm() {
 
             <button 
               type="submit"
-              className="mt-4 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+              disabled={isSubmitting}
+              className="mt-4 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-4 rounded-xl transition-colors shadow-lg shadow-blue-500/20"
             >
               <Send size={20} />
-              문의 보내기
+              {isSubmitting ? '제출 중...' : '문의 보내기'}
             </button>
           </form>
         )}
