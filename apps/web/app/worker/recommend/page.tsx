@@ -26,7 +26,7 @@ const MiniMap = React.memo(({ latitude, longitude, mapLoaded }: MiniMapProps) =>
   const [isSimulation, setIsSimulation] = useState(false);
 
   useEffect(() => {
-    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY;
+    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY || process.env.NEXT_PUBLIC_KAKAO_MAP_KEY || "";
     const isMock = !appKey || appKey.includes("mock") || appKey.includes("your-");
 
     if (isMock) {
@@ -167,7 +167,7 @@ function RecommendContent() {
     });
 
     // 2. Load Kakao Maps Script
-    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY;
+    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY || process.env.NEXT_PUBLIC_KAKAO_MAP_KEY || "";
     if (appKey) {
       const scriptId = "kakao-maps-sdk-recommend";
       let script = document.getElementById(scriptId) as HTMLScriptElement;

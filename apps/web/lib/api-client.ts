@@ -61,23 +61,11 @@ async function request(path: string, options: RequestOptions = {}) {
   }
 
   // query parameter 처리
-  let url = BASE_URL;
-  if (BASE_URL === "/api/proxy") {
-    const queryParams = new URLSearchParams();
-    queryParams.set("path", path);
-    if (options.params) {
-      const snakeParams = keysToSnake(options.params);
-      Object.keys(snakeParams).forEach((key) => {
-        queryParams.set(key, String(snakeParams[key]));
-      });
-    }
-    url = `${BASE_URL}?${queryParams.toString()}`;
-  } else {
-    url = `${BASE_URL}${path}`;
-    if (options.params) {
-      const queryParams = new URLSearchParams(keysToSnake(options.params));
-      url += `?${queryParams.toString()}`;
-    }
+  // query parameter 처리
+  let url = `${BASE_URL}${path}`;
+  if (options.params) {
+    const queryParams = new URLSearchParams(keysToSnake(options.params));
+    url += `?${queryParams.toString()}`;
   }
 
   // body가 존재하는 경우 camelCase -> snake_case 변환 후 전송
