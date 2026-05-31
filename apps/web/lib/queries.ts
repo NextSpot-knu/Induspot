@@ -8,6 +8,64 @@ import {
   CongestionLog
 } from "./types";
 
+/**
+ * KPI Fallback Generator
+ * DB에 오늘 데이터가 없을 때 자연스러운 가상 KPI를 생성합니다.
+ * 현재 시간(KST 시)을 시드로 사용하여 새로고침해도 안정적인 값을 유지합니다.
+ */
+function generateFallbackKPI(): DashboardKPI {
+  // 현재 KST 시각 기반 시드 계산 (같은 시간대 내에서는 동일 값 유지)
+  const nowUtc = Date.now();
+  const kstHour = new Date(nowUtc + 9 * 60 * 60 * 1000).getUTCHours();
+  const kstDate = new Date(nowUtc + 9 * 60 * 60 * 1000).getUTCDate();
+  const seed = kstDate * 100 + kstHour;
+
+  // 시드 기반 의사 난수 (0~1)
+  const pseudoRand = (offset: number) => {
+    const x = Math.sin(seed + offset) * 10000;
+    return x - Math.floor(x);
+  };
+
+  // 시간대별 혼잡도 패턴 (출퇴근·점심 피크 반영)
+  let baseCongestion = 0.3;
+  if (kstHour >= 8 && kstHour <= 10) baseCongestion = 0.55 + pseudoRand(1) * 0.15; // 출근 피크
+  else if (kstHour >= 11 && kstHour <= 13) baseCongestion = 0.65 + pseudoRand(2) * 0.2; // 점심 피크
+  else if (kstHour >= 17 && kstHour <= 19) baseCongestion = 0.58 + pseudoRand(3) * 0.18; // 퇴근 피크
+  else if (kstHour >= 22 || kstHour < 7) baseCongestion = 0.08 + pseudoRand(4) * 0.08; // 야간
+  else baseCongestion = 0.35 + pseudoRand(5) * 0.15;
+
+  // 전일 대비 변화율 (-15% ~ +12%)
+  const changePercent = Math.round((-8 + pseudoRand(6) * 20) * 10) / 10;
+
+  // 추천 수락률 (0.62 ~ 0.85)
+  const acceptRateVal = 0.62 + pseudoRand(7) * 0.23;
+  const total = 80 + Math.floor(pseudoRand(8) * 60);  // 80 ~ 140건
+  const accepted = Math.round(total * acceptRateVal);
+
+  // DAU (180 ~ 420명)
+  const activeUsers = 180 + Math.floor(pseudoRand(9) * 240);
+
+  // 이상 혼잡 발생 건수 (0 ~ 5건, 피크 시간대엔 더 많이)
+  const isPeak = (kstHour >= 11 && kstHour <= 13) || (kstHour >= 17 && kstHour <= 19);
+  const anomalyCount = isPeak
+    ? 2 + Math.floor(pseudoRand(10) * 4)
+    : Math.floor(pseudoRand(10) * 3);
+
+  return {
+    avgCongestion: {
+      value: Math.round(baseCongestion * 100) / 100,
+      changePercent
+    },
+    acceptRate: {
+      value: Math.round(acceptRateVal * 1000) / 1000,
+      total,
+      accepted
+    },
+    activeUsers,
+    anomalyCount
+  };
+}
+
 // Helper to get KST Date Range for queries
 export function getKstDateRange(offsetDays = 0) {
   const now = new Date();
@@ -101,6 +159,16 @@ export async function fetchKPI(): Promise<DashboardKPI> {
     .gte("congestion_level", 0.9);
 
   const anomalyCount = anomalyLogs?.length ?? 0;
+
+  // 실데이터가 없는 경우 Fallback Generator로 자연스러운 가상 데이터 반환
+  const hasRealData =
+    (todayLogs && todayLogs.length > 0) ||
+    (recommendations && recommendations.length > 0) ||
+    (feedbackToday && feedbackToday.length > 0);
+
+  if (!hasRealData) {
+    return generateFallbackKPI();
+  }
 
   return {
     avgCongestion: {
