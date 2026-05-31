@@ -20,6 +20,9 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
       return NextResponse.json({ error: "Invalid GCP_SERVICE_ACCOUNT_KEY format" }, { status: 500 });
     }
     
+    // [디버그] 서비스 계정 이메일 확인 — 403 IAM 권한 진단용
+    console.log("[Proxy] Using service account:", credentials.client_email ?? "UNKNOWN");
+    
     // Catch-all 배열을 파싱하여 하위 API 경로 동적 재구성
     const subPath = params.path ? `/${params.path.join("/")}` : "";
     // 기존 URL의 쿼리 스트링(?key=value)이 있다면 그대로 추출하여 결합
