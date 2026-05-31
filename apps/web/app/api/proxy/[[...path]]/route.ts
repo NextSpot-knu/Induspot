@@ -82,6 +82,21 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
 
     const response = await fetch(finalUrl, fetchOptions);
     const responseText = await response.text();
+
+    // [디버그] 루트 진단: /api/proxy 루트 요청 시 상세 정보 반환
+    if (!subPath && request.method === "GET") {
+      return NextResponse.json({
+        debug: true,
+        serviceAccount: credentials.client_email ?? "UNKNOWN",
+        targetAudience,
+        finalUrl,
+        backendStatus: response.status,
+        backendStatusText: response.statusText,
+        authHeaderSent: authHeaderValue ? `${authHeaderValue.substring(0, 30)}...` : "EMPTY",
+        backendResponse: responseText.substring(0, 500),
+      }, { status: 200 });
+    }
+
     let responseData;
     try {
       responseData = JSON.parse(responseText);
