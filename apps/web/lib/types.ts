@@ -67,6 +67,7 @@ export interface DashboardKPI {
 
 export interface HeatmapCell {
   facility: string;
+  facilityType: string;
   hour: number;
   value: number;
 }

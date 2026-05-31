@@ -16,7 +16,7 @@ declare global {
 }
 
 // Marker SVG Generator
-const getMarkerSvg = (type: string, level: number) => {
+const getMarkerSvg = (type: string, level: number, features?: any) => {
   let color = "#10b981"; // green (여유)
   if (level >= 0.7) {
     color = "#ef4444"; // red (혼잡)
@@ -29,6 +29,20 @@ const getMarkerSvg = (type: string, level: number) => {
   else if (type === "parking") emoji = "🚗";
   else if (type === "meeting_room") emoji = "🤝";
   else if (type === "loading_dock") emoji = "🚚";
+
+  const isPrivateParking = type === "parking" && features && (features.is_private === true || features.is_public === false);
+
+  if (isPrivateParking) {
+    emoji = "🏢"; // 사내 주차장 이모지
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="23" viewBox="0 0 36 46">
+        <path fill="${color}" stroke="%23ffffff" stroke-width="2" d="M6 2h24a4 4 0 0 1 4 4v22a4 4 0 0 1-4 4h-9l-3 12-3-12H6a4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"/>
+        <circle cx="18" cy="17" r="11" fill="%23ffffff"/>
+        <text x="18" y="21" font-size="12" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
+      </svg>
+    `;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
+  }
 
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="23" viewBox="0 0 36 46">
@@ -117,6 +131,7 @@ export default function MainPage() {
             latitude: f.latitude,
             longitude: f.longitude,
             capacity: f.capacity,
+            features: f.features,
             congestionLevel: latestLog ? latestLog.congestion_level : 0.0,
             currentCount: latestLog ? latestLog.current_count : 0,
             lastUpdated: latestLog ? latestLog.timestamp : new Date().toISOString(),
@@ -521,7 +536,7 @@ export default function MainPage() {
 
     const newMarkers = filtered.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(
-        getMarkerSvg(f.type, f.congestionLevel),
+        getMarkerSvg(f.type, f.congestionLevel, f.features),
         new kakao.maps.Size(18, 23),
         { offset: new kakao.maps.Point(9, 23) }
       );

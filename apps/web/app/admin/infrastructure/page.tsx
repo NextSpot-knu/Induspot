@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Building2, Search, Bell, Utensils, ParkingCircle, Filter, 
-  ChevronRight, AlertTriangle, Users, Clock, Activity, Truck 
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle, Users, Clock, Activity, Truck 
 } from 'lucide-react';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -28,7 +28,9 @@ export default function InfrastructurePage() {
   const [facilities, setFacilities] = useState<Infrastructure[]>([]);
   const [selectedInfra, setSelectedInfra] = useState<Infrastructure | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [activeFilter, setActiveFilter] = useState('전체');
+  const [activeFilter, setActiveFilter] = useState('식당');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,9 +195,12 @@ export default function InfrastructurePage() {
     };
   }, [supabase, fetchFacilities, fetchChartData]);
 
-  const filteredInfras = activeFilter === '전체' 
-    ? facilities 
-    : facilities.filter(infra => infra.type === activeFilter);
+  const filteredInfras = facilities.filter(infra => infra.type === activeFilter);
+
+  const totalItems = filteredInfras.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedInfras = filteredInfras.slice(startIndex, startIndex + itemsPerPage);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -246,10 +251,13 @@ export default function InfrastructurePage() {
           <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col h-full">
             <div className="p-4 border-b border-slate-200">
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                {['전체', '식당', '주차장', '회의실', '하역장'].map(filter => (
+                {['식당', '주차장', '회의실', '하역장'].map(filter => (
                   <button
                     key={filter}
-                    onClick={() => setActiveFilter(filter)}
+                    onClick={() => {
+                      setActiveFilter(filter);
+                      setCurrentPage(1);
+                    }}
                     className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                       activeFilter === filter 
                         ? 'bg-blue-600 text-white' 
@@ -277,7 +285,7 @@ export default function InfrastructurePage() {
                   등록된 인프라가 없습니다.
                 </div>
               ) : (
-                filteredInfras.map(infra => (
+                paginatedInfras.map(infra => (
                   <div 
                     key={infra.id}
                     onClick={() => setSelectedInfra(infra)}
@@ -303,6 +311,51 @@ export default function InfrastructurePage() {
                 ))
               )}
             </div>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col gap-2 p-4 border-t border-slate-100 bg-white flex-shrink-0">
+                <div className="text-xs text-slate-500 font-medium text-center">
+                  총 {totalItems}개 중 {startIndex + 1}-{Math.min(startIndex + itemsPerPage, totalItems)}개 표시
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 10, 1))}
+                    disabled={currentPage === 1}
+                    title="10페이지 이전"
+                    className="p-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    title="이전 페이지"
+                    className="p-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="text-xs text-slate-600 font-semibold px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    title="다음 페이지"
+                    className="p-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 10, totalPages))}
+                    disabled={currentPage === totalPages}
+                    title="10페이지 다음"
+                    className="p-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronsRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Detail Panel */}
