@@ -30,10 +30,19 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
     const auth = new GoogleAuth({ credentials });
     
     const client = await auth.getIdTokenClient(targetAudience);
-    // getRequestHeaders()는 { Authorization: 'Bearer xxx' } 형태의 plain object를 반환
-    const idTokenHeaders = await client.getRequestHeaders(targetAudience) as unknown as Record<string, string>;
-    // Authorization 키에서 토큰 추출
-    const authHeaderValue = idTokenHeaders["Authorization"] || idTokenHeaders["authorization"] || "";
+    // getRequestHeaders()는 환경에 따라 Web Headers 객체 또는 plain object를 반환
+    const rawHeaders: unknown = await client.getRequestHeaders(targetAudience);
+    
+    // Web Headers 객체와 plain object 모두 안전하게 처리
+    let authHeaderValue = "";
+    if (rawHeaders && typeof (rawHeaders as { get?: unknown }).get === "function") {
+      // Web 표준 Headers 객체 → .get() 메서드 사용
+      authHeaderValue = (rawHeaders as globalThis.Headers).get("Authorization") ?? "";
+    } else if (rawHeaders && typeof rawHeaders === "object") {
+      // Plain object → bracket notation 사용
+      const obj = rawHeaders as Record<string, string>;
+      authHeaderValue = obj["Authorization"] || obj["authorization"] || "";
+    }
 
     console.log("[Proxy] OIDC token present:", !!authHeaderValue, "| Target:", finalUrl);
 
@@ -92,6 +101,12 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
         backendStatusText: response.statusText,
         oidcTokenPresent: !!authHeaderValue,
         oidcTokenPrefix: authHeaderValue ? String(authHeaderValue).substring(0, 30) + "..." : "NONE",
+        headersDebug: {
+          typeofRaw: typeof rawHeaders,
+          hasGetMethod: typeof (rawHeaders as { get?: unknown }).get === "function",
+          constructorName: rawHeaders?.constructor?.name ?? "null",
+          keys: rawHeaders && typeof rawHeaders === "object" ? Object.keys(rawHeaders as object) : [],
+        },
         backendResponse: responseText.substring(0, 500),
       }, { status: 200 });
     }
