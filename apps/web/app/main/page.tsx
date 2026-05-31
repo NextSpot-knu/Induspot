@@ -360,16 +360,18 @@ export default function MainPage() {
     if (hour >= 12 && hour < 14) timeMultiplier = 1.3;
     else if (hour === 7 || hour === 15) timeMultiplier = 1.2;
 
-    const expectedWait = facility.congestionLevel * avgProcessTime * timeMultiplier;
+    const expectedWait = (facility.congestionLevel ?? 0) * avgProcessTime * timeMultiplier;
 
     // 3. Expected Travel
-    const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, facility.latitude, facility.longitude);
+    const fLat = typeof facility.latitude === 'number' ? facility.latitude : userLocation.lat;
+    const fLng = typeof facility.longitude === 'number' ? facility.longitude : userLocation.lng;
+    const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, fLat, fLng);
     const expectedTravel = distanceM / 66.67;
 
     // 4. TTTV Score (황금비: 0.45 : 0.25 : 0.30) 및 Min-Max 정규화 적용
     const w1 = 0.45, w2 = 0.25, w3 = 0.30;
     const timeCost = Math.min(1.0, (expectedWait + expectedTravel) / 60.0);
-    const incentive = Math.max(0, 0.7 - facility.congestionLevel);
+    const incentive = Math.max(0, 0.7 - (facility.congestionLevel ?? 0));
     const score = (w1 * preferenceMatching) - (w2 * timeCost) + (w3 * incentive);
     
     // 시간비용 감산 패널티로 인한 점수 하향 왜곡 방지를 위해 Min-Max 정규화 적용
@@ -377,61 +379,65 @@ export default function MainPage() {
     const finalScore = Math.max(0, Math.min(1, normalized));
 
     return {
-      score: Math.round(finalScore * 100),
-      preferencePercent: Math.round(preferenceMatching * 100),
-      expectedWait: Math.round(expectedWait * 10) / 10,
-      expectedTravel: Math.round(expectedTravel * 10) / 10,
-      timeToService: Math.round((expectedWait + expectedTravel) * 10) / 10
+      score: isNaN(finalScore) ? 0 : Math.round(finalScore * 100),
+      preferencePercent: isNaN(preferenceMatching) ? 0 : Math.round(preferenceMatching * 100),
+      expectedWait: isNaN(expectedWait) ? 0 : Math.round(expectedWait * 10) / 10,
+      expectedTravel: isNaN(expectedTravel) ? 0 : Math.round(expectedTravel * 10) / 10,
+      timeToService: isNaN(expectedWait + expectedTravel) ? 0 : Math.round((expectedWait + expectedTravel) * 10) / 10
     };
   };
 
   // Synchronize AI recommendations on map and set selected facility to the top recommended spot
   useEffect(() => {
-    if (facilities.length === 0) return;
+    try {
+      if (facilities.length === 0) return;
 
-    const filterMap: Record<string, string> = {
-      '식당': 'cafeteria',
-      '주차장': 'parking',
-      '회의실': 'meeting_room',
-      '휴게실': 'loading_dock'
-    };
-    const targetType = filterMap[activeFilter];
-    
-    // Filter facilities of active type, excluding rejected and saved ones
-    const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
-    
-    if (candidates.length > 0) {
-      // Calculate TTTV and sort
-      const scored = candidates.map(f => ({
-        ...f,
-        tttv: calculateTTTV(f)
-      }));
-      scored.sort((a, b) => b.tttv.score - a.tttv.score);
+      const filterMap: Record<string, string> = {
+        '식당': 'cafeteria',
+        '주차장': 'parking',
+        '회의실': 'meeting_room',
+        '휴게실': 'loading_dock'
+      };
+      const targetType = filterMap[activeFilter];
       
-      // Try to restore previous selection if it is still a valid candidate
-      let restoredFacility = null;
-      if (!isInitialLoadRef.current) {
-        if (typeof window !== 'undefined') {
-          try {
-            const savedId = sessionStorage.getItem('induspot_selected_facility_id');
-            if (savedId) {
-              restoredFacility = scored.find(f => f.id === savedId);
+      // Filter facilities of active type, excluding rejected and saved ones
+      const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
+      
+      if (candidates.length > 0) {
+        // Calculate TTTV and sort
+        const scored = candidates.map(f => ({
+          ...f,
+          tttv: calculateTTTV(f)
+        }));
+        scored.sort((a, b) => b.tttv.score - a.tttv.score);
+        
+        // Try to restore previous selection if it is still a valid candidate
+        let restoredFacility = null;
+        if (!isInitialLoadRef.current) {
+          if (typeof window !== 'undefined') {
+            try {
+              const savedId = sessionStorage.getItem('induspot_selected_facility_id');
+              if (savedId) {
+                restoredFacility = scored.find(f => f.id === savedId);
+              }
+            } catch (e) {
+              console.error("Failed to restore selected facility ID from sessionStorage:", e);
             }
-          } catch (e) {
-            console.error("Failed to restore selected facility ID from sessionStorage:", e);
           }
+        } else {
+          isInitialLoadRef.current = false;
+        }
+
+        if (restoredFacility) {
+          setSelectedFacility(restoredFacility);
+        } else {
+          setSelectedFacility(scored[0]);
         }
       } else {
-        isInitialLoadRef.current = false;
+        setSelectedFacility(null);
       }
-
-      if (restoredFacility) {
-        setSelectedFacility(restoredFacility);
-      } else {
-        setSelectedFacility(scored[0]);
-      }
-    } else {
-      setSelectedFacility(null);
+    } catch (err) {
+      console.error("Error in recommendation synchronization effect:", err);
     }
   }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories]);
 
@@ -489,6 +495,13 @@ export default function MainPage() {
   const handlePutOff = (fac: any) => {
     if (!fac) return;
     
+    // Clear selection from sessionStorage immediately to prevent restoration logic from sticking to this item
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('induspot_selected_facility_id');
+      } catch (e) {}
+    }
+
     setSavedIds(prev => {
       const next = new Set(prev);
       next.add(fac.id);
@@ -520,6 +533,13 @@ export default function MainPage() {
   const handleReject = (fac: any) => {
     if (!fac) return;
     
+    // Clear selection from sessionStorage immediately to prevent restoration logic from sticking to this item
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('induspot_selected_facility_id');
+      } catch (e) {}
+    }
+
     setRejectedIds(prev => {
       const next = new Set(prev);
       next.add(fac.id);
@@ -714,45 +734,44 @@ export default function MainPage() {
 
       {/* AI Recommendation Card (Floating Bottom Sheet) */}
       {selectedFacility && !isCardHidden && (() => {
-        const filterMap: Record<string, string> = {
-          '식당': 'cafeteria',
-          '주차장': 'parking',
-          '회의실': 'meeting_room',
-          '휴게실': 'loading_dock'
-        };
-        const targetType = filterMap[activeFilter];
-        const activeCandidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id));
-        const activeScored = activeCandidates.map(f => ({
-          ...f,
-          tttv: calculateTTTV(f)
-        })).sort((a, b) => b.tttv.score - a.tttv.score);
-        
-        const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
-        const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
-        const totalCandidates = activeScored.length;
+        try {
+          const targetType = selectedFacility.type;
+          const activeCandidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id));
+          const activeScored = activeCandidates.map(f => ({
+            ...f,
+            tttv: calculateTTTV(f)
+          })).sort((a, b) => b.tttv.score - a.tttv.score);
+          
+          const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
+          const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
+          const totalCandidates = activeScored.length;
 
-        const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
-        return (
-          <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
-            <RecommendationCard 
-              title={selectedFacility.name}
-              description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
-              onAccept={() => handleAccept(selectedFacility)}
-              onReject={() => handleReject(selectedFacility)}
-              onPutOff={() => handlePutOff(selectedFacility)}
-              onClose={() => setIsCardHidden(true)}
-              tttvScore={tttv.score}
-              preferencePercent={tttv.preferencePercent}
-              expectedWait={tttv.expectedWait}
-              expectedTravel={tttv.expectedTravel}
-              timeToService={tttv.timeToService}
-              facilityType={selectedFacility.type}
-              facility={selectedFacility}
-              rank={rank}
-              totalCandidates={totalCandidates}
-            />
-          </div>
-        );
+          const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
+          return (
+            <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
+              <RecommendationCard 
+                title={selectedFacility.name}
+                description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
+                onAccept={() => handleAccept(selectedFacility)}
+                onReject={() => handleReject(selectedFacility)}
+                onPutOff={() => handlePutOff(selectedFacility)}
+                onClose={() => setIsCardHidden(true)}
+                tttvScore={tttv.score}
+                preferencePercent={tttv.preferencePercent}
+                expectedWait={tttv.expectedWait}
+                expectedTravel={tttv.expectedTravel}
+                timeToService={tttv.timeToService}
+                facilityType={selectedFacility.type}
+                facility={selectedFacility}
+                rank={rank}
+                totalCandidates={totalCandidates}
+              />
+            </div>
+          );
+        } catch (err) {
+          console.error("Error rendering RecommendationCard IIFE:", err);
+          return null;
+        }
       })()}
 
       {/* Test Mock Locations Sidebar (Right Side) */}
