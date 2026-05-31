@@ -693,6 +693,7 @@ export default function MainPage() {
                 key={filter.id}
                 onClick={() => {
                   setActiveFilter(filter.id);
+                  setIsCardHidden(false);
                   if (typeof window !== 'undefined') {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
@@ -720,15 +721,15 @@ export default function MainPage() {
           '휴게실': 'loading_dock'
         };
         const targetType = filterMap[activeFilter];
-        const allCandidates = facilities.filter(f => f.type === targetType);
-        const allScored = allCandidates.map(f => ({
+        const activeCandidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id));
+        const activeScored = activeCandidates.map(f => ({
           ...f,
           tttv: calculateTTTV(f)
         })).sort((a, b) => b.tttv.score - a.tttv.score);
         
-        const rankIndex = allScored.findIndex(f => f.id === selectedFacility.id);
+        const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
         const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
-        const totalCandidates = allScored.length;
+        const totalCandidates = activeScored.length;
 
         const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
         return (
