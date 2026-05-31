@@ -442,6 +442,14 @@ export default function MainPage() {
     };
   };
 
+  const compareFacilities = (a: any, b: any) => {
+    if (b.tttv.score !== a.tttv.score) return b.tttv.score - a.tttv.score; // 1. 높은 점수
+    if (a.tttv.timeToService !== b.tttv.timeToService) return a.tttv.timeToService - b.tttv.timeToService; // 2. 짧은 총 소요시간
+    if (b.tttv.preferencePercent !== a.tttv.preferencePercent) return b.tttv.preferencePercent - a.tttv.preferencePercent; // 3. 높은 선호도
+    if (a.tttv.expectedTravel !== b.tttv.expectedTravel) return a.tttv.expectedTravel - b.tttv.expectedTravel; // 4. 짧은 이동시간
+    return (a.name || '').localeCompare(b.name || '', 'ko-KR'); // 5. 이름 가나다순
+  };
+
   // Synchronize AI recommendations: always show the #1 scored candidate for the active filter.
   // Runs whenever facilities, filter, rejected/saved sets, location, or preferences change.
   useEffect(() => {
@@ -463,7 +471,7 @@ export default function MainPage() {
 
       if (candidates.length > 0) {
         const scored = candidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
-        scored.sort((a, b) => b.tttv.score - a.tttv.score);
+        scored.sort(compareFacilities);
         // Always show #1 automatically – guarantees card opens on page load and after any action
         setSelectedFacility(scored[0]);
         setIsCardHidden(false);
@@ -552,7 +560,7 @@ export default function MainPage() {
     );
     if (nextCandidates.length > 0) {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
-      nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
+      nextScored.sort(compareFacilities);
       setSelectedFacility(nextScored[0]);
       setIsCardHidden(false);
       if (mapInstanceRef.current) {
@@ -615,7 +623,7 @@ export default function MainPage() {
     );
     if (nextCandidates.length > 0) {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
-      nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
+      nextScored.sort(compareFacilities);
       setSelectedFacility(nextScored[0]);
       setIsCardHidden(false);
       if (mapInstanceRef.current) {
@@ -869,7 +877,7 @@ export default function MainPage() {
           const activeScored = activeCandidates.map(f => ({
             ...f,
             tttv: calculateTTTV(f)
-          })).sort((a, b) => b.tttv.score - a.tttv.score);
+          })).sort(compareFacilities);
           
           const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
           const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
