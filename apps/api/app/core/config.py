@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     JWT_SECRET: str  # Supabase JWT 검증용 비밀키
+    GCS_BUCKET_NAME: str
+
+    @property
+    def SUPABASE_KEY(self) -> str:
+        return self.SUPABASE_SERVICE_ROLE_KEY or self.SUPABASE_ANON_KEY
 
     # Pinecone Settings
     PINECONE_API_KEY: str = ""

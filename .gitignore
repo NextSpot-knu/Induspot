@@ -42,6 +42,8 @@ next-env.d.ts
 __pycache__/
 *.pyc
 *.pyo
+*.pkl
 
 # supabase cli temp
-supabase/.temp/
+supabase/.temp/
+scratch/
