@@ -38,7 +38,8 @@ class Settings(BaseSettings):
 
     # --- BigQuery Settings (WP2) ---
     BQ_DATASET: str = "induspot"
-    BQ_LOCATION: str = "US"
+    # 리전은 Vertex/Cloud Run과 통일(us-central1). BQML ARIMA_PLUS 지원 리전.
+    BQ_LOCATION: str = "us-central1"
 
     # --- Pub/Sub Settings (WP4) ---
     PUBSUB_TOPIC: str = "induspot-congestion"
