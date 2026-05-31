@@ -55,7 +55,7 @@ export default function MainPage() {
 
   const router = useRouter();
 
-  const appKey = process.env.NEXT_PUBLIC_KAKAO_API_KEY || process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
+  const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY || process.env.NEXT_PUBLIC_KAKAO_MAP_KEY || "";
 
   // Load facilities from Supabase
   useEffect(() => {

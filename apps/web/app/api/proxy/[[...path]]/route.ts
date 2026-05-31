@@ -1,75 +1,39 @@
-import { NextRequest, NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
+import { NextRequest, NextResponse } from "next/server";
 
-async function handleProxy(
-  request: NextRequest,
-  method: string,
-  context: { params: Promise<{ path?: string[] }> }
-) {
+const targetAudience = "https://induspot-backend-768699236852.asia-northeast3.run.app";
+
+// GET, POST 등 모든 요청을 처리하는 공통 프록시 함수
+async function forwardRequest(request: NextRequest, params: { path?: string[] }) {
   try {
-    const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
-    if (!serviceAccountKey) {
+    const rawCredentials = process.env.GCP_SERVICE_ACCOUNT_KEY;
+    if (!rawCredentials) {
       console.error("GCP_SERVICE_ACCOUNT_KEY environment variable is missing.");
-      return NextResponse.json(
-        { error: "Internal Server Error", message: "GCP_SERVICE_ACCOUNT_KEY is missing." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "GCP Key missing" }, { status: 500 });
     }
-
+    
     let credentials;
     try {
-      credentials = JSON.parse(serviceAccountKey);
+      credentials = JSON.parse(rawCredentials);
     } catch (parseErr: any) {
       console.error("Failed to parse GCP_SERVICE_ACCOUNT_KEY JSON:", parseErr);
-      return NextResponse.json(
-        { error: "Internal Server Error", message: "Invalid GCP_SERVICE_ACCOUNT_KEY format." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Invalid GCP_SERVICE_ACCOUNT_KEY format" }, { status: 500 });
     }
+    
+    // Catch-all 배열을 파싱하여 하위 API 경로 동적 재구성
+    const subPath = params.path ? `/${params.path.join("/")}` : "";
+    // 기존 URL의 쿼리 스트링(?key=value)이 있다면 그대로 추출하여 결합
+    const searchParams = new URL(request.url).search; 
+    const finalUrl = `${targetAudience}${subPath}${searchParams}`;
 
-    // Target audience URL (Cloud Run API)
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: "https://www.googleapis.com/auth/cloud-platform",
+    });
+    
+    const client = await auth.getIdTokenClient(targetAudience);
+    const authHeaders = (await client.getRequestHeaders()) as Record<string, any>;
 
-    const targetAudience = 'https://induspot-backend-768699236852.asia-northeast3.run.app';
-
-    // 1. Get path from optional catch-all params
-    const { path: pathArr } = await context.params;
-    let subPath = pathArr && pathArr.length > 0 ? `/${pathArr.join("/")}` : "";
-
-    // 2. If path is not in URL path, check query parameters (e.g. ?path=/api/v1/recommendations)
-    const searchParams = request.nextUrl.searchParams;
-    if (!subPath) {
-      subPath = searchParams.get("path") || searchParams.get("subPath") || "";
-    }
-
-    // Forward other query parameters if they exist
-    const forwardedSearchParams = new URLSearchParams(searchParams);
-    forwardedSearchParams.delete("path");
-    forwardedSearchParams.delete("subPath");
-    const queryString = forwardedSearchParams.toString();
-
-    // Construct target request URL
-    const targetUrl = `${targetAudience.replace(/\/$/, "")}${subPath}${queryString ? `?${queryString}` : ""}`;
-    console.log(`Proxying ${method} request to target: ${targetUrl}`);
-
-    // 3. Generate Google OIDC ID Token using the parsed credentials
-    let authHeaderValue = "";
-    try {
-      const auth = new GoogleAuth({
-        credentials,
-        scopes: "https://www.googleapis.com/auth/cloud-platform",
-      });
-      const client = await auth.getIdTokenClient(targetAudience);
-      const gcpHeaders = await client.getRequestHeaders() as Record<string, any>;
-      authHeaderValue = gcpHeaders["Authorization"] || gcpHeaders["authorization"] || "";
-    } catch (authErr: any) {
-      console.error("Failed to generate Google ID Token:", authErr);
-      return NextResponse.json(
-        { error: "Internal Server Error", message: `Authentication failure: ${authErr.message}` },
-        { status: 500 }
-      );
-    }
-
-    // 4. Prepare headers
     const headers = new Headers();
     // Copy incoming headers that are safe to copy
     const headersToCopy = ["content-type", "accept", "accept-language"];
@@ -79,6 +43,7 @@ async function handleProxy(
     }
 
     // Attach Google OIDC Token
+    const authHeaderValue = authHeaders["Authorization"] || authHeaders["authorization"] || "";
     if (authHeaderValue) {
       headers.set("authorization", authHeaderValue);
     }
@@ -89,28 +54,30 @@ async function handleProxy(
       headers.set("X-Forwarded-Authorization", incomingAuth);
     }
 
-    // 5. Parse body from incoming request if not GET/HEAD
-    let body: any = null;
-    if (method !== "GET" && method !== "HEAD") {
-      const contentType = request.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
+    const fetchOptions: RequestInit = {
+      method: request.method,
+      headers,
+    };
+
+    // GET 및 HEAD 메서드는 body를 가질 수 없으므로 제외
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      try {
+        const reqBody = await request.json();
+        fetchOptions.body = JSON.stringify(reqBody);
+      } catch (jsonErr) {
+        // Fallback to text body if JSON parsing fails
         try {
-          body = JSON.stringify(await request.json());
+          const textBody = await request.text();
+          if (textBody) {
+            fetchOptions.body = textBody;
+          }
         } catch {
-          body = null;
+          // Do nothing
         }
-      } else {
-        body = await request.text();
       }
     }
 
-    // 6. Send fetch request to GCP Cloud Run target
-    const response = await fetch(targetUrl, {
-      method,
-      headers,
-      body,
-    });
-
+    const response = await fetch(finalUrl, fetchOptions);
     const responseText = await response.text();
     let responseData;
     try {
@@ -119,7 +86,6 @@ async function handleProxy(
       responseData = responseText;
     }
 
-    // Return the response directly
     return NextResponse.json(responseData, {
       status: response.status,
       statusText: response.statusText,
@@ -127,29 +93,32 @@ async function handleProxy(
 
   } catch (error: any) {
     console.error("Reverse Proxy error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest, context: any) {
-  return handleProxy(request, "POST", context);
+// Next.js App Router 규격에 맞추어 HTTP Method 핸들러들을 개방 (Next.js 15+ 비동기 params 처리 대응)
+export async function GET(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const resolvedParams = await context.params;
+  return forwardRequest(request, resolvedParams);
 }
 
-export async function GET(request: NextRequest, context: any) {
-  return handleProxy(request, "GET", context);
+export async function POST(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const resolvedParams = await context.params;
+  return forwardRequest(request, resolvedParams);
 }
 
-export async function PUT(request: NextRequest, context: any) {
-  return handleProxy(request, "PUT", context);
+export async function PUT(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const resolvedParams = await context.params;
+  return forwardRequest(request, resolvedParams);
 }
 
-export async function DELETE(request: NextRequest, context: any) {
-  return handleProxy(request, "DELETE", context);
+export async function DELETE(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const resolvedParams = await context.params;
+  return forwardRequest(request, resolvedParams);
 }
 
-export async function PATCH(request: NextRequest, context: any) {
-  return handleProxy(request, "PATCH", context);
+export async function PATCH(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const resolvedParams = await context.params;
+  return forwardRequest(request, resolvedParams);
 }

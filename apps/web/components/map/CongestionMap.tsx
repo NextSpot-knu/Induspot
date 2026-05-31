@@ -104,7 +104,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
 
   // Dynamically load Kakao Maps SDK Script
   useEffect(() => {
-    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY;
+    const appKey = process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY || process.env.NEXT_PUBLIC_KAKAO_MAP_KEY || "";
     const isMock = !appKey || appKey.includes("mock") || appKey.includes("your-");
 
     if (isMock) {
