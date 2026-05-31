@@ -703,15 +703,15 @@ export default function MainPage() {
           '휴게실': 'loading_dock'
         };
         const targetType = filterMap[activeFilter];
-        const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
-        const scored = candidates.map(f => ({
+        const allCandidates = facilities.filter(f => f.type === targetType);
+        const allScored = allCandidates.map(f => ({
           ...f,
           tttv: calculateTTTV(f)
         })).sort((a, b) => b.tttv.score - a.tttv.score);
         
-        const rankIndex = scored.findIndex(f => f.id === selectedFacility.id);
+        const rankIndex = allScored.findIndex(f => f.id === selectedFacility.id);
         const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
-        const totalCandidates = scored.length;
+        const totalCandidates = allScored.length;
 
         const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
         return (
