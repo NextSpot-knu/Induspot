@@ -44,6 +44,13 @@ __pycache__/
 *.pyo
 *.pkl
 
+# WP1 Vertex 배포 임시 산출물 (재생성 가능)
+*.joblib
+.venv_deploy/
+apps/api/scripts/_model_coef.json
+apps/api/redeploy.log
+apps/api/deploy_vertex.log
+
 # supabase cli temp
 supabase/.temp/
 scratch/

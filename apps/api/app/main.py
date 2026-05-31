@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.supabase import get_current_user
 from app.core.logging import setup_logging
-from app.routers import recommendations, infrastructures, predict
+from app.routers import recommendations, infrastructures, predict, ingest
 
 
 # 로깅 설정 초기화
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(recommendations.router)
 app.include_router(infrastructures.router)
 app.include_router(predict.router, prefix="/predict")
+app.include_router(ingest.router)  # WP4: POST /ingest/pubsub
 
 # 1. Health Check Endpoint
 @app.get("/")

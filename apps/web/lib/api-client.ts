@@ -126,6 +126,7 @@ export interface RecommendationResponse {
     incentive: number;
   };
   distanceM: number;
+  reason?: string; // WP3: Gemini 생성 추천 사유 (백엔드 snake_case reason → camel reason)
 }
 
 export async function getRecommendations(

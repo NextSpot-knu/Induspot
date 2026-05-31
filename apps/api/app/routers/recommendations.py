@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from app.core.supabase import supabase_client, get_current_user
 from app.services.pinecone_service import pinecone_service
+from app.services.reason_service import generate_reason
 from app.services.tttv.score import calculate_tttv_score
 from app.services.tttv.travel import calculate_haversine_distance, WALKING_SPEED_M_PER_MIN
 from app.services.tttv.preference import CATEGORY_VECTORS
@@ -25,6 +26,7 @@ class RecommendItem(BaseModel):
     tttv_score: float
     breakdown: dict
     distance_m: float
+    reason: str | None = None  # WP3: Gemini 생성 사유(실패 시 템플릿 폴백)
 
 class FeedbackRequest(BaseModel):
     recommendation_id: str
@@ -140,16 +142,33 @@ async def get_recommendations(
             "facility": f,
             "tttv_score": score_res.score,
             "breakdown": score_res.breakdown,
-            "distance_m": dist
+            "distance_m": dist,
+            "candidate_congestion": candidate_congestion
         })
 
     # 4. 스코어 기준 내림차순 정렬 및 상위 3개 선별
     recommendation_results.sort(key=lambda x: x["tttv_score"], reverse=True)
     top_3 = recommendation_results[:3]
 
+    # 4-1. WP3: 상위 N개(=top_3)에만 Gemini 사유 생성 (동시 호출, 실패 시 템플릿 폴백)
+    async def _reason_for(item: dict) -> str:
+        bd = item["breakdown"]
+        return await generate_reason({
+            "original_facility_name": original_infra.get("name"),
+            "recommended_facility_name": item["facility"].get("name"),
+            "original_congestion": original_congestion,
+            "candidate_congestion": item["candidate_congestion"],
+            "travel_time": bd.get("travel_time"),
+            "predicted_wait": bd.get("wait_time"),
+            "preference": bd.get("preference"),
+            "incentive": bd.get("incentive"),
+        })
+
+    reasons = await asyncio.gather(*[_reason_for(item) for item in top_3])
+
     # 5. DB(recommendations)에 추천 이력 저장 후 recommendation_id 획득 및 응답 매핑
     response_items = []
-    for item in top_3:
+    for idx, item in enumerate(top_3):
         # DB 이력 추가
         db_res = await asyncio.to_thread(
             supabase_client.table("recommendations").insert({
@@ -169,7 +188,8 @@ async def get_recommendations(
             facility=item["facility"],
             tttv_score=item["tttv_score"],
             breakdown=item["breakdown"],
-            distance_m=item["distance_m"]
+            distance_m=item["distance_m"],
+            reason=reasons[idx]
         ))
 
     logger.info("recommendations_generated", count=len(response_items))

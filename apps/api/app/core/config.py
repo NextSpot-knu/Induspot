@@ -18,6 +18,34 @@ class Settings(BaseSettings):
     def SUPABASE_KEY(self) -> str:
         return self.SUPABASE_SERVICE_ROLE_KEY or self.SUPABASE_ANON_KEY
 
+    # --- GCP / Vertex AI Settings (WP1) ---
+    # 공통 GCP 프로젝트 (비밀 아님 → 기본값 허용)
+    GCP_PROJECT_ID: str = "knudc-henryseo711"
+    # Vertex/BigQuery/Pub-Sub 리소스 리전 (기존 Cloud Run 리전과 통일)
+    VERTEX_LOCATION: str = "us-central1"
+    # 배포된 혼잡 예측 Endpoint의 숫자 ID. 비어 있으면 WP1 비활성화(=GCS 폴백 경로 사용).
+    VERTEX_ENDPOINT_ID: str = ""
+    # Vertex Endpoint 호출 타임아웃(초)
+    VERTEX_TIMEOUT_SECONDS: float = 5.0
+
+    # --- Gemini Settings (WP3) ---
+    # 추천 사유 생성 모델. 비어 있으면 WP3 비활성화(=템플릿 폴백).
+    GEMINI_MODEL: str = "gemini-2.0-flash-001"
+    GEMINI_ENABLED: bool = False
+    GEMINI_TIMEOUT_SECONDS: float = 4.0
+
+    # --- BigQuery Settings (WP2) ---
+    BQ_DATASET: str = "induspot"
+    BQ_LOCATION: str = "US"
+
+    # --- Pub/Sub Settings (WP4) ---
+    PUBSUB_TOPIC: str = "induspot-congestion"
+    PUBSUB_PUSH_SUBSCRIPTION: str = "induspot-congestion-push"
+    # push 요청 OIDC 토큰 검증에 기대하는 서비스 계정 이메일. 비어 있으면 검증 생략(개발용).
+    PUBSUB_PUSH_SERVICE_ACCOUNT: str = ""
+    # push 요청 OIDC 토큰의 기대 audience (보통 Cloud Run /ingest/pubsub URL). 비어 있으면 audience 미검증.
+    PUBSUB_PUSH_AUDIENCE: str = ""
+
     # Pinecone Settings
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX_NAME: str = "induspot-poi-index"

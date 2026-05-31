@@ -769,6 +769,13 @@ function RecommendContent() {
                     </div>
                   </div>
 
+                  {/* WP3: Gemini 생성 추천 사유 (있을 때만 노출) */}
+                  {rec.reason && (
+                    <p className="mt-2 text-[11px] leading-snug text-sky-200/90 bg-sky-500/10 border border-sky-500/20 rounded-xl px-3 py-2">
+                      💡 {rec.reason}
+                    </p>
+                  )}
+
                   {/* Minimap container */}
                   <div className="my-3">
                     <MiniMap
