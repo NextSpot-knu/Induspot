@@ -87,6 +87,17 @@ async function seedParking() {
     });
   }
 
+  console.log('Deleting existing parking facilities to avoid duplicates...');
+  const { error: deleteError } = await supabase
+    .from('facilities')
+    .delete()
+    .eq('type', 'parking');
+
+  if (deleteError) {
+    console.error('Error deleting existing parking facilities:', deleteError);
+    return;
+  }
+
   console.log(`Parsed ${facilitiesToInsert.length} parking facilities. Inserting to Supabase...`);
 
   const { data, error } = await supabase
