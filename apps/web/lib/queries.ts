@@ -133,7 +133,7 @@ export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
   while (true) {
     const { data, error } = await supabase
       .from("facilities")
-      .select("name")
+      .select("name, type")
       .order("name", { ascending: true })
       .range(fromFac, fromFac + limit - 1);
     if (error) {
@@ -147,6 +147,12 @@ export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
   }
 
   const facilityNames = facilities?.map((f) => f.name) ?? [];
+  const facilityTypeMap: Record<string, string> = {};
+  if (facilities) {
+    for (const f of facilities) {
+      facilityTypeMap[f.name] = f.type;
+    }
+  }
 
   // 오늘 로그 가져오기 (페이지네이션 적용)
   let logs: any[] = [];
@@ -207,6 +213,7 @@ export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
       const avg = count > 0 ? total / count : 0;
       heatmap.push({
         facility: name,
+        facilityType: facilityTypeMap[name] || "unknown",
         hour,
         value: Math.round(avg * 100) / 100
       });

@@ -161,8 +161,8 @@ export default async function DashboardPage() {
 
           {/* Charts Row (Client Components) */}
           <div className="grid grid-cols-4 gap-6">
-            <DashboardCharts distribution={distribution} />
             <DashboardHeatmap heatmapData={heatmap} />
+            <DashboardCharts distribution={distribution} />
           </div>
 
           {/* Bottom Section */}

@@ -16,7 +16,7 @@ declare global {
   }
 }
 
-const getMarkerSvg = (type: string, level: number) => {
+const getMarkerSvg = (type: string, level: number, features: any = {}) => {
   let color = "#10b981"; // green (여유)
   if (level >= 0.7) {
     color = "#ef4444"; // red (혼잡)
@@ -30,8 +30,22 @@ const getMarkerSvg = (type: string, level: number) => {
   else if (type === "meeting_room") emoji = "🤝";
   else if (type === "loading_dock") emoji = "🚚";
 
+  const isPrivateParking = type === "parking" && (features?.is_private === true || features?.parking_type === "사내");
+
+  if (isPrivateParking) {
+    // Return a square-like marker for private parking
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+        <rect x="2" y="2" width="32" height="32" rx="8" fill="${color}" stroke="%23ffffff" stroke-width="3"/>
+        <circle cx="18" cy="18" r="11" fill="%23ffffff"/>
+        <text x="18" y="23" font-size="12" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
+      </svg>
+    `;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
+  }
+
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="23" viewBox="0 0 36 46">
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
       <path fill="${color}" stroke="%23ffffff" stroke-width="2" d="M18 0C8.1 0 0 8.1 0 18c0 13.5 16.5 26.5 17.1 27.1a1.2 1.2 0 0 0 1.8 0c.6-.6 17.1-13.6 17.1-27.1C36 8.1 27.9 0 18 0z"/>
       <circle cx="18" cy="18" r="11" fill="%23ffffff"/>
       <text x="18" y="22" font-size="12" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
@@ -269,10 +283,14 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     });
 
     const newMarkers = filtered.map((f) => {
+      const isPrivateParking = f.type === "parking" && (f.features?.is_private === true || f.features?.parking_type === "사내");
+      const size = isPrivateParking ? new kakao.maps.Size(36, 36) : new kakao.maps.Size(36, 46);
+      const offset = isPrivateParking ? new kakao.maps.Point(18, 18) : new kakao.maps.Point(18, 46);
+
       const markerImage = new kakao.maps.MarkerImage(
-        getMarkerSvg(f.type, f.congestionLevel),
-        new kakao.maps.Size(18, 23),
-        { offset: new kakao.maps.Point(9, 23) }
+        getMarkerSvg(f.type, f.congestionLevel, f.features),
+        size,
+        { offset }
       );
 
       const marker = new kakao.maps.Marker({
@@ -476,7 +494,10 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
           {/* Simulated Markers */}
           {filteredFacilities.map((f) => {
             const pos = getCoordinatesOnGrid(f.latitude, f.longitude);
-            const markerSvg = getMarkerSvg(f.type, f.congestionLevel);
+            const markerSvg = getMarkerSvg(f.type, f.congestionLevel, f.features);
+            const isPrivateParking = f.type === "parking" && (f.features?.is_private === true || f.features?.parking_type === "사내");
+            const translateClass = isPrivateParking ? "-translate-x-1/2 -translate-y-1/2" : "-translate-x-1/2 -translate-y-[85%]";
+            const imgClass = isPrivateParking ? "w-9 h-9" : "w-9 h-115"; // h-11.5 equivalent for viewBox aspect ratio
 
             return (
               <button
@@ -485,13 +506,13 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
                   setSelectedFacility(f);
                   setIsBottomSheetOpen(true);
                 }}
-                className="absolute -translate-x-1/2 -translate-y-[85%] z-20 transition-all duration-300 hover:scale-110 hover:brightness-110 active:scale-95 focus:outline-none"
+                className={`absolute z-20 transition-all duration-300 hover:scale-110 hover:brightness-110 active:scale-95 focus:outline-none ${translateClass}`}
                 style={{ left: pos.x, top: pos.y }}
               >
                 <img
                   src={markerSvg}
                   alt={f.name}
-                  className="w-9 h-11 drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)]"
+                  className={`${isPrivateParking ? 'w-9 h-9' : 'w-9 h-[46px]'} drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)]`}
                 />
               </button>
             );
