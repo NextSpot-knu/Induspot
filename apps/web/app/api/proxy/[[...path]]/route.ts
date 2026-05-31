@@ -28,7 +28,7 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
 
     const auth = new GoogleAuth({
       credentials,
-      scopes: "https://www.googleapis.com/auth/cloud-platform",
+      // scopes는 OAuth2 액세스 토큰 방식 전용 — getIdTokenClient(OIDC)와 공존 불가
     });
     
     const client = await auth.getIdTokenClient(targetAudience);
