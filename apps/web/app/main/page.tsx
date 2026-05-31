@@ -59,7 +59,7 @@ export default function MainPage() {
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
-  const isInitialLoadRef = useRef(true);
+  // isInitialLoadRef removed – useEffect now always shows scored[0]
 
   const [activeTab, setActiveTab] = useState('Home');
   const [activeFilter, setActiveFilter] = useState('주차장');
@@ -242,20 +242,8 @@ export default function MainPage() {
     userMarkerRef.current = userMarker;
   }, [userLocation, mapLoaded]);
 
-  // Save selected facility ID to sessionStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (selectedFacility) {
-          sessionStorage.setItem('induspot_selected_facility_id', selectedFacility.id);
-        } else {
-          sessionStorage.removeItem('induspot_selected_facility_id');
-        }
-      } catch (e) {
-        console.error("Failed to save selected facility ID to sessionStorage:", e);
-      }
-    }
-  }, [selectedFacility]);
+  // (selected facility ID sessionStorage sync removed – no longer used)
+
 
   // Load saved IDs, rejected IDs, and active filter from storage on mount
   useEffect(() => {
@@ -387,7 +375,8 @@ export default function MainPage() {
     };
   };
 
-  // Synchronize AI recommendations on map and set selected facility to the top recommended spot
+  // Synchronize AI recommendations: always show the #1 scored candidate for the active filter.
+  // Runs whenever facilities, filter, rejected/saved sets, location, or preferences change.
   useEffect(() => {
     try {
       if (facilities.length === 0) return;
@@ -399,40 +388,18 @@ export default function MainPage() {
         '휴게실': 'loading_dock'
       };
       const targetType = filterMap[activeFilter];
-      
-      // Filter facilities of active type, excluding rejected and saved ones
-      const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
-      
-      if (candidates.length > 0) {
-        // Calculate TTTV and sort
-        const scored = candidates.map(f => ({
-          ...f,
-          tttv: calculateTTTV(f)
-        }));
-        scored.sort((a, b) => b.tttv.score - a.tttv.score);
-        
-        // Try to restore previous selection if it is still a valid candidate
-        let restoredFacility = null;
-        if (!isInitialLoadRef.current) {
-          if (typeof window !== 'undefined') {
-            try {
-              const savedId = sessionStorage.getItem('induspot_selected_facility_id');
-              if (savedId) {
-                restoredFacility = scored.find(f => f.id === savedId);
-              }
-            } catch (e) {
-              console.error("Failed to restore selected facility ID from sessionStorage:", e);
-            }
-          }
-        } else {
-          isInitialLoadRef.current = false;
-        }
 
-        if (restoredFacility) {
-          setSelectedFacility(restoredFacility);
-        } else {
-          setSelectedFacility(scored[0]);
-        }
+      // Candidates: active filter type, not rejected, not saved/put-off
+      const candidates = facilities.filter(
+        f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id)
+      );
+
+      if (candidates.length > 0) {
+        const scored = candidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+        scored.sort((a, b) => b.tttv.score - a.tttv.score);
+        // Always show #1 automatically – guarantees card opens on page load and after any action
+        setSelectedFacility(scored[0]);
+        setIsCardHidden(false);
       } else {
         setSelectedFacility(null);
       }
