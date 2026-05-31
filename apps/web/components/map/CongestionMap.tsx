@@ -92,10 +92,10 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
 
   // Projection helper: maps lat/lng of Gumi industrial complex to percentage grid coords
   const getCoordinatesOnGrid = (lat: number, lng: number) => {
-    const minLat = 37.3100;
-    const maxLat = 37.3300;
-    const minLng = 126.8000;
-    const maxLng = 126.8250;
+    const minLat = 36.0500;
+    const maxLat = 36.1800;
+    const minLng = 128.3200;
+    const maxLng = 128.4600;
 
     const y = 100 - ((lat - minLat) / (maxLat - minLat)) * 100;
     const x = ((lng - minLng) / (maxLng - minLng)) * 100;
@@ -110,7 +110,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     if (isMock) {
       setIsSimulation(true);
       setMapLoaded(true);
-      setUserLocation({ lat: 37.3200, lng: 126.8120 });
+      setUserLocation({ lat: 36.1198, lng: 128.3471 });
       return;
     }
 
@@ -162,7 +162,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     if (!mapLoaded || !mapContainerRef.current || isSimulation) return;
 
     const kakao = window.kakao;
-    const defaultCenter = new kakao.maps.LatLng(37.3200, 126.8120);
+    const defaultCenter = new kakao.maps.LatLng(36.1198, 128.3471);
 
     const mapOptions = {
       center: defaultCenter,
@@ -200,8 +200,17 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
+          let lat = position.coords.latitude;
+          let lng = position.coords.longitude;
+
+          // Check if coordinates are outside Gumi National Industrial Complex boundaries
+          const isWithinGumi = lat >= 36.05 && lat <= 36.18 && lng >= 128.32 && lng <= 128.46;
+          if (!isWithinGumi) {
+            lat = 36.1198;
+            lng = 128.3471;
+            console.log("User is outside Gumi. Mocking location to Gumi Complex:", lat, lng);
+          }
+
           setUserLocation({ lat, lng });
           map.setCenter(new kakao.maps.LatLng(lat, lng));
         },

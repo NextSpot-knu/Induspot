@@ -108,7 +108,7 @@ export default function MainPage() {
 
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 37.3200, lng: 126.8120 });
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 36.1198, lng: 128.3471 });
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -135,10 +135,18 @@ export default function MainPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
+          let lat = position.coords.latitude;
+          let lng = position.coords.longitude;
+
+          // Check if coordinates are outside Gumi National Industrial Complex boundaries
+          const isWithinGumi = lat >= 36.05 && lat <= 36.18 && lng >= 128.32 && lng <= 128.46;
+          if (!isWithinGumi) {
+            lat = 36.1198; // Gumi Complex Center (Han솥)
+            lng = 128.3471;
+            console.log("User is outside Gumi. Mocking location to Gumi Complex:", lat, lng);
+          }
+
+          setUserLocation({ lat, lng });
         },
         (error) => {
           console.warn("Geolocation failed, using default:", error);
@@ -396,8 +404,8 @@ export default function MainPage() {
   const initMap = () => {
     if (window.kakao && window.kakao.maps && mapContainerRef.current) {
       window.kakao.maps.load(() => {
-        let centerLat = 37.3200;
-        let centerLng = 126.8120;
+        let centerLat = 36.1198;
+        let centerLng = 128.3471;
         let level = 4;
 
         if (typeof window !== 'undefined') {

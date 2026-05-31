@@ -151,8 +151,8 @@ function RecommendContent() {
   const [toast, setToast] = useState<string | null>(null);
 
   // Coordinates used for recommendations
-  const [lat, setLat] = useState<number>(37.3200);
-  const [lng, setLng] = useState<number>(126.8120);
+  const [lat, setLat] = useState<number>(36.1198);
+  const [lng, setLng] = useState<number>(128.3471);
 
   // Load User ID and Kakao Maps SDK
   useEffect(() => {
@@ -197,11 +197,22 @@ function RecommendContent() {
     } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setLat(pos.coords.latitude);
-          setLng(pos.coords.longitude);
+          let userLat = pos.coords.latitude;
+          let userLng = pos.coords.longitude;
+
+          // Check if coordinates are outside Gumi National Industrial Complex boundaries
+          const isWithinGumi = userLat >= 36.05 && userLat <= 36.18 && userLng >= 128.32 && userLng <= 128.46;
+          if (!isWithinGumi) {
+            userLat = 36.1198; // Gumi Complex Center (Han솥)
+            userLng = 128.3471;
+            console.log("User is outside Gumi. Mocking location to Gumi Complex:", userLat, userLng);
+          }
+
+          setLat(userLat);
+          setLng(userLng);
         },
         (err) => {
-          console.warn("Geolocation fallback failed, using default Ansan center.", err);
+          console.warn("Geolocation fallback failed, using default Gumi center.", err);
         }
       );
     }
