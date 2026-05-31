@@ -572,19 +572,50 @@ function RecommendContent() {
 
       setToast(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
 
-      // 3. Open Kakao Maps Directions in the pre-opened tab
-      const destUrl = `https://map.kakao.com/link/to/${encodeURIComponent(rec.facility.name)},${rec.facility.latitude},${rec.facility.longitude}`;
+      // 3. Open Kakao Maps Directions (Hybrid approach)
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
-      if (newWindow) {
-        newWindow.location.href = destUrl;
+      if (isMobile) {
+        const destUrl = `kakaomap://route?sp=${lat},${lng}&ep=${rec.facility.latitude},${rec.facility.longitude}&by=CAR`;
+        if (newWindow) newWindow.location.href = destUrl;
+        else window.location.href = destUrl;
       } else {
-        // 새 창 열기에 실패한 경우 현재 창에서 이동
-        window.location.href = destUrl;
+        const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "8b9591c379e8cc301162469a713c4f4d";
+        const headers = { 'Authorization': `KakaoAK ${restApiKey}` };
+        
+        const urlStart = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${lng}&y=${lat}&input_coord=WGS84&output_coord=WCONGNAMUL`;
+        const urlEnd = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${rec.facility.longitude}&y=${rec.facility.latitude}&input_coord=WGS84&output_coord=WCONGNAMUL`;
+
+        Promise.all([
+          fetch(urlStart, { headers }).then(r => r.json()),
+          fetch(urlEnd, { headers }).then(r => r.json())
+        ]).then(([startData, endData]) => {
+          if (startData.documents?.length > 0 && endData.documents?.length > 0) {
+            const sX = startData.documents[0].x;
+            const sY = startData.documents[0].y;
+            const eX = endData.documents[0].x;
+            const eY = endData.documents[0].y;
+            const destUrl = `https://map.kakao.com/?map_type=TYPE_MAP&target=car&rt=${sX},${sY},${eX},${eY}&rt1=${encodeURIComponent("현재 위치")}&rt2=${encodeURIComponent(rec.facility.name)}`;
+            if (newWindow) newWindow.location.href = destUrl;
+            else window.location.href = destUrl;
+          } else {
+            throw new Error("좌표 변환 실패");
+          }
+        }).catch(err => {
+          console.error("PC 길안내 자동 시작 실패:", err);
+          const destUrl = `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(rec.facility.name)}&sY=${lat}&sX=${lng}&eY=${rec.facility.latitude}&eX=${rec.facility.longitude}`;
+          if (newWindow) newWindow.location.href = destUrl;
+          else window.location.href = destUrl;
+        });
       }
     } catch (err) {
       console.error("Error submitting accepted feedback:", err);
       // 에러 발생 시에도 빈 창이 덩그러니 남지 않도록 목적지로 보냄
-      const destUrl = `https://map.kakao.com/link/to/${encodeURIComponent(rec.facility.name)},${rec.facility.latitude},${rec.facility.longitude}`;
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const destUrl = isMobile 
+        ? `kakaomap://route?sp=${lat},${lng}&ep=${rec.facility.latitude},${rec.facility.longitude}&by=CAR`
+        : `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(rec.facility.name)}&sY=${lat}&sX=${lng}&eY=${rec.facility.latitude}&eX=${rec.facility.longitude}`;
+      
       if (newWindow) {
         newWindow.location.href = destUrl;
       } else {
