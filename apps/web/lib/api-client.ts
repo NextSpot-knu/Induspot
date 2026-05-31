@@ -117,6 +117,8 @@ export interface RecommendationResponse {
     capacity: number;
     operatingHours?: any;
     features?: any;
+    currentCount?: number;
+    congestionLevel?: number;
   };
   tttvScore: number;
   breakdown: {
