@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
-import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, Coffee } from 'lucide-react';
+import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, Coffee, Sparkles } from 'lucide-react';
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { createPublicClient } from '@/lib/supabase';
 
@@ -50,6 +50,7 @@ export default function MainPage() {
   const [facilities, setFacilities] = useState<any[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [isCardHidden, setIsCardHidden] = useState(false);
 
   const router = useRouter();
 
@@ -478,6 +479,7 @@ export default function MainPage() {
       kakao.maps.event.addListener(marker, "click", () => {
         console.log("Marker clicked:", f.name);
         setSelectedFacility(f);
+        setIsCardHidden(false);
         mapInstanceRef.current.panTo(new kakao.maps.LatLng(f.latitude, f.longitude));
       });
 
@@ -568,17 +570,17 @@ export default function MainPage() {
       </div>
 
       {/* AI Recommendation Card (Floating Bottom Sheet) */}
-      {selectedFacility && (() => {
+      {selectedFacility && !isCardHidden && (() => {
         const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
         return (
-          <div className="absolute bottom-[90px] w-full z-20 px-4">
+          <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
             <RecommendationCard 
               title={selectedFacility.name}
               description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
               onAccept={() => handleAccept(selectedFacility)}
               onReject={() => handleReject(selectedFacility)}
               onPutOff={() => handlePutOff(selectedFacility)}
-              onClose={() => setSelectedFacility(null)}
+              onClose={() => setIsCardHidden(true)}
               tttvScore={tttv.score}
               preferencePercent={tttv.preferencePercent}
               expectedWait={tttv.expectedWait}
@@ -590,6 +592,19 @@ export default function MainPage() {
           </div>
         );
       })()}
+
+      {/* Restore Card Trigger Button when hidden */}
+      {selectedFacility && isCardHidden && (
+        <div className="absolute bottom-[100px] right-4 z-20">
+          <button
+            onClick={() => setIsCardHidden(false)}
+            className="flex items-center gap-2 px-4 py-3 bg-[#111622]/90 hover:bg-[#1b2336] text-white border border-blue-500/30 hover:border-blue-400 rounded-full font-bold text-xs shadow-lg shadow-blue-500/10 active:scale-95 transition-all pointer-events-auto"
+          >
+            <Sparkles size={14} className="text-cyan-400 animate-pulse" />
+            <span>AI 추천 열기</span>
+          </button>
+        </div>
+      )}
 
       {/* Bottom Navigation Bar */}
       <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
