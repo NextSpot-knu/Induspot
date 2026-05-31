@@ -30,7 +30,7 @@ export default function InfrastructurePage() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [activeFilter, setActiveFilter] = useState('식당');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 10;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
