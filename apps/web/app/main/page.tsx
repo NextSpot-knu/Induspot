@@ -256,6 +256,12 @@ export default function MainPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
+        sessionStorage.removeItem('induspot_selected_facility_id');
+      } catch (e) {
+        console.error("Failed to clear selected facility ID on mount:", e);
+      }
+
+      try {
         const saved = localStorage.getItem('induspot_saved_facilities');
         if (saved) {
           const parsed = JSON.parse(saved);
