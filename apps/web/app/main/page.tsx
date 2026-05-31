@@ -408,15 +408,52 @@ export default function MainPage() {
   // Action Button Handlers
   const handleAccept = (fac: any) => {
     if (!fac) return;
-    const destUrl = `https://map.kakao.com/link/to/${encodeURIComponent(fac.name)},${fac.latitude},${fac.longitude}`;
-    window.open(destUrl, '_blank');
-    
+
     let greeting = "즐거운 시간 되세요!";
     if (fac.type === "cafeteria") greeting = "맛있게 드세요!";
     else if (fac.type === "parking") greeting = "안전 주차 하세요!";
     else if (fac.type === "meeting_room") greeting = "성공적인 회의 되세요!";
     
     alert(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // 모바일 기기: 카카오맵 앱 전용 스킴 (즉시 자동차 길안내 시작)
+      const destUrl = `kakaomap://route?sp=${userLocation.lat},${userLocation.lng}&ep=${fac.latitude},${fac.longitude}&by=CAR`;
+      window.location.href = destUrl;
+    } else {
+      // PC 환경: 카카오맵 웹 스킴에서 자동 길찾기(자동차 기준)를 위해 WGS84 -> WCONGNAMUL 변환 API 호출
+      const newWindow = window.open('', '_blank'); // 팝업 차단 방지를 위해 미리 띄움
+      
+      const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "8b9591c379e8cc301162469a713c4f4d";
+      const headers = { 'Authorization': `KakaoAK ${restApiKey}` };
+      
+      const urlStart = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${userLocation.lng}&y=${userLocation.lat}&input_coord=WGS84&output_coord=WCONGNAMUL`;
+      const urlEnd = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${fac.longitude}&y=${fac.latitude}&input_coord=WGS84&output_coord=WCONGNAMUL`;
+
+      Promise.all([
+        fetch(urlStart, { headers }).then(r => r.json()),
+        fetch(urlEnd, { headers }).then(r => r.json())
+      ]).then(([startData, endData]) => {
+        if (startData.documents?.length > 0 && endData.documents?.length > 0) {
+          const sX = startData.documents[0].x;
+          const sY = startData.documents[0].y;
+          const eX = endData.documents[0].x;
+          const eY = endData.documents[0].y;
+          // target=car 와 rt 파라미터를 사용하여 즉시 길안내 화면 렌더링
+          const destUrl = `https://map.kakao.com/?map_type=TYPE_MAP&target=car&rt=${sX},${sY},${eX},${eY}&rt1=${encodeURIComponent("현재 위치")}&rt2=${encodeURIComponent(fac.name)}`;
+          if (newWindow) newWindow.location.href = destUrl;
+        } else {
+          throw new Error("좌표 변환 실패");
+        }
+      }).catch(err => {
+        console.error("PC 길안내 자동 시작 실패(좌표변환 에러):", err);
+        // 실패 시 기존 텍스트 채우기 방식으로 폴백
+        const destUrl = `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(fac.name)}&sY=${userLocation.lat}&sX=${userLocation.lng}&eY=${fac.latitude}&eX=${fac.longitude}`;
+        if (newWindow) newWindow.location.href = destUrl;
+      });
+    }
   };
 
   const handlePutOff = (fac: any) => {
