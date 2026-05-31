@@ -31,9 +31,9 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
     
     const client = await auth.getIdTokenClient(targetAudience);
     // getRequestHeaders()는 { Authorization: 'Bearer xxx' } 형태의 plain object를 반환
-    const idTokenHeaders = await client.getRequestHeaders(targetAudience);
-    // Authorization 키에서 토큰 추출 (plain object이므로 bracket notation 사용)
-    const authHeaderValue = idTokenHeaders.Authorization || idTokenHeaders.authorization || "";
+    const idTokenHeaders = await client.getRequestHeaders(targetAudience) as unknown as Record<string, string>;
+    // Authorization 키에서 토큰 추출
+    const authHeaderValue = idTokenHeaders["Authorization"] || idTokenHeaders["authorization"] || "";
 
     console.log("[Proxy] OIDC token present:", !!authHeaderValue, "| Target:", finalUrl);
 
