@@ -1,0 +1,5 @@
+﻿id,name,type,latitude,longitude,capacity,operating_hours,features,max_capacity_vehicles
+null,시민행복주차장(대우전자 사원아파트 인근),parking,36.09992236,128.3842052,83,"{""24_7"": true}","{""is_public"": true, ""parking_type"": ""노외"", ""is_free"": true, ""has_disabled_zone"": false}",101
+null,시민행복주차장(공단동 행정복지센터 인근),parking,36.10071758,128.3837459,101,"{""24_7"": true}","{""is_public"": true, ""parking_type"": ""노외"", ""is_free"": true, ""has_disabled_zone"": false}",85
+null,노상주차장(공단BS호텔앞),parking,36.11024954,128.3770104,60,"{""24_7"": true}","{""is_public"": true, ""parking_type"": ""노상"", ""is_free"": true, ""has_disabled_zone"": false}",50
+null,근로자종합복지회관,parking,36.10555959,128.3839007,116,"{""24_7"": true}","{""is_public"": true, ""parking_type"": ""부설"", ""is_free"": true, ""has_disabled_zone"": false}",150

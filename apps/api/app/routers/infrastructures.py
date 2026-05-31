@@ -58,20 +58,31 @@ async def get_infrastructures(
 ):
     logger.info("infrastructures_request", type=type)
     try:
-        query = supabase_client.table("facilities").select("*")
-        if type:
-            query = query.eq("type", type)
-        if min_lat is not None:
-            query = query.gte("latitude", min_lat)
-        if max_lat is not None:
-            query = query.lte("latitude", max_lat)
-        if min_lng is not None:
-            query = query.gte("longitude", min_lng)
-        if max_lng is not None:
-            query = query.lte("longitude", max_lng)
+        facilities = []
+        limit = 1000
+        start = 0
+        while True:
+            query = supabase_client.table("facilities").select("*")
+            if type:
+                query = query.eq("type", type)
+            if min_lat is not None:
+                query = query.gte("latitude", min_lat)
+            if max_lat is not None:
+                query = query.lte("latitude", max_lat)
+            if min_lng is not None:
+                query = query.gte("longitude", min_lng)
+            if max_lng is not None:
+                query = query.lte("longitude", max_lng)
+            
+            query = query.range(start, start + limit - 1)
+            res = await asyncio.to_thread(query.execute)
+            if not res.data:
+                break
+            facilities.extend(res.data)
+            if len(res.data) < limit:
+                break
+            start += limit
 
-        res = await asyncio.to_thread(query.execute)
-        facilities = res.data
         if not facilities:
             return []
 

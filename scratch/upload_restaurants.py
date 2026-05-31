@@ -39,8 +39,17 @@ def upload_restaurants_data():
                 except Exception:
                     features = {}
                     
-                # null 값들 현실적인 값으로 채우기
-                capacity = random.randint(30, 120)
+                # Parse capacity / max_capacity_people
+                max_capacity_people = None
+                if "max_capacity_people" in row and row["max_capacity_people"] and row["max_capacity_people"] != "null":
+                    try:
+                        max_capacity_people = int(row["max_capacity_people"])
+                    except ValueError:
+                        pass
+                if max_capacity_people is None:
+                    max_capacity_people = random.randint(30, 120)
+                
+                capacity = max_capacity_people
                 operating_hours = {
                     "weekday": "11:00-21:00",
                     "weekend": "11:00-20:00"
@@ -57,6 +66,7 @@ def upload_restaurants_data():
                     "latitude": float(row["latitude"]),
                     "longitude": float(row["longitude"]),
                     "capacity": capacity,
+                    "max_capacity_people": max_capacity_people,
                     "operating_hours": operating_hours,
                     "features": features
                 }

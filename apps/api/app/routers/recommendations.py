@@ -48,10 +48,21 @@ async def fetch_facility(facility_id: str):
     return res.data[0]
 
 async def fetch_all_facilities():
-    res = await asyncio.to_thread(
-        supabase_client.table("facilities").select("*").execute
-    )
-    return res.data
+    all_data = []
+    limit = 1000
+    start = 0
+    while True:
+        # Avoid lambda scope capture issues by specifying start/limit explicitly
+        res = await asyncio.to_thread(
+            lambda s=start, l=limit: supabase_client.table("facilities").select("*").range(s, s + l - 1).execute()
+        )
+        if not res.data:
+            break
+        all_data.extend(res.data)
+        if len(res.data) < limit:
+            break
+        start += limit
+    return all_data
 
 async def fetch_latest_congestion(facility_id: str) -> float:
     """

@@ -159,26 +159,57 @@ export default async function WorkerMapPage() {
   let latestLogsMap: Record<string, any> = {};
 
   try {
-    // 1) 모든 시설 조회 (congestion_logs 조인 없이)
-    const { data: facilities, error: facilityError } = await supabase
-      .from("facilities")
-      .select("id, name, type, latitude, longitude, capacity, operating_hours, features")
-      .order("name", { ascending: true });
+    // 1) 모든 시설 조회 (congestion_logs 조인 없이, 페이지네이션 적용)
+    let facilities: any[] = [];
+    let fromFac = 0;
+    const limit = 1000;
+    let facilityError = null;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("facilities")
+        .select("id, name, type, latitude, longitude, capacity, operating_hours, features")
+        .order("name", { ascending: true })
+        .range(fromFac, fromFac + limit - 1);
+      
+      if (error) {
+        facilityError = error;
+        break;
+      }
+      if (!data || data.length === 0) break;
+      facilities = [...facilities, ...data];
+      if (data.length < limit) break;
+      fromFac += limit;
+    }
 
     if (facilityError) {
       console.warn("Supabase facilities query error, using fallback:", facilityError);
       facilitiesData = MOCK_SEED_FACILITIES;
-    } else if (!facilities || facilities.length === 0) {
+    } else if (facilities.length === 0) {
       console.warn("No facilities returned from Supabase, using fallback.");
       facilitiesData = MOCK_SEED_FACILITIES;
     } else {
       facilitiesData = facilities;
 
-      // 2) 각 시설의 최신 congestion_log 조회
-      const { data: logs } = await supabase
-        .from("congestion_logs")
-        .select("facility_id, congestion_level, current_count, timestamp")
-        .order("timestamp", { ascending: false });
+      // 2) 각 시설의 최신 congestion_log 조회 (페이지네이션 적용)
+      let logs: any[] = [];
+      let fromLogs = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("congestion_logs")
+          .select("facility_id, congestion_level, current_count, timestamp")
+          .order("timestamp", { ascending: false })
+          .range(fromLogs, fromLogs + limit - 1);
+        
+        if (error) {
+          console.warn("Failed to load congestion logs:", error);
+          break;
+        }
+        if (!data || data.length === 0) break;
+        logs = [...logs, ...data];
+        if (data.length < limit) break;
+        fromLogs += limit;
+      }
 
       if (logs && logs.length > 0) {
         // facility_id 기준으로 최신 로그 1개씩만 유지

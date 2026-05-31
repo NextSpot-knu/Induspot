@@ -126,20 +126,47 @@ export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
   const supabase = createAdminClient();
   const today = getKstDateRange(0);
 
-  // 시설 목록 가져오기
-  const { data: facilities } = await supabase
-    .from("facilities")
-    .select("name")
-    .order("name", { ascending: true });
+  // 시설 목록 가져오기 (페이지네이션 적용)
+  let facilities: any[] = [];
+  let fromFac = 0;
+  const limit = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("facilities")
+      .select("name")
+      .order("name", { ascending: true })
+      .range(fromFac, fromFac + limit - 1);
+    if (error) {
+      console.error("Error fetching facilities for heatmap:", error);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    facilities = [...facilities, ...data];
+    if (data.length < limit) break;
+    fromFac += limit;
+  }
 
   const facilityNames = facilities?.map((f) => f.name) ?? [];
 
-  // 오늘 로그 가져오기
-  const { data: logs } = await supabase
-    .from("congestion_logs")
-    .select("congestion_level, timestamp, facility:facilities(name)")
-    .gte("timestamp", today.start)
-    .lte("timestamp", today.end);
+  // 오늘 로그 가져오기 (페이지네이션 적용)
+  let logs: any[] = [];
+  let fromLogs = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("congestion_logs")
+      .select("congestion_level, timestamp, facility:facilities(name)")
+      .gte("timestamp", today.start)
+      .lte("timestamp", today.end)
+      .range(fromLogs, fromLogs + limit - 1);
+    if (error) {
+      console.error("Error fetching logs for heatmap:", error);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    logs = [...logs, ...data];
+    if (data.length < limit) break;
+    fromLogs += limit;
+  }
 
   // 빈 그리드 초기화
   const cellMap: Record<string, { total: number; count: number }> = {};
@@ -456,15 +483,27 @@ export async function fetchAnomalyAlerts(): Promise<AnomalyAlert[]> {
  */
 export async function fetchFacilities(): Promise<Facility[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("facilities")
-    .select("*")
-    .order("name", { ascending: true });
+  let allData: Facility[] = [];
+  let from = 0;
+  const limit = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from("facilities")
+      .select("*")
+      .order("name", { ascending: true })
+      .range(from, from + limit - 1);
 
-  if (error) {
-    console.error("Error fetching facilities:", error);
-    throw error;
+    if (error) {
+      console.error("Error fetching facilities:", error);
+      throw error;
+    }
+    
+    if (!data || data.length === 0) break;
+    allData = [...allData, ...(data as Facility[])];
+    if (data.length < limit) break;
+    from += limit;
   }
 
-  return data as Facility[];
+  return allData;
 }
