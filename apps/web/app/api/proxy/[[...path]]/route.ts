@@ -35,7 +35,13 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
     });
     
     const client = await auth.getIdTokenClient(targetAudience);
-    const authHeaders = (await client.getRequestHeaders()) as Record<string, any>;
+    const authHeaders = await client.getRequestHeaders(targetAudience);
+    const authHeaderKeys = Object.keys(authHeaders);
+    const authHeaderDump = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(authHeaders).map(([k, v]) => [k, typeof v === 'string' ? v.substring(0, 40) + '...' : v])
+      )
+    );
 
     const headers = new Headers();
     // Copy incoming headers that are safe to copy
@@ -93,6 +99,8 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
         backendStatus: response.status,
         backendStatusText: response.statusText,
         authHeaderSent: authHeaderValue ? `${authHeaderValue.substring(0, 30)}...` : "EMPTY",
+        authHeaderKeys,
+        authHeaderDump,
         backendResponse: responseText.substring(0, 500),
       }, { status: 200 });
     }
