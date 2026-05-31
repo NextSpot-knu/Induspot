@@ -25,6 +25,8 @@ class RecommendItem(BaseModel):
     tttv_score: float
     breakdown: dict
     distance_m: float
+    rank: int
+    total_candidates: int
 
 class FeedbackRequest(BaseModel):
     recommendation_id: str
@@ -149,7 +151,8 @@ async def get_recommendations(
 
     # 5. DB(recommendations)에 추천 이력 저장 후 recommendation_id 획득 및 응답 매핑
     response_items = []
-    for item in top_3:
+    total_count = len(recommendation_results)
+    for idx, item in enumerate(top_3):
         # DB 이력 추가
         db_res = await asyncio.to_thread(
             supabase_client.table("recommendations").insert({
@@ -169,7 +172,9 @@ async def get_recommendations(
             facility=item["facility"],
             tttv_score=item["tttv_score"],
             breakdown=item["breakdown"],
-            distance_m=item["distance_m"]
+            distance_m=item["distance_m"],
+            rank=idx + 1,
+            total_candidates=total_count
         ))
 
     logger.info("recommendations_generated", count=len(response_items))

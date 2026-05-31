@@ -15,9 +15,12 @@
     *   혼잡도 수치에 따라 마커 색상을 분기합니다 (0.7 이상 Red, 0.3 이상 Yellow, 그 외 Green).
     *   예상 대기 시간 클라이언트 연산 로직을 포함합니다: `혼잡도 * 평균 처리 시간 * 시간대 가중치`. (12~14시는 가중치 1.3배, 7시/15시는 1.2배 적용)
 *   **추천 UI ([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/worker/recommend/page.tsx))**
-    *   API로부터 수신된 대안 시설 목록을 렌더링합니다.
+    *   API로부터 수신된 대안 시설 목록을 렌더링하며, 각 대안 카드에 해당 추천이 전체 후보군 중 몇 번째 순위인지(`대안 Y개 중 X등` 배지) 실시간 시각화합니다.
     *   Kakao Maps API 키가 mock 상태일 경우 CSS 기반의 시뮬레이션 UI(Twin Node Active 레이더 뷰)를 렌더링하도록 예외 처리되어 있습니다.
     *   사용자의 수락/거절(accepted/rejected) 피드백 입력을 백엔드 API로 전송합니다.
+*   **AI 추천 카드 ([RecommendationCard.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/RecommendationCard.tsx))**
+    *   지도 상에서 선택된 시설의 TTTV 세부 지표(선호 일치율, 예상 대기, 예상 도보)와 총합 시간비용을 렌더링하는 슬라이드형 시트 카드입니다.
+    *   현재 추천 시설이 반경 내 전체 후보군 중 TTTV 스코어 기준으로 몇 등인지를 나타내는 순위 정보(`대안 Y개 중 X등` 배지)를 상단에 노출합니다.
 *   **API 클라이언트 ([api-client.ts](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/lib/api-client.ts))**
     *   백엔드 통신 시, Supabase 세션에서 JWT를 추출하여 `Authorization` 헤더에 자동 주입합니다.
     *   Python(snake_case)과 JS(camelCase) 간의 네이밍 컨벤션 차이를 처리하기 위해 요청 페이로드와 응답 데이터를 재귀적으로 파싱하여 키 값을 상호 변환하는 헬퍼 함수가 구현되어 있습니다.

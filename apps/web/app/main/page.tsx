@@ -696,6 +696,23 @@ export default function MainPage() {
 
       {/* AI Recommendation Card (Floating Bottom Sheet) */}
       {selectedFacility && !isCardHidden && (() => {
+        const filterMap: Record<string, string> = {
+          '식당': 'cafeteria',
+          '주차장': 'parking',
+          '회의실': 'meeting_room',
+          '휴게실': 'loading_dock'
+        };
+        const targetType = filterMap[activeFilter];
+        const candidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id));
+        const scored = candidates.map(f => ({
+          ...f,
+          tttv: calculateTTTV(f)
+        })).sort((a, b) => b.tttv.score - a.tttv.score);
+        
+        const rankIndex = scored.findIndex(f => f.id === selectedFacility.id);
+        const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
+        const totalCandidates = scored.length;
+
         const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
         return (
           <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
@@ -713,6 +730,8 @@ export default function MainPage() {
               timeToService={tttv.timeToService}
               facilityType={selectedFacility.type}
               facility={selectedFacility}
+              rank={rank}
+              totalCandidates={totalCandidates}
             />
           </div>
         );
