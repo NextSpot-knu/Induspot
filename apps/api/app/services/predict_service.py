@@ -44,6 +44,15 @@ def _resolve_project_id() -> str:
         adc_path = os.path.join(
             os.environ.get("APPDATA", ""), "gcloud", "application_default_credentials.json"
         )
+# GCP Project ID resolution
+project_id = "knudc-henryseo711"
+storage_client = None
+try:
+    if os.environ.get("ENV") == "production":
+        storage_client = storage.Client()
+    else:
+        # Local fallback for development with ADC credentials
+        adc_path = os.path.join(os.environ.get("APPDATA", ""), "gcloud", "application_default_credentials.json")
         if os.path.exists(adc_path):
             try:
                 with open(adc_path, "r", encoding="utf-8") as f:
@@ -54,6 +63,40 @@ def _resolve_project_id() -> str:
                 pass
     return project_id
 
+        storage_client = storage.Client(project=project_id)
+except Exception as e:
+    print(f"Failed to initialize GCS storage client (local fallback will be used): {e}")
+
+print(f"Downloading model from GCS bucket: {settings.GCS_BUCKET_NAME} in project: {project_id}...")
+try:
+    if storage_client is None:
+        raise RuntimeError("GCS storage client is not initialized.")
+    bucket = storage_client.bucket(settings.GCS_BUCKET_NAME)
+    blob = bucket.blob("models/model.pkl")
+    model_bytes = blob.download_as_bytes()
+    model_data = pickle.loads(model_bytes)
+    model = model_data["model"]
+    encoder = model_data["encoder"]
+    print("Successfully loaded model and encoder from GCS.")
+except Exception as e:
+    print(f"Error loading model from GCS: {e}")
+    # Fallback to local file if available
+    local_model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "model.pkl")
+    if os.path.exists(local_model_path):
+        print(f"Falling back to local model file: {local_model_path}")
+        try:
+            with open(local_model_path, "rb") as f:
+                model_data = pickle.load(f)
+                model = model_data["model"]
+                encoder = model_data["encoder"]
+        except Exception as err:
+            print(f"Failed to load local model: {err}")
+            model = None
+            encoder = None
+    else:
+        print("Warning: Could not load model from GCS or local backup. Heuristic fallback will be used.")
+        model = None
+        encoder = None
 
 def normalize_facility_type(facility_type: str) -> str:
     if facility_type in ["restaurant", "cafe"]:
@@ -73,6 +116,7 @@ def _load_gcs_artifacts() -> Optional[Tuple[Any, Any]]:
     if _gcs_loaded:
         return _gcs_artifacts
     _gcs_loaded = True
+
     try:
         from google.cloud import storage  # lazy import
 
@@ -126,6 +170,11 @@ def _predict_with_artifacts(artifacts: Tuple[Any, Any], norm_type: str, hour: in
         # train.py의 OneHotEncoder가 fit된 포맷: [norm_type, hour_str, dow_str]
         features = [[norm_type, str(hour), str(dow)]]
         X_encoded = encoder.transform(features)
+<<<<<<< HEAD
+=======
+        
+        # 5. Predict
+>>>>>>> origin/main
         prediction = model.predict(X_encoded)[0]
         return max(0.0, min(1.0, float(prediction)))
     except Exception as e:

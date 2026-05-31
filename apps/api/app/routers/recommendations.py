@@ -27,6 +27,8 @@ class RecommendItem(BaseModel):
     breakdown: dict
     distance_m: float
     reason: str | None = None  # WP3: Gemini 생성 사유(실패 시 템플릿 폴백)
+    rank: int
+    total_candidates: int
 
 class FeedbackRequest(BaseModel):
     recommendation_id: str
@@ -168,6 +170,7 @@ async def get_recommendations(
 
     # 5. DB(recommendations)에 추천 이력 저장 후 recommendation_id 획득 및 응답 매핑
     response_items = []
+    total_count = len(recommendation_results)
     for idx, item in enumerate(top_3):
         # DB 이력 추가
         db_res = await asyncio.to_thread(
@@ -190,6 +193,8 @@ async def get_recommendations(
             breakdown=item["breakdown"],
             distance_m=item["distance_m"],
             reason=reasons[idx]
+            rank=idx + 1,
+            total_candidates=total_count
         ))
 
     logger.info("recommendations_generated", count=len(response_items))
@@ -249,3 +254,26 @@ async def submit_feedback(
 
     logger.info("feedback_processed_and_vector_updated", user_id=user_id)
     return {"success": True, "updated_vector": True}
+
+
+class UserVectorResponse(BaseModel):
+    user_id: str
+    vector: list[float]
+
+@router.get("/users/me/vector", response_model=UserVectorResponse)
+async def get_my_vector(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    현재 로그인된 사용자의 8차원 선호도 벡터 배열을 조회합니다.
+    """
+    user_id = current_user["id"]
+    try:
+        vec = await pinecone_service.get_user_vector(user_id)
+        if vec is None:
+            # 기본값 반환 (정규화된 균등 벡터)
+            vec = pinecone_service._normalize_vector([1.0] * 8)
+        return UserVectorResponse(user_id=user_id, vector=vec)
+    except Exception as e:
+        logger.error("get_my_vector_failed", user_id=user_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"내 선호도 벡터 조회 실패: {str(e)}")

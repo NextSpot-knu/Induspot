@@ -1,3 +1,5 @@
+import os
+import json
 from typing import List, Union
 # pyrefly: ignore [missing-import]
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,7 +14,7 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     JWT_SECRET: str  # Supabase JWT 검증용 비밀키
-    GCS_BUCKET_NAME: str
+    GCS_BUCKET_NAME: str = ""
 
     @property
     def SUPABASE_KEY(self) -> str:
@@ -67,6 +69,54 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+def load_gcp_secrets():
+    # Only load if we can resolve GCP project ID or fallback to standard project
+    project_id = "knudc-henryseo711"
+    adc_path = os.path.join(os.environ.get("APPDATA", ""), "gcloud", "application_default_credentials.json")
+    if os.path.exists(adc_path):
+        try:
+            with open(adc_path, "r", encoding="utf-8") as f:
+                cred = json.load(f)
+                if "quota_project_id" in cred:
+                    project_id = cred["quota_project_id"]
+        except Exception:
+            pass
+
+    try:
+        from google.cloud import secretmanager
+        client = secretmanager.SecretManagerServiceClient()
+        
+        secret_keys = [
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "JWT_SECRET",
+            "GCS_BUCKET_NAME",
+            "PINECONE_API_KEY",
+            "PINECONE_INDEX_NAME"
+        ]
+        
+        print(f"Attempting to load secrets from GCP Secret Manager in project: {project_id}...")
+        for key in secret_keys:
+            # Keep existing environment values if already defined
+            if os.environ.get(key):
+                continue
+            try:
+                name = f"projects/{project_id}/secrets/{key}/versions/latest"
+                response = client.access_secret_version(request={"name": name})
+                val = response.payload.data.decode("UTF-8").strip()
+                if val:
+                    os.environ[key] = val
+                    print(f"Successfully loaded {key} from GCP Secret Manager.")
+            except Exception:
+                # Fallback silently to .env/dotenv
+                pass
+    except Exception as e:
+        print(f"GCP Secret Manager client not loaded or failed: {e}")
+
+# Load secrets from GCP Secret Manager before instantiating settings
+load_gcp_secrets()
 
 settings = Settings(_env_file=".env")
 # 만약 로컬에 .env가 없을 때 fallback이나 유연한 구동을 위해 settings 인스턴스를 선언하되,

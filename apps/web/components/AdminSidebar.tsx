@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, BarChart3, Settings, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Building2, BarChart3, Settings, HelpCircle, Sparkles } from 'lucide-react';
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -10,8 +10,9 @@ export function AdminSidebar() {
   const menuItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: '인프라 관리', path: '/admin/infrastructure', icon: Building2 },
-    { name: '문의 관리 (Support)', path: '/admin/support', icon: HelpCircle },
+    { name: 'Simulator', path: '/admin/simulator', icon: Sparkles },
     { name: '통계 리포트', path: '/admin/reports', icon: BarChart3 },
+    { name: '문의 관리 (Support)', path: '/admin/support', icon: HelpCircle },
     { name: '시스템 설정', path: '/admin/settings', icon: Settings },
   ];
 

@@ -6,6 +6,7 @@ import {
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { DashboardCharts, DashboardHeatmap } from '@/components/admin/DashboardCharts';
 import { FacilityTable } from '@/components/admin/FacilityTable';
+import { SimulatePeakButton } from '@/components/admin/SimulatePeakButton';
 
 import { fetchKPI, fetchHeatmapData, fetchDistributionEffect, fetchAnomalyAlerts } from '@/lib/queries';
 
@@ -20,9 +21,32 @@ async function getDashboardData() {
     return { kpi, heatmap, distribution, anomalies };
   } catch (error) {
     console.error(error);
-    // 서버 통신 실패 시 폴백(Fallback) Mock 반환
+    // 서버 통신 실패 시 폴백(Fallback) Mock 반환: fetchKPI의 Fallback Generator와 동일한 로직 사용
+    const nowUtc = Date.now();
+    const kstHour = new Date(nowUtc + 9 * 60 * 60 * 1000).getUTCHours();
+    const kstDate = new Date(nowUtc + 9 * 60 * 60 * 1000).getUTCDate();
+    const seed = kstDate * 100 + kstHour;
+    const pseudoRand = (offset: number) => { const x = Math.sin(seed + offset) * 10000; return x - Math.floor(x); };
+    let baseCongestion = 0.3;
+    if (kstHour >= 8 && kstHour <= 10) baseCongestion = 0.55 + pseudoRand(1) * 0.15;
+    else if (kstHour >= 11 && kstHour <= 13) baseCongestion = 0.65 + pseudoRand(2) * 0.2;
+    else if (kstHour >= 17 && kstHour <= 19) baseCongestion = 0.58 + pseudoRand(3) * 0.18;
+    else if (kstHour >= 22 || kstHour < 7) baseCongestion = 0.08 + pseudoRand(4) * 0.08;
+    else baseCongestion = 0.35 + pseudoRand(5) * 0.15;
+    const changePercent = Math.round((-8 + pseudoRand(6) * 20) * 10) / 10;
+    const acceptRateVal = 0.62 + pseudoRand(7) * 0.23;
+    const total = 80 + Math.floor(pseudoRand(8) * 60);
+    const accepted = Math.round(total * acceptRateVal);
+    const activeUsers = 180 + Math.floor(pseudoRand(9) * 240);
+    const isPeak = (kstHour >= 11 && kstHour <= 13) || (kstHour >= 17 && kstHour <= 19);
+    const anomalyCount = isPeak ? 2 + Math.floor(pseudoRand(10) * 4) : Math.floor(pseudoRand(10) * 3);
     return {
-      kpi: { avgCongestion: { value: 0, changePercent: 0 }, acceptRate: { value: 0, total: 0, accepted: 0 }, activeUsers: 0, anomalyCount: 0 },
+      kpi: {
+        avgCongestion: { value: Math.round(baseCongestion * 100) / 100, changePercent },
+        acceptRate: { value: Math.round(acceptRateVal * 1000) / 1000, total, accepted },
+        activeUsers,
+        anomalyCount
+      },
       heatmap: [], distribution: [], anomalies: []
     };
   }
@@ -80,9 +104,9 @@ export default async function DashboardPage() {
         {/* Dashboard Content (Scrollable) */}
         <div className="flex-1 p-8 overflow-y-auto flex flex-col gap-8">
           
-          {/* Action Bar (Export) */}
-          <div className="flex justify-end">
-            {/* Client Component Button or Link */}
+          {/* Action Bar (Export & Simulation) */}
+          <div className="flex justify-end items-center gap-4">
+            <SimulatePeakButton />
             <a 
               href="/api/admin/export?period=daily" 
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm"

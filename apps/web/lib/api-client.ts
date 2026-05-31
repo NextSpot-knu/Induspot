@@ -117,6 +117,8 @@ export interface RecommendationResponse {
     capacity: number;
     operatingHours?: any;
     features?: any;
+    currentCount?: number;
+    congestionLevel?: number;
   };
   tttvScore: number;
   breakdown: {
@@ -127,6 +129,8 @@ export interface RecommendationResponse {
   };
   distanceM: number;
   reason?: string; // WP3: Gemini 생성 추천 사유 (백엔드 snake_case reason → camel reason)
+  rank: number;
+  totalCandidates: number;
 }
 
 export async function getRecommendations(

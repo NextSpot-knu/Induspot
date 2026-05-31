@@ -456,8 +456,10 @@ function RecommendContent() {
         console.warn("Error calling FastAPI, using demo fallback recommendations:", err);
         
         // Demo Fallback Recommendations
-        const fallbacks: RecommendationResponse[] = MOCK_SEED_FACILITIES
-          .filter(f => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"))
+        const filteredMock = MOCK_SEED_FACILITIES
+          .filter(f => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"));
+        
+        const fallbacks: RecommendationResponse[] = filteredMock
           .slice(0, 3)
           .map((f, i) => ({
             recommendationId: `mock-rec-id-${i}`,
@@ -478,7 +480,9 @@ function RecommendContent() {
               travelTime: 2.5 + i,
               incentive: 0.2
             },
-            distanceM: 120 + (i * 35)
+            distanceM: 120 + (i * 35),
+            rank: i + 1,
+            totalCandidates: filteredMock.length
           }));
         
         setRecommendations(fallbacks);
@@ -521,8 +525,10 @@ function RecommendContent() {
     } catch (err) {
       console.warn("Error during onboarding fetch fallback:", err);
       // Fallback: If FastAPI recommend API fails, load mock recommendations
-      const fallbacks: RecommendationResponse[] = MOCK_SEED_FACILITIES
-        .filter(f => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"))
+      const filteredMock = MOCK_SEED_FACILITIES
+        .filter(f => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"));
+      
+      const fallbacks: RecommendationResponse[] = filteredMock
         .slice(0, 3)
         .map((f, i) => ({
           recommendationId: `mock-rec-id-${i}`,
@@ -543,7 +549,9 @@ function RecommendContent() {
             travelTime: 2.5 + i,
             incentive: 0.2
           },
-          distanceM: 120 + (i * 35)
+          distanceM: 120 + (i * 35),
+          rank: i + 1,
+          totalCandidates: filteredMock.length
         }));
       setRecommendations(fallbacks);
       setShowOnboarding(false);
@@ -757,6 +765,11 @@ function RecommendContent() {
                       <span className="text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md">
                         {getTypeName(rec.facility.type)}
                       </span>
+                      {rec.rank && rec.totalCandidates && (
+                        <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-md ml-2">
+                          대안 {rec.totalCandidates}개 중 {rec.rank}등
+                        </span>
+                      )}
                       <h4 className="text-base font-extrabold text-slate-100 mt-1.5">
                         {rec.facility.name}
                       </h4>
@@ -792,8 +805,21 @@ function RecommendContent() {
                       <span className="font-bold text-sky-300">{preferencePct}%</span>
                     </div>
                     <div className="text-center border-l border-r border-white/5">
-                      <span className="text-slate-500 block text-[9px] uppercase">예상 대기</span>
-                      <span className="font-bold text-amber-400">{waitTime}분</span>
+                      {rec.facility.type === 'parking' ? (
+                        <>
+                          <span className="text-slate-500 block text-[9px] uppercase">주차자리</span>
+                          <span className="font-bold text-amber-400">
+                            {(rec.facility as any).capacity && (rec.facility as any).currentCount !== undefined 
+                              ? `${Math.max(0, (rec.facility as any).capacity - (rec.facility as any).currentCount)} / ${(rec.facility as any).capacity}`
+                              : '-'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-slate-500 block text-[9px] uppercase">예상 대기</span>
+                          <span className="font-bold text-amber-400">{waitTime}분</span>
+                        </>
+                      )}
                     </div>
                     <div className="text-center">
                       <span className="text-slate-500 block text-[9px] uppercase">예상 도보</span>

@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { 
   Menu, Bell, Home, Bookmark, User, 
   Edit2, ChevronRight, LogOut, Shield, 
-  HelpCircle, Settings as SettingsIcon, BellRing, Star
+  HelpCircle, Settings as SettingsIcon, BellRing, Star, Sparkles
 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 interface UserProfile {
   name: string;
@@ -23,6 +24,7 @@ export default function MyPage() {
   const [activeTab, setActiveTab] = useState('MyPage');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userVector, setUserVector] = useState<number[] | null>(null);
 
   useEffect(() => {
     // API Fetch Mockup
@@ -45,6 +47,18 @@ export default function MyPage() {
           rating: 4.9,
           alertEnabled: true,
         });
+
+        // 8차원 사용자 선호도 벡터 조회
+        try {
+          const data = await apiClient.get('/api/v1/users/me/vector');
+          if (data && data.vector) {
+            setUserVector(data.vector);
+          }
+        } catch (vectorErr) {
+          console.error("Failed to fetch vector in mypage", vectorErr);
+          // Fallback mockup vector
+          setUserVector([0.45, 0.12, 0.35, 0.05, 0.61, 0.22, 0.10, 0.45]);
+        }
       } catch (error) {
         console.error('Failed to fetch profile', error);
       } finally {
@@ -129,6 +143,39 @@ export default function MyPage() {
                 <Edit2 size={14} />
                 <span>Edit Profile</span>
               </button>
+            </div>
+
+            {/* 8-Dimensional User Vector Embedding Card */}
+            <div className="bg-[#131a28]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-lg mb-4">
+              <h3 className="text-sm font-bold text-sky-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Sparkles size={16} />
+                <span>8차원 선호도 벡터 임베딩 (실시간 강화학습 수치)</span>
+              </h3>
+              {userVector ? (
+                <div className="space-y-3">
+                  <div className="text-[11px] text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-white/5 font-mono select-all break-all leading-relaxed">
+                    [{userVector.map(v => v.toFixed(4)).join(', ')}]
+                  </div>
+                  <div className="grid grid-cols-8 gap-1">
+                    {userVector.map((val, idx) => (
+                      <div key={idx} className="flex flex-col items-center gap-1">
+                        <div className="w-full bg-slate-950/40 rounded h-16 border border-white/5 relative overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-t from-blue-600 to-sky-400 absolute bottom-0 left-0 right-0 rounded-t-sm transition-all duration-500" 
+                            style={{ height: `${Math.max(0, Math.min(100, (val + 1) * 50))}%` }} 
+                          />
+                        </div>
+                        <span className="text-[9px] text-gray-500 font-mono">D{idx+1}</span>
+                        <span className="text-[8px] font-bold text-sky-300 font-mono">{val.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-center py-4">
+                  <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
             </div>
 
             {/* Stats Section */}

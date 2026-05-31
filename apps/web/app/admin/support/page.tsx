@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search, Bell, MessageSquare, CheckCircle, Clock, FileText, Send 
 } from 'lucide-react';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { createPublicClient } from '@/lib/supabase';
 
 interface Ticket {
   id: string;
@@ -16,29 +17,96 @@ interface Ticket {
   time: string;
 }
 
-const mockTickets: Ticket[] = [
-  { id: '101', user: 'Yun Seong', type: '인프라 불만', title: 'B주차장 차단기 오작동', content: '입구 차단기가 열리지 않아서 5분 넘게 대기했습니다. 확인 부탁드립니다.', status: 'new', time: '10분 전' },
-  { id: '102', user: 'Kim Jiwon', type: '앱 버그', title: '메인 지도 로딩 지연', content: '아침 출근 시간에 지도가 너무 늦게 뜹니다. 앱 최적화가 필요해보입니다.', status: 'in_progress', time: '1시간 전' },
-  { id: '103', user: 'Lee Sang', type: '기타 문의', title: '야간 휴게실 이용 시간 문의', content: '야간조 휴게실은 몇시까지 오픈하나요?', status: 'resolved', time: '어제' },
-  { id: '104', user: 'Park Minsu', type: '데이터 수정', title: '선호 메뉴 변경이 안됩니다', content: '초기 설정에서 잘못 눌렀는데 마이페이지에서 수정이 안되네요.', status: 'new', time: '2시간 전' },
-];
+function formatRelativeTime(dateString: string) {
+  try {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffMins < 1) return '방금 전';
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (yesterday.toDateString() === date.toDateString()) return '어제';
+
+    return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return '최근';
+  }
+}
 
 export default function SupportPage() {
-  const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(mockTickets[0]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleReply = () => {
+  // Fetch inquiries from Supabase
+  useEffect(() => {
+    async function fetchTickets() {
+      try {
+        const supabase = createPublicClient();
+        const { data, error } = await supabase
+          .from('inquiries')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const mappedTickets: Ticket[] = data.map((item: any) => ({
+            id: item.id,
+            user: item.user_name || '익명 사용자',
+            type: item.type || '기타 문의',
+            title: item.title || '제목 없음',
+            content: item.content || '내용 없음',
+            status: item.status || 'new',
+            time: formatRelativeTime(item.created_at)
+          }));
+          setTickets(mappedTickets);
+          if (mappedTickets.length > 0) {
+            setSelectedTicket(mappedTickets[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch support tickets:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchTickets();
+  }, []);
+
+  const handleReply = async () => {
     if (!selectedTicket || !replyText.trim()) return;
 
-    // 답변 완료 상태로 변경 (Mocking)
-    const updatedTickets = tickets.map(t => 
-      t.id === selectedTicket.id ? { ...t, status: 'resolved' as const } : t
-    );
-    setTickets(updatedTickets);
-    setSelectedTicket({ ...selectedTicket, status: 'resolved' });
-    setReplyText('');
-    alert('답변이 전송되었으며, 티켓 상태가 완료로 변경되었습니다.');
+    try {
+      const supabase = createPublicClient();
+      const { error } = await supabase
+        .from('inquiries')
+        .update({ status: 'resolved' })
+        .eq('id', selectedTicket.id);
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedTickets = tickets.map(t => 
+        t.id === selectedTicket.id ? { ...t, status: 'resolved' as const } : t
+      );
+      setTickets(updatedTickets);
+      setSelectedTicket({ ...selectedTicket, status: 'resolved' });
+      setReplyText('');
+      alert('답변이 전송되었으며, 티켓 상태가 완료로 변경되었습니다.');
+    } catch (err) {
+      console.error('Failed to reply and resolve ticket:', err);
+      alert('답변 처리에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -46,8 +114,16 @@ export default function SupportPage() {
       case 'new': return <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-md">NEW</span>;
       case 'in_progress': return <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md">IN PROGRESS</span>;
       case 'resolved': return <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md">RESOLVED</span>;
+      default: return <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-md">NEW</span>;
     }
   };
+
+  const filteredTickets = tickets.filter(t => 
+    t.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
@@ -63,6 +139,8 @@ export default function SupportPage() {
               <input 
                 type="text" 
                 placeholder="Search tickets..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2 bg-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               />
             </div>
@@ -79,34 +157,44 @@ export default function SupportPage() {
           <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col h-full">
             <div className="p-4 border-b border-slate-200 flex gap-4">
               <div className="flex items-center gap-2 text-slate-600 font-semibold text-sm">
-                <FileText size={16} /> Total: {tickets.length}
+                <FileText size={16} /> Total: {filteredTickets.length}
               </div>
               <div className="flex items-center gap-2 text-red-600 font-semibold text-sm">
-                <MessageSquare size={16} /> New: {tickets.filter(t => t.status === 'new').length}
+                <MessageSquare size={16} /> New: {filteredTickets.filter(t => t.status === 'new').length}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {tickets.map(ticket => (
-                <div 
-                  key={ticket.id}
-                  onClick={() => setSelectedTicket(ticket)}
-                  className={`p-4 border-b border-slate-100 cursor-pointer transition-colors ${
-                    selectedTicket?.id === ticket.id 
-                      ? 'bg-blue-50 border-l-4 border-l-blue-600' 
-                      : 'hover:bg-slate-50 border-l-4 border-l-transparent'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-sm font-semibold text-slate-800">{ticket.user}</span>
-                    <span className="text-xs text-slate-400">{ticket.time}</span>
-                  </div>
-                  <h4 className="font-bold text-slate-800 text-sm mb-2 truncate">{ticket.title}</h4>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500">{ticket.type}</span>
-                    {getStatusBadge(ticket.status)}
-                  </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
-              ))}
+              ) : filteredTickets.length === 0 ? (
+                <div className="text-center p-8 text-slate-400 text-sm">
+                  검색된 문의가 없습니다.
+                </div>
+              ) : (
+                filteredTickets.map(ticket => (
+                  <div 
+                    key={ticket.id}
+                    onClick={() => setSelectedTicket(ticket)}
+                    className={`p-4 border-b border-slate-100 cursor-pointer transition-colors ${
+                      selectedTicket?.id === ticket.id 
+                        ? 'bg-blue-50 border-l-4 border-l-blue-600' 
+                        : 'hover:bg-slate-50 border-l-4 border-l-transparent'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-sm font-semibold text-slate-800">{ticket.user}</span>
+                      <span className="text-xs text-slate-400">{ticket.time}</span>
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-sm mb-2 truncate">{ticket.title}</h4>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-500">{ticket.type}</span>
+                      {getStatusBadge(ticket.status)}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -124,7 +212,7 @@ export default function SupportPage() {
                         <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
                           {selectedTicket.type}
                         </span>
-                        <span className="text-xs text-slate-400">Ticket #{selectedTicket.id}</span>
+                        <span className="text-[10px] text-slate-400">Ticket ID: {selectedTicket.id}</span>
                       </div>
                       <h2 className="text-2xl font-bold text-slate-800">{selectedTicket.title}</h2>
                     </div>
@@ -133,7 +221,7 @@ export default function SupportPage() {
                       <div className="text-sm text-slate-400">{selectedTicket.time}</div>
                     </div>
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-xl text-slate-700 leading-relaxed">
+                  <div className="p-4 bg-slate-50 rounded-xl text-slate-700 leading-relaxed break-all whitespace-pre-wrap">
                     {selectedTicket.content}
                   </div>
                 </div>
