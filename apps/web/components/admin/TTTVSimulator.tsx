@@ -190,6 +190,51 @@ export default function TTTVSimulator() {
                     </ResponsiveContainer>
                 </div>
             </div>
+
+            {/* TTTV Explanation Guide */}
+            <div className="mt-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="bg-blue-100 text-blue-600 p-1.5 rounded-lg"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></span>
+                    TTTV (Total Time To Value) 알고리즘 가이드
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-600">
+                    <div>
+                        <p className="mb-4 leading-relaxed">
+                            <strong className="text-gray-800">TTTV란?</strong><br/>
+                            사용자가 서비스를 이용하기 위해 소비하는 <span className="font-semibold text-blue-600">대기 시간과 이동 시간의 기회비용을 가치(Value)로 환산</span>하여 최적의 스팟을 추천하는 InduSpot만의 핵심 알고리즘입니다. 점수(0~100점)가 높을수록 현재 상황에서 가장 합리적인 선택지임을 의미합니다.
+                        </p>
+                        <p className="leading-relaxed">
+                            <strong className="text-gray-800">시뮬레이터 활용법:</strong><br/>
+                            1,000개의 가상 스팟을 대상으로 가중치를 조절해보세요. 우측 히스토그램을 통해 점수 분포가 어떻게 변하는지 실시간으로 확인하며 알고리즘의 황금비를 튜닝할 수 있습니다.
+                        </p>
+                    </div>
+                    
+                    <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <div className="flex gap-3">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                            <div>
+                                <strong className="text-gray-800">선호도 일치 (Preference)</strong>
+                                <p className="text-xs mt-0.5 text-gray-500">가중치를 높이면 거리가 멀더라도 사용자의 벡터(취향)에 완벽히 부합하는 핫플레이스를 우선 추천합니다.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0"></div>
+                            <div>
+                                <strong className="text-gray-800">시간비용 절감 (Time Cost)</strong>
+                                <p className="text-xs mt-0.5 text-gray-500">가중치를 높이면 선호도가 낮더라도 대기줄이 없고 당장 도달 가능한 가장 가까운 스팟을 우선 추천합니다.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0"></div>
+                            <div>
+                                <strong className="text-gray-800">혼잡도 인센티브 (Congestion Incentive)</strong>
+                                <p className="text-xs mt-0.5 text-gray-500">가중치를 높이면 한적한 틈새 스팟에 강력한 보너스 점수를 부여하여 단지 내 트래픽을 적극적으로 분산시킵니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
