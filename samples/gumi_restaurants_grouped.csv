@@ -1,206 +1,104 @@
 id,name,type,latitude,longitude,capacity,operating_hours,features,max_capacity_people
 null,오호오쭈꾸미 본점,restaurant,36.082919,128.353236,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선""]}",113
-null,60계치킨 구미상모사곡점,restaurant,36.084997,128.35567,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""60계치킨""]}",60
 null,꾸버찌 상모점,bar,36.08541,128.355166,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""일본식주점""]}",38
-null,신전떡볶이 상모점,fastfood,36.085719,128.355722,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식"", ""떡볶이"", ""신전떡볶이""]}",39
 null,고향순대,restaurant,36.085978,128.355922,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""순대""]}",112
-null,해피데이 분식,fastfood,36.086023,128.357365,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",32
 null,민자반다찌,restaurant,36.086388,128.361917,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",58
-null,매콤달콤,fastfood,36.086639,128.355663,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",30
 null,큰집막창 임은동점,restaurant,36.087015,128.364078,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",112
-null,남사친돈까스,restaurant,36.087148,128.364404,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식"", ""돈까스,우동""]}",51
 null,오븐에꾸운닭 상모점,restaurant,36.087293,128.355705,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""오븐에꾸운닭""]}",87
-null,온덮,restaurant,36.087419,128.355041,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식""]}",115
 null,미리네밥상,restaurant,36.087561,128.366139,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",116
-null,BHC치킨 구미임오점,restaurant,36.087667,128.364915,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""BHC치킨""]}",115
 null,가마로강정 구미상모점,restaurant,36.087731,128.35614,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""닭강정"", ""가마로강정""]}",48
-null,복터진집 상모점,restaurant,36.087838,128.350531,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""복어""]}",82
 null,충칭훠궈마라탕 상모점,restaurant,36.087914,128.357669,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""중식"", ""중국요리""]}",57
-null,뚱스분식,fastfood,36.087963,128.365456,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",79
 null,삼겹당순대당 상모본점,restaurant,36.088031,128.350499,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",71
-null,닭도리포차 구미점,restaurant,36.08809,128.366331,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",107
 null,둥지보쌈 상모점,restaurant,36.088158,128.355036,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",66
-null,오늘메뉴는김밥,fastfood,36.088272,128.35848,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",118
 null,화화돼지왕갈비 구미상모점,restaurant,36.088342,128.354994,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""갈비"", ""화화돼지왕갈비""]}",92
-null,요거트퍼플,restaurant,36.088379,128.358238,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""아이스크림""]}",91
 null,28청춘숯불닭갈비 상모사곡점,restaurant,36.088523,128.355873,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",98
-null,조뽕,restaurant,36.088639,128.355021,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""조개""]}",40
 null,맥시칸치킨 임은점,restaurant,36.08881,128.369005,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""맥시칸치킨""]}",112
-null,포비해 상모점,restaurant,36.088931,128.358371,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",112
 null,히카리,restaurant,36.089033,128.355403,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식""]}",64
-null,돈미품 구미상모점,restaurant,36.089064,128.357144,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""삼겹살"", ""돈미품""]}",96
 null,닭갈비이야기 구미본점,restaurant,36.089174,128.355381,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",103
-null,청년다방 상모점,fastfood,36.08926,128.350654,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식"", ""떡볶이"", ""청년다방""]}",36
 null,시오도메 상모점,restaurant,36.089314,128.354933,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식"", ""돈까스,우동""]}",86
-null,또바기국수,restaurant,36.089446,128.350763,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수""]}",89
 null,상모숯불화로구이,restaurant,36.089559,128.356698,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""한정식""]}",70
-null,꽁스,fastfood,36.089763,128.357819,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",62
 null,일품칼국수 사곡상모점,restaurant,36.090039,128.355494,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수"", ""칼국수""]}",105
-null,비스트로플로리안,restaurant,36.090362,128.358999,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",81
 null,화라쿵푸마라탕,restaurant,36.091165,128.355567,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""중식"", ""중국요리""]}",64
-null,훌랄라 상모1점,restaurant,36.091318,128.355512,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""훌랄라참숯치킨""]}",75
 null,열정국밥 경북구미임은동점,restaurant,36.091656,128.358686,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥"", ""열정국밥""]}",111
-null,가가스시,restaurant,36.091797,128.35556,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식"", ""초밥,롤""]}",71
 null,시크릿,bar,36.091978,128.359285,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집""]}",120
-null,국밥종점,restaurant,36.09211,128.358369,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",101
 null,샤브샤브 칼국수 만수관,restaurant,36.092206,128.351983,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""샤브샤브""]}",116
-null,맛나돈,restaurant,36.092412,128.355664,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""삼겹살""]}",48
 null,엄마밥상,restaurant,36.092707,128.360601,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",106
-null,따띠삼겹 구미상모사곡점,restaurant,36.092959,128.359559,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""삼겹살"", ""따띠삼겹""]}",92
 null,섬마을생선굽는집 상모사곡점,restaurant,36.093163,128.360661,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선""]}",47
-null,호프행운이머무는자리,bar,36.093394,128.355696,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""호프,요리주점""]}",92
 null,3봉토스트,restaurant,36.093689,128.355387,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""토스트""]}",33
-null,굽네치킨 상모사곡점,restaurant,36.094103,128.359258,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""굽네치킨""]}",76
 null,푸라닭치킨 구미상모사곡점,restaurant,36.094522,128.35868,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""푸라닭치킨""]}",34
-null,대박석쇠불고기,restaurant,36.094616,128.359822,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""불고기,두루치기""]}",84
 null,울릉도회오징어,restaurant,36.094706,128.358013,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""회""]}",98
-null,꾸석지돌판한우 구미사곡점,restaurant,36.094958,128.358937,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",108
 null,별에서온그닭 상모사곡점,restaurant,36.095069,128.357522,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",116
-null,돈치킨 사곡점,restaurant,36.095389,128.358878,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""돈치킨""]}",53
 null,광안천지식당 상모사곡점,restaurant,36.095572,128.356157,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥"", ""광안천지식당""]}",52
-null,김성화선산곱창,restaurant,36.095888,128.356382,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",95
 null,사곡전&국수,restaurant,36.095958,128.355946,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수""]}",50
-null,구름계란덮밥 구미사곡점,restaurant,36.096208,128.359744,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""구름계란덮밥""]}",67
 null,교동짬뽕 상모사곡점,restaurant,36.096429,128.356741,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""중식"", ""중국요리""]}",57
-null,스시다,restaurant,36.096479,128.35804,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식"", ""초밥,롤""]}",75
 null,가마솥돼지국밥 구미점,restaurant,36.096736,128.358702,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",79
-null,별밤포차,bar,36.097109,128.356503,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""실내포장마차""]}",103
 null,치코파닭 구미1호점,restaurant,36.097398,128.360008,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",73
-null,독도별미회해물장터,restaurant,36.097638,128.356718,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""회""]}",97
 null,서울왕십리왕족발보쌈 사곡본점,restaurant,36.097996,128.359725,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",119
-null,함박골순대,restaurant,36.098362,128.360163,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""순대""]}",120
 null,학천국수 상모점,restaurant,36.098416,128.357926,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수""]}",112
-null,약산도 염소마루 구미점,restaurant,36.09885,128.35841,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""사철탕,영양탕""]}",104
 null,시골집밥상,restaurant,36.09898,128.358735,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",68
-null,고기듬뿍대왕비빔밥 사곡상모점,restaurant,36.099111,128.361189,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",43
 null,짚시,restaurant,36.099516,128.384844,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",105
-null,피자와썹 구미사곡상모점,restaurant,36.099902,128.358847,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식"", ""피자"", ""피자와썹""]}",30
 null,호식이두마리치킨 공단점,restaurant,36.100342,128.384947,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""호식이두마리치킨""]}",89
-null,현가네참숯뒷고기 공단점,restaurant,36.100568,128.384884,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",68
 null,대기식당,restaurant,36.100834,128.361178,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",60
-null,씨밀레,bar,36.101198,128.360256,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""호프,요리주점""]}",52
 null,엄지식당,restaurant,36.101248,128.383589,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",75
-null,칠일갈비살연탄불구이 공단점,restaurant,36.101305,128.383482,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""갈비""]}",81
 null,투다리 공단점,bar,36.101399,128.384825,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""오뎅바"", ""투다리""]}",80
-null,배스킨라빈스 구미공단점,restaurant,36.101449,128.384839,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""아이스크림"", ""배스킨라빈스""]}",91
 null,아름식당,restaurant,36.101682,128.384108,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",114
-null,부산식당,restaurant,36.10172,128.383016,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""한정식""]}",119
 null,돈수촌,restaurant,36.101723,128.384108,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",33
-null,정거장왕족발,restaurant,36.101781,128.384201,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",68
 null,전국제일순대 공단점,restaurant,36.102592,128.384589,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""순대""]}",50
-null,쿠우쿠우 구미점,cafeteria,36.102754,128.36375,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""뷔페"", ""해산물뷔페"", ""쿠우쿠우""]}",46
 null,불꼼장어불닭발,restaurant,36.103073,128.354456,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",81
-null,챙길밥김치백서 상모사곡점,restaurant,36.103839,128.354702,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",45
 null,화연떡,restaurant,36.104724,128.353658,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""떡,한과""]}",40
-null,고등어명가,restaurant,36.106833,128.349669,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선""]}",30
 null,정바우가든,restaurant,36.107562,128.364966,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",76
-null,다원한상,restaurant,36.108177,128.36532,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",100
 null,형곡소백산맥,restaurant,36.108994,128.341125,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",41
-null,금강산왕족발,restaurant,36.109701,128.353265,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",56
 null,풍국면 스테이더공단호텔점,restaurant,36.109935,128.377388,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수""]}",50
-null,김밥천국 공단본부점,fastfood,36.110173,128.377287,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",68
 null,황장군 공단점,restaurant,36.110525,128.381541,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",89
-null,영덕대게,restaurant,36.111537,128.340014,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""게,대게""]}",106
 null,하회찜닭,restaurant,36.112332,128.340431,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",43
-null,무보까국밥 형곡점,restaurant,36.113739,128.339658,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",113
 null,준미식육점,restaurant,36.114015,128.352837,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",49
-null,백두일번지,restaurant,36.114243,128.353465,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",41
 null,한데만데이,restaurant,36.114471,128.352844,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",62
-null,프레드피자 구미1호점,restaurant,36.114748,128.352227,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식"", ""피자"", ""프레드피자""]}",108
 null,배통치킨 구미송정점,restaurant,36.114944,128.349395,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""배통치킨""]}",60
-null,능이골 구미본점,restaurant,36.115048,128.350954,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리"", ""삼계탕""]}",55
 null,공감족발 본점,restaurant,36.115134,128.351137,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",80
-null,고기왕창통큰돼지국밥,restaurant,36.115495,128.339885,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",55
 null,서울해물순두부,restaurant,36.11562,128.350008,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""두부전문점""]}",119
-null,이가네한상,restaurant,36.115766,128.347864,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",88
 null,벌교꼬막정식 구미점,restaurant,36.115909,128.349009,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선""]}",113
-null,고암남원추어탕 구미점,restaurant,36.115978,128.339821,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""추어""]}",50
 null,놀부부대찌개 구미형곡점,restaurant,36.116044,128.34,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""찌개,전골"", ""놀부부대찌개""]}",95
-null,미락,bar,36.116108,128.344477,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""일본식주점""]}",43
 null,몽난 시청점,restaurant,36.116176,128.349876,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",113
-null,해열제,restaurant,36.116276,128.340548,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",31
 null,청송능이한방백숙,restaurant,36.116333,128.340686,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",95
-null,미율,restaurant,36.116446,128.342278,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",57
 null,서창식황해수육 구미송정점,restaurant,36.116528,128.342537,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""서창식황해수육""]}",55
-null,산호횟집 송정점,restaurant,36.116566,128.348904,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""회""]}",98
 null,제이미버거하우스,restaurant,36.116632,128.35042,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식"", ""햄버거""]}",66
-null,할미감성 송정점,restaurant,36.116701,128.34625,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",69
 null,윤쉐프의고기집 구미시청점,restaurant,36.11679,128.345825,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",56
-null,하늘산 참숯구이,restaurant,36.116832,128.341772,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",99
 null,정통부대찌개,restaurant,36.116887,128.35096,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""찌개,전골""]}",50
-null,마음을담다노부 구미송정점,bar,36.116927,128.345163,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""일본식주점""]}",71
 null,선비꼬마김밥 구미송정점,fastfood,36.116947,128.348307,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식"", ""선비꼬마김밥""]}",54
-null,스완,bar,36.11714,128.342076,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""일본식주점""]}",38
 null,삼삼오오프리미엄삼겹살 신평점,restaurant,36.117242,128.364671,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""삼겹살""]}",90
-null,울릉도물회횟집,restaurant,36.117328,128.343684,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""회""]}",110
 null,피자헛 구미시청점,restaurant,36.117408,128.349561,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식"", ""피자"", ""피자헛""]}",55
-null,유메노 송정점,bar,36.117443,128.344983,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""일본식주점""]}",93
 null,산호횟집,restaurant,36.117469,128.346183,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""회""]}",112
-null,육회집,restaurant,36.117522,128.343435,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",48
 null,엄딸어탕칼국수 송정점,restaurant,36.117973,128.350629,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수"", ""칼국수""]}",94
-null,항구일식,restaurant,36.118527,128.351483,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""일식"", ""일식집""]}",117
 null,지코바 송정점,restaurant,36.118895,128.349644,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""지코바""]}",96
-null,육수당 구미시청점,restaurant,36.119214,128.342523,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥"", ""육수당""]}",107
 null,지리산 토담 흑돈 깜돈,restaurant,36.119535,128.353487,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",41
-null,진국명가,restaurant,36.119693,128.349069,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",42
 null,굽네치킨 신평비산점,restaurant,36.119703,128.374237,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""굽네치킨""]}",104
-null,교반 구미시청점,restaurant,36.119784,128.342476,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",87
 null,미분당 구미시청점,restaurant,36.11996,128.34246,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""아시아음식"", ""동남아음식"", ""베트남음식"", ""미분당""]}",31
-null,신로얄식당,restaurant,36.120234,128.349425,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",81
 null,한국외식왕십리국밥,restaurant,36.120362,128.353721,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",60
-null,교동짬뽕 송정점,restaurant,36.120546,128.341811,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""중식"", ""중국요리""]}",80
 null,별헤는밤 비산신평점,restaurant,36.120591,128.382867,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",104
-null,봉화보리밥,restaurant,36.120637,128.371535,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",43
 null,히어로선산곱창,restaurant,36.120673,128.341428,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",104
-null,가장맛있는족발 구미신평점,restaurant,36.120757,128.363025,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈"", ""가장맛있는족발""]}",30
 null,더술,bar,36.120809,128.34312,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""호프,요리주점""]}",67
-null,화전식당,restaurant,36.120838,128.343151,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",32
 null,부림해물손수제비해물칼국수 비산점,restaurant,36.12093,128.374423,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""수제비""]}",40
-null,투다리 비산점,bar,36.12097,128.37469,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""오뎅바"", ""투다리""]}",94
 null,대구통닭 구미비산점,restaurant,36.121065,128.374415,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",96
-null,포키케이크,restaurant,36.121107,128.342295,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""제과,베이커리""]}",60
 null,죠스떡볶이 구미비산점,fastfood,36.121166,128.374864,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식"", ""떡볶이"", ""죠스떡볶이""]}",92
-null,고개마루,restaurant,36.121219,128.371611,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",35
 null,60계치킨 구미비산점,restaurant,36.121331,128.375234,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨"", ""60계치킨""]}",38
-null,칭구차자포차 비산점,bar,36.12139,128.375051,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""실내포장마차""]}",32
 null,빵굽는마을,restaurant,36.121433,128.359695,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""제과,베이커리""]}",77
-null,삼겹세상 본점,restaurant,36.121487,128.360953,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",45
 null,오구피자 송정점,restaurant,36.121609,128.340891,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식"", ""피자"", ""오구피자""]}",81
-null,바사쿠 송정점,restaurant,36.121679,128.341115,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",81
 null,예진가식당,restaurant,36.121878,128.35466,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",74
-null,피자는 치즈빨 비산점,restaurant,36.121906,128.380092,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식"", ""피자""]}",100
 null,충무굴국밥,restaurant,36.121991,128.382416,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",49
-null,참숯불나라,restaurant,36.122125,128.380193,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",55
 null,권오익원조선산곱창,restaurant,36.122189,128.36198,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",65
-null,빵아빵아 구미신평점,restaurant,36.122229,128.362459,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""제과,베이커리"", ""빵아빵아""]}",71
 null,행복쌀국수,restaurant,36.122282,128.364759,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""아시아음식"", ""동남아음식"", ""베트남음식""]}",73
-null,구미정담 푸드 본점,cafeteria,36.12231,128.378709,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""도시락"", ""배달도시락""]}",54
 null,뱃나루터 구미본점,restaurant,36.122407,128.37681,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""조개""]}",40
-null,상진식육식당,restaurant,36.122449,128.382429,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",103
 null,신천동할매 구미점,restaurant,36.122551,128.350121,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""찌개,전골""]}",44
-null,나그네민속촌,restaurant,36.122566,128.362472,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",70
 null,명가돈우촌,restaurant,36.122635,128.349794,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",93
-null,채다올김밥 구미신평점,fastfood,36.122677,128.364078,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",31
 null,장수돼지국밥 본점,restaurant,36.122713,128.36252,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국밥""]}",66
-null,구미곱창,restaurant,36.122774,128.379853,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",69
 null,그집마늘치킨 신평점,restaurant,36.12287,128.364721,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",32
-null,오베론과자점,restaurant,36.122998,128.363463,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""간식"", ""제과,베이커리""]}",53
 null,이자카야진,bar,36.123084,128.36318,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""일본식주점""]}",118
-null,까치분식,fastfood,36.12316,128.361166,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",73
 null,삼미회관,restaurant,36.123215,128.363975,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",83
-null,현주식당,restaurant,36.123275,128.361955,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",82
 null,소문난장족발,restaurant,36.123357,128.361798,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",104
-null,허대구대구통닭 구미 금오시장점,restaurant,36.123439,128.34863,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""치킨""]}",108
 null,먹골갈비찜,restaurant,36.123611,128.349073,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""갈비""]}",95
-null,송학육전육회 신평점,restaurant,36.123721,128.361707,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기""]}",88
 null,손만두찐빵,fastfood,36.123881,128.362537,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",30
-null,꾸어꾸어,restaurant,36.124032,128.364756,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""곱창,막창""]}",51
 null,수복어,restaurant,36.124123,128.361847,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""해물,생선"", ""복어""]}",115
-null,애니스 라자냐,restaurant,36.124185,128.359993,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""양식""]}",42
 null,해송식당,restaurant,36.124478,128.348013,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식""]}",54
-null,호야네닭발 신평점,restaurant,36.12455,128.364767,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""닭요리""]}",97
 null,카사마차,bar,36.124708,128.347728,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""술집"", ""실내포장마차""]}",52
-null,옛날원조충무김밥,fastfood,36.125005,128.341144,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""분식""]}",47
 null,더펠리즈,cafeteria,36.125238,128.356632,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""뷔페""]}",40
-null,왕십리보쌈왕족발 본점,restaurant,36.125424,128.341225,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""육류,고기"", ""족발,보쌈""]}",93
 null,보리칼국수,restaurant,36.125619,128.34135,null,null,"{""has_vegetarian"": null, ""average_price"": null, ""cuisine_tags"": [""한식"", ""국수"", ""칼국수""]}",60
