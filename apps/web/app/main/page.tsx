@@ -467,6 +467,9 @@ export default function MainPage() {
         // Always show #1 automatically – guarantees card opens on page load and after any action
         setSelectedFacility(scored[0]);
         setIsCardHidden(false);
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(scored[0].latitude, scored[0].longitude));
+        }
       } else {
         setSelectedFacility(null);
       }
@@ -551,6 +554,10 @@ export default function MainPage() {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
       nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
       setSelectedFacility(nextScored[0]);
+      setIsCardHidden(false);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(nextScored[0].latitude, nextScored[0].longitude));
+      }
     } else {
       setSelectedFacility(null);
     }
@@ -610,6 +617,10 @@ export default function MainPage() {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
       nextScored.sort((a, b) => b.tttv.score - a.tttv.score);
       setSelectedFacility(nextScored[0]);
+      setIsCardHidden(false);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(nextScored[0].latitude, nextScored[0].longitude));
+      }
     } else {
       setSelectedFacility(null);
     }

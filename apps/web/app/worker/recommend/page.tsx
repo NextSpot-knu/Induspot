@@ -802,8 +802,8 @@ function RecommendContent() {
                         <>
                           <span className="text-slate-500 block text-[9px] uppercase">주차자리</span>
                           <span className="font-bold text-amber-400">
-                            {rec.facility.capacity && rec.facility.currentCount !== undefined 
-                              ? `${Math.max(0, rec.facility.capacity - rec.facility.currentCount)} / ${rec.facility.capacity}`
+                            {(rec.facility as any).capacity && (rec.facility as any).currentCount !== undefined 
+                              ? `${Math.max(0, (rec.facility as any).capacity - (rec.facility as any).currentCount)} / ${(rec.facility as any).capacity}`
                               : '-'}
                           </span>
                         </>
