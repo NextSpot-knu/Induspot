@@ -44,6 +44,7 @@ export default function MainPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const userMarkerRef = useRef<any>(null);
 
   const [activeTab, setActiveTab] = useState('Home');
   const [activeFilter, setActiveFilter] = useState('주차장');
@@ -155,6 +156,37 @@ export default function MainPage() {
       );
     }
   }, []);
+
+  // Synchronize User Location Marker on Map
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current || !userLocation) return;
+    const kakao = window.kakao;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setMap(null);
+    }
+
+    const userSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+        <circle cx="15" cy="15" r="12" fill="%233b82f6" fill-opacity="0.25" stroke="%233b82f6" stroke-width="2"/>
+        <circle cx="15" cy="15" r="6" fill="%233b82f6" stroke="%23ffffff" stroke-width="2"/>
+      </svg>
+    `;
+    const userImage = new kakao.maps.MarkerImage(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(userSvg.trim())}`,
+      new kakao.maps.Size(30, 30),
+      { offset: new kakao.maps.Point(15, 15) }
+    );
+
+    const userMarker = new kakao.maps.Marker({
+      position: new kakao.maps.LatLng(userLocation.lat, userLocation.lng),
+      image: userImage,
+      zIndex: 10,
+    });
+
+    userMarker.setMap(mapInstanceRef.current);
+    userMarkerRef.current = userMarker;
+  }, [userLocation, mapLoaded]);
 
   // Save selected facility ID to sessionStorage
   useEffect(() => {
@@ -592,6 +624,46 @@ export default function MainPage() {
           </div>
         );
       })()}
+
+      {/* Test Mock Locations Sidebar (Right Side) */}
+      <div className="absolute right-4 top-[170px] z-20 flex flex-col gap-2 pointer-events-auto">
+        <div className="bg-[#111622]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-lg flex flex-col gap-2">
+          <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider text-center">
+            📍 테스트 위치 모킹
+          </span>
+          <div className="grid grid-cols-2 gap-1.5 w-32">
+            {[
+              { id: 1, lat: 36.1220, lng: 128.3760 },
+              { id: 2, lat: 36.1193, lng: 128.3646 },
+              { id: 3, lat: 36.1100, lng: 128.3650 },
+              { id: 4, lat: 36.0920, lng: 128.3460 },
+              { id: 5, lat: 36.0857, lng: 128.3664 },
+              { id: 6, lat: 36.1080, lng: 128.3814 }
+            ].map((loc) => {
+              const isCurrent = Math.abs(userLocation.lat - loc.lat) < 0.0001 && Math.abs(userLocation.lng - loc.lng) < 0.0001;
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => {
+                    setUserLocation({ lat: loc.lat, lng: loc.lng });
+                    if (mapInstanceRef.current) {
+                      mapInstanceRef.current.setCenter(new window.kakao.maps.LatLng(loc.lat, loc.lng));
+                    }
+                    alert(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
+                  }}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                    isCurrent
+                      ? 'bg-blue-600 text-white border border-blue-400 shadow-md shadow-blue-500/25'
+                      : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                  }`}
+                >
+                  {loc.id}번
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Restore Card Trigger Button when hidden */}
       {selectedFacility && isCardHidden && (
