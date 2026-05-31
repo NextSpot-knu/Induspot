@@ -316,7 +316,7 @@ export default function MainPage() {
     const finalScore = Math.max(0, Math.min(1, score));
 
     return {
-      score: Math.round(finalScore * 100) / 100,
+      score: Math.round(finalScore * 100),
       preferencePercent: Math.round(preferenceMatching * 100),
       expectedWait: Math.round(expectedWait * 10) / 10,
       expectedTravel: Math.round(expectedTravel * 10) / 10,
@@ -648,6 +648,9 @@ export default function MainPage() {
                     setUserLocation({ lat: loc.lat, lng: loc.lng });
                     if (mapInstanceRef.current) {
                       mapInstanceRef.current.setCenter(new window.kakao.maps.LatLng(loc.lat, loc.lng));
+                    }
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.removeItem('induspot_selected_facility_id');
                     }
                     alert(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
                   }}

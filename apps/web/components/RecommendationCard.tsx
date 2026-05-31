@@ -197,7 +197,7 @@ export function RecommendationCard({
             className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-purple-500/30 bg-purple-500/10 cursor-pointer shadow-md"
             onClick={toggleExpand}
           >
-            <span className="text-white font-black text-base">{tttvScore.toFixed(2)}</span>
+            <span className="text-white font-black text-base">{Math.round(tttvScore)}</span>
             <span className="text-[9px] text-purple-300 font-bold uppercase">TTTV</span>
           </div>
         ) : (

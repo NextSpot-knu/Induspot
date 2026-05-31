@@ -471,7 +471,7 @@ function RecommendContent() {
               operatingHours: f.operating_hours,
               features: f.features
             },
-            tttvScore: 0.85 - (i * 0.1),
+            tttvScore: 85 - (i * 10),
             breakdown: {
               preference: 0.9 - (i * 0.15),
               waitTime: 5 + (i * 3),
@@ -536,7 +536,7 @@ function RecommendContent() {
             operatingHours: f.operating_hours,
             features: f.features
           },
-          tttvScore: 0.85 - (i * 0.1),
+          tttvScore: 85 - (i * 10),
           breakdown: {
             preference: 0.9 - (i * 0.15),
             waitTime: 5 + (i * 3),
@@ -733,7 +733,7 @@ function RecommendContent() {
                     <div className="text-right">
                       <span className="text-[10px] text-slate-400 block">TTTV 지수</span>
                       <span className="text-sm font-extrabold text-purple-400">
-                        {rec.tttvScore.toFixed(2)}점
+                        {Math.round(rec.tttvScore <= 1.0 ? rec.tttvScore * 100 : rec.tttvScore)}점
                       </span>
                     </div>
                   </div>
