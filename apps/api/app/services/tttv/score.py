@@ -5,10 +5,10 @@ from app.services.tttv.wait_time import calculate_predicted_wait_time
 from app.services.tttv.travel import get_travel_time_and_distance
 from app.services.predict_service import predict_congestion
 
-# 가중치 정의
-W1 = 0.4  # 선호도 가중치
-W2 = 0.4  # 시간 비용(대기+이동) 가중치
-W3 = 0.2  # 혼잡 분산 인센티브 가중치
+# 가중치 정의 (황금비: 0.45 : 0.25 : 0.30)
+W1 = 0.45  # 선호도 가중치
+W2 = 0.25  # 시간 비용(대기+이동) 가중치
+W3 = 0.30  # 혼잡 분산 인센티브 가중치
 
 class TTTVScoreResult(BaseModel):
     score: float
@@ -85,13 +85,14 @@ async def calculate_tttv_score(
     # 기존에 요청했던 혼잡 시설에서 덜 혼잡한 후보 시설로 갈수록 높은 인센티브를 부여
     incentive = max(0.0, original_congestion_level - candidate_congestion_level)
 
-    # 6. TTTV 종합 스코어 계산
-    # 선호도가 높을수록(+), 시간 비용이 적을수록(+), 인센티브가 높을수록(+) 점수가 높음
+    # 6. TTTV 종합 스코어 계산 및 Min-Max 정규화 적용
     # 공식: w1 * preference - w2 * time_cost + w3 * incentive
     tttv_score = (W1 * preference_sim) - (W2 * time_cost) + (W3 * incentive)
 
-    # 스코어를 [0.0, 1.0] 범위로 정규화 및 소수점 3자리 반올림
-    final_score = round(max(0.0, min(1.0, tttv_score)), 3)
+    # 시간비용 감산 패널티로 인한 점수 하향 왜곡 방지를 위해 Min-Max 정규화 적용
+    # min_possible = -W2, max_possible = W1 + W3, range_width = W1 + W2 + W3
+    normalized_score = (tttv_score + W2) / (W1 + W2 + W3)
+    final_score = round(max(0.0, min(1.0, normalized_score)), 3)
 
     return TTTVScoreResult(
         score=final_score,

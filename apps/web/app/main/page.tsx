@@ -361,12 +361,15 @@ export default function MainPage() {
     const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, facility.latitude, facility.longitude);
     const expectedTravel = distanceM / 66.67;
 
-    // 4. TTTV Score
-    const w1 = 0.4, w2 = 0.4, w3 = 0.2;
+    // 4. TTTV Score (황금비: 0.45 : 0.25 : 0.30) 및 Min-Max 정규화 적용
+    const w1 = 0.45, w2 = 0.25, w3 = 0.30;
     const timeCost = Math.min(1.0, (expectedWait + expectedTravel) / 60.0);
     const incentive = Math.max(0, 0.7 - facility.congestionLevel);
     const score = (w1 * preferenceMatching) - (w2 * timeCost) + (w3 * incentive);
-    const finalScore = Math.max(0, Math.min(1, score));
+    
+    // 시간비용 감산 패널티로 인한 점수 하향 왜곡 방지를 위해 Min-Max 정규화 적용
+    const normalized = (score + w2) / (w1 + w2 + w3);
+    const finalScore = Math.max(0, Math.min(1, normalized));
 
     return {
       score: Math.round(finalScore * 100),
