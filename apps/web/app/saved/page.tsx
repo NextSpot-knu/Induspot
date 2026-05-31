@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Bell, Home, Bookmark, User, Compass, Star } from 'lucide-react';
+import { Menu, Bell, Home, Bookmark, User, Compass, Star, Trash2 } from 'lucide-react';
 import { RecommendationCard } from '@/components/RecommendationCard';
 
 interface BookmarkData {
@@ -77,6 +77,26 @@ export default function SavedPage() {
     if (tabId === 'MyPage') router.push('/mypage');
   };
 
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = bookmarks.filter(b => b.id !== id);
+    setBookmarks(updated);
+    localStorage.setItem('induspot_saved_facilities', JSON.stringify(updated));
+    if (selectedBookmark?.id === id) {
+      setSelectedBookmark(null);
+    }
+    showToast('저장된 스팟이 삭제되었습니다.');
+  };
+
+  const handleClearAll = () => {
+    if (confirm('모든 저장된 스팟을 초기화하시겠습니까?')) {
+      setBookmarks([]);
+      localStorage.removeItem('induspot_saved_facilities');
+      setSelectedBookmark(null);
+      showToast('모든 저장된 스팟이 초기화되었습니다.');
+    }
+  };
+
   const renderTrafficIndicator = (status: 'red' | 'yellow' | 'green') => {
     const colors = {
       red: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]',
@@ -131,11 +151,21 @@ export default function SavedPage() {
         ) : (
           // List State
           <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center px-1 mb-2">
+              <h2 className="text-lg font-bold text-white">Saved Spots</h2>
+              <button 
+                onClick={handleClearAll}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+              >
+                전체 초기화
+              </button>
+            </div>
+            
             {bookmarks.map((bookmark, index) => (
               <button
                 key={bookmark.id}
                 onClick={() => setSelectedBookmark(bookmark)}
-                className={`flex justify-between items-center p-4 rounded-2xl border backdrop-blur-md transition-all text-left relative overflow-hidden ${
+                className={`group flex justify-between items-center p-4 rounded-2xl border backdrop-blur-md transition-all text-left relative overflow-hidden ${
                   selectedBookmark?.id === bookmark.id
                     ? 'bg-blue-600/20 border-blue-500'
                     : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -158,6 +188,21 @@ export default function SavedPage() {
                 <div className="text-right">
                   <div className="text-sm font-medium text-gray-300 mb-1">Wait Time</div>
                   <div className="text-lg font-bold text-white">{bookmark.waitTime}</div>
+                </div>
+                
+                {/* Delete Button */}
+                <div 
+                  onClick={(e) => handleDelete(bookmark.id, e)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity md:flex hidden z-20"
+                >
+                  <Trash2 size={18} />
+                </div>
+                {/* Mobile Delete Button (Always visible on small screens but subtle) */}
+                <div 
+                  onClick={(e) => handleDelete(bookmark.id, e)}
+                  className="absolute bottom-3 right-4 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 md:hidden z-20"
+                >
+                  <Trash2 size={16} />
                 </div>
               </button>
             ))}
