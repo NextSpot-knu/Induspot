@@ -66,6 +66,20 @@ export default function MainPage() {
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isCardHidden, setIsCardHidden] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+  };
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   const router = useRouter();
 
@@ -414,7 +428,7 @@ export default function MainPage() {
     else if (fac.type === "parking") greeting = "안전 주차 하세요!";
     else if (fac.type === "meeting_room") greeting = "성공적인 회의 되세요!";
     
-    alert(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
+    showToast(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
@@ -484,7 +498,7 @@ export default function MainPage() {
       console.error("Failed to save bookmark:", e);
     }
 
-    alert(`'${fac.name}'이(가) Saved 탭에 저장되었습니다! 다음 추천을 불러옵니다.`);
+    showToast(`'${fac.name}'이(가) Saved 탭에 저장되었습니다! 다음 추천을 불러옵니다.`);
   };
 
   const handleReject = (fac: any) => {
@@ -499,7 +513,7 @@ export default function MainPage() {
       return next;
     });
     
-    alert(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
+    showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
   // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
@@ -728,7 +742,7 @@ export default function MainPage() {
                     if (typeof window !== 'undefined') {
                       sessionStorage.removeItem('induspot_selected_facility_id');
                     }
-                    alert(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
+                    showToast(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
                   }}
                   className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
                     isCurrent
@@ -784,6 +798,15 @@ export default function MainPage() {
           );
         })}
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-28 left-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
+          <div className="bg-black/85 backdrop-blur-md text-white text-xs sm:text-sm px-5 py-3 rounded-full shadow-lg text-center font-medium break-keep">
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

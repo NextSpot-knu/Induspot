@@ -21,6 +21,20 @@ export default function SavedPage() {
   const [bookmarks, setBookmarks] = useState<BookmarkData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBookmark, setSelectedBookmark] = useState<BookmarkData | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+  };
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   useEffect(() => {
     // API Fetch Mockup
@@ -153,7 +167,7 @@ export default function SavedPage() {
               setBookmarks(updated);
               localStorage.setItem('induspot_saved_facilities', JSON.stringify(updated));
               setSelectedBookmark(null);
-              alert(`'${selectedBookmark.name}'이(가) 저장된 목록에서 삭제되었습니다.`);
+              showToast(`'${selectedBookmark.name}'이(가) 저장된 목록에서 삭제되었습니다.`);
             }}
           />
         </div>
@@ -189,6 +203,15 @@ export default function SavedPage() {
           );
         })}
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-28 left-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
+          <div className="bg-black/85 backdrop-blur-md text-white text-xs sm:text-sm px-5 py-3 rounded-full shadow-lg text-center font-medium break-keep">
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
