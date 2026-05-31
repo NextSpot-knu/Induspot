@@ -49,6 +49,13 @@
 *   **데이터 페이징 조율:** 관리자 메인 화면 차트 데이터 리스트([DashboardCharts.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/DashboardCharts.tsx)) 및 시설 관리 화면([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/admin/infrastructure/page.tsx))의 테이블 렌더링 리소스 점유를 해소하고자 페이지당 조회 항목 수를 기존 20개에서 10개로 수정(`itemsPerPage = 10`)하여 렌더링 부하를 줄였습니다.
 *   **초기 로드 데이터 축소:** 구미 음식점 원본 데이터셋([gumi_restaurants_grouped.csv](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/samples/gumi_restaurants_grouped.csv))을 대상으로 공간 좌표 정렬 후 고르게 샘플을 분산하여 샘플링하는 [shrink_restaurants.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/scratch/shrink_restaurants.py) 스크립트를 작성하여 적용했습니다. 이후 추가 감축을 통해 리스트 크기를 최종 103개 항목으로 경량화(약 1/12 이상 축소)함으로써 맵 컴포넌트 마운트 지연 시간 및 데이터 로딩 네트워크 대역폭을 단축했습니다.
 
+### 1-6. 데모 전용 피크타임 시뮬레이션 및 벡터 시각화
+*   **피크타임 스트레스 테스트 스위치 ([SimulatePeakButton.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/SimulatePeakButton.tsx)):**
+    *   관리자 대시보드([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/admin/dashboard/page.tsx))에 장착된 모의 피크 데이터 발생 제어 버튼입니다. 클릭 시 백엔드 API인 `POST /api/v1/admin/simulate-peak`를 비동기 호출하여 40개 모든 시설의 혼잡 로그를 실시간으로 발생 및 강제 갱신한 후, `router.refresh()`를 수행하여 대시보드 지표를 즉각 동기화합니다.
+*   **사용자 선호도 벡터 임베딩 시각화:**
+    *   마이페이지([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/mypage/page.tsx)) 및 TTTV 시뮬레이터([TTTVSimulator.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/TTTVSimulator.tsx))에서 로그인된 사용자의 8차원 취향 벡터 데이터(`GET /api/v1/users/me/vector`)를 비동기로 조회해 옵니다.
+    *   마이페이지에서는 D1~D8의 각 임베딩 차원을 그라데이션이 적용된 수직 막대 컴포넌트로 동적 렌더링하고, 시뮬레이터에서는 좌측 조작기 하단의 디버그 패널에 실시간 텍스트 및 미니 바 차트 형태로 디스플레이하여 사용자 액션(수락/거절)에 따른 선호도 실시간 강화학습 상태를 시각화합니다.
+
 ---
 
 ## 2. Proxy Layer
@@ -103,6 +110,12 @@
     *   예측 연산 수행 시 학습 데이터 스펙에 포함되지 않는 예외적인 시설 타입이 조회되면 즉시 중간 혼잡 값(`0.5`)을 출력하도록 안전 예외 처리를 추가했으며, 모델 출력 스케일을 `[0.0, 1.0]` 범위 내로 상시 클리핑 제어합니다.
 *   **예측 전용 API 라우터 ([predict.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/routers/predict.py) 및 [main.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/main.py)):**
     *   `POST /predict` 엔드포인트를 열어 시설 타입, 시각(Hour), 요일(Day of week) 인풋을 받아 예상 혼잡도 수치를 JSON 객체로 실시간 회신합니다.
+
+### 3-5. 데모 시뮬레이션 및 벡터 관리 API 엔드포인트
+*   **피크타임 모의 생성 API ([infrastructures.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/routers/infrastructures.py)):**
+    *   `POST /api/v1/admin/simulate-peak` 엔드포인트를 통해 데이터베이스의 `facilities` 정보를 로드하고 무작위 셔플 후, 여유 15개($0.05 \sim 0.28$), 보통 15개($0.35 \sim 0.65$), 혼잡 10개($0.72 \sim 0.95$) 비율로 가공한 새로운 혼잡도 로그 40건을 `congestion_logs` 테이블에 벌크 삽입합니다.
+*   **사용자 벡터 조회 API ([recommendations.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/routers/recommendations.py)):**
+    *   `GET /api/v1/users/me/vector` 엔드포인트를 통해 로그인한 사용자의 고유 UUID를 JWT 세션에서 추출하고, `pinecone_service.get_user_vector`를 호출하여 Pinecone 인덱스 내의 8차원 정규화된 선호 임베딩 실수 배열을 로드하여 반환합니다.
 
 ---
 

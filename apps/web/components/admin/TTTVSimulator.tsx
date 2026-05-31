@@ -2,10 +2,28 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { apiClient } from '@/lib/api-client';
 
 export default function TTTVSimulator() {
     // 슬라이더 및 입력 필드 동기화 상태 (기본 황금비: 45 : 25 : 30)
     const [weights, setWeights] = useState({ pref: 45, time: 25, inc: 30 });
+    const [userVector, setUserVector] = useState<number[] | null>(null);
+
+    useEffect(() => {
+        const fetchUserVector = async () => {
+            try {
+                const data = await apiClient.get('/api/v1/users/me/vector');
+                if (data && data.vector) {
+                    setUserVector(data.vector);
+                }
+            } catch (err) {
+                console.error("Failed to fetch user vector in simulator", err);
+                // Fallback mockup vector
+                setUserVector([0.45, 0.12, 0.35, 0.05, 0.61, 0.22, 0.10, 0.45]);
+            }
+        };
+        fetchUserVector();
+    }, []);
 
     // 1. 1000개의 모의 시설 데이터 정적 생성 (최초 1회만 연산)
     const mockFacilities = useMemo(() => {
@@ -126,6 +144,26 @@ export default function TTTVSimulator() {
                     <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
                         <h4 className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">실시간 분석 리포트</h4>
                         <p className="text-sm text-gray-700 font-medium leading-relaxed">{analysisText}</p>
+                    </div>
+
+                    <div className="mt-4 p-4 bg-slate-900 text-slate-100 rounded-lg border border-slate-800 font-mono">
+                        <h4 className="text-xs font-bold text-sky-400 mb-2 uppercase tracking-wide">사용자 선호도 벡터 (Pinecone 실시간)</h4>
+                        {userVector ? (
+                            <div className="space-y-2">
+                                <div className="text-[10px] text-slate-300 break-all leading-normal select-all bg-slate-950 p-2 rounded border border-slate-800">
+                                    [{userVector.map(v => v.toFixed(3)).join(', ')}]
+                                </div>
+                                <div className="grid grid-cols-8 gap-1 h-3 mt-2">
+                                    {userVector.map((v, i) => (
+                                        <div key={i} className="bg-slate-800 rounded overflow-hidden h-full relative" title={`Dim ${i+1}: ${v.toFixed(4)}`}>
+                                            <div className="bg-sky-500 absolute bottom-0 left-0 right-0" style={{ height: `${Math.max(0, Math.min(100, (v + 1) * 50))}%` }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-[11px] text-slate-400">벡터 조회 중...</div>
+                        )}
                     </div>
                 </div>
 

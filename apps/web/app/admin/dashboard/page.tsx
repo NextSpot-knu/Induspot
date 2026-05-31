@@ -6,6 +6,7 @@ import {
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { DashboardCharts, DashboardHeatmap } from '@/components/admin/DashboardCharts';
 import { FacilityTable } from '@/components/admin/FacilityTable';
+import { SimulatePeakButton } from '@/components/admin/SimulatePeakButton';
 
 import { fetchKPI, fetchHeatmapData, fetchDistributionEffect, fetchAnomalyAlerts } from '@/lib/queries';
 
@@ -80,9 +81,9 @@ export default async function DashboardPage() {
         {/* Dashboard Content (Scrollable) */}
         <div className="flex-1 p-8 overflow-y-auto flex flex-col gap-8">
           
-          {/* Action Bar (Export) */}
-          <div className="flex justify-end">
-            {/* Client Component Button or Link */}
+          {/* Action Bar (Export & Simulation) */}
+          <div className="flex justify-end items-center gap-4">
+            <SimulatePeakButton />
             <a 
               href="/api/admin/export?period=daily" 
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm"
