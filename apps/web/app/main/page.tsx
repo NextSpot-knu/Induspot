@@ -668,7 +668,17 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
-  // initMap is now triggered by the Next.js Script's onReady
+  // Initialize map if Kakao Maps script is already loaded
+  useEffect(() => {
+    const initInterval = setInterval(() => {
+      if (typeof window !== "undefined" && window.kakao && window.kakao.maps && mapContainerRef.current) {
+        clearInterval(initInterval);
+        initMap();
+      }
+    }, 200);
+
+    return () => clearInterval(initInterval);
+  }, []);
 
   // Initialize Kakao Map
   const initMap = () => {
@@ -685,11 +695,18 @@ export default function MainPage() {
           const savedLevel = sessionStorage.getItem('induspot_map_level');
           
           if (savedLat && savedLng) {
-            centerLat = parseFloat(savedLat);
-            centerLng = parseFloat(savedLng);
+            const parsedLat = parseFloat(savedLat);
+            const parsedLng = parseFloat(savedLng);
+            if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+              centerLat = parsedLat;
+              centerLng = parsedLng;
+            }
           }
           if (savedLevel) {
-            level = parseInt(savedLevel, 10);
+            const parsedLevel = parseInt(savedLevel, 10);
+            if (!isNaN(parsedLevel)) {
+              level = parsedLevel;
+            }
           }
         }
 
@@ -823,14 +840,6 @@ export default function MainPage() {
 
   return (
     <div className="relative w-full h-screen overflow-hidden flex flex-col">
-      {/* Kakao Map API Script */}
-      {appKey && (
-        <Script
-          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services,clusterer`}
-          strategy="afterInteractive"
-          onReady={initMap}
-        />
-      )}
 
       {/* Map Container */}
       <div 
