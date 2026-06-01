@@ -248,17 +248,31 @@ export default function MainPage() {
     setFacilities(prev => prev.map(f => {
       let currentCongestion = f.baseCongestion !== undefined ? f.baseCongestion : f.congestionLevel;
       if (mockHour !== null) {
+        let hash2 = 0;
+        for (let i = 0; i < f.id.length; i++) hash2 = Math.imul(31, hash2) + f.id.charCodeAt(f.id.length - 1 - i);
+        const pop = Math.abs(hash2 % 100) / 100; // deterministic popularity (0.0~1.0)
+
         if (mockHour === 12.5) { // 점심 피크
-          if (f.type === 'cafeteria') currentCongestion = Math.min(1.0, currentCongestion * 1.5 + 0.4);
-          else if (f.type === 'parking') currentCongestion = Math.min(1.0, currentCongestion * 1.2 + 0.2);
-          else currentCongestion = Math.min(1.0, currentCongestion * 1.1 + 0.1);
+          if (f.type === 'cafeteria') {
+            currentCongestion = pop > 0.6 ? (0.7 + pop * 0.3) : (pop + 0.2);
+          } else if (f.type === 'parking') {
+            currentCongestion = pop > 0.8 ? (0.6 + pop * 0.4) : (pop * 0.8);
+          } else {
+            currentCongestion = pop * 0.5;
+          }
         } else if (mockHour === 18.5) { // 저녁 피크
-          if (f.type === 'parking') currentCongestion = Math.min(1.0, currentCongestion * 1.5 + 0.4);
-          else if (f.type === 'loading_dock') currentCongestion = Math.min(1.0, currentCongestion * 1.3 + 0.3);
-          else currentCongestion = Math.min(1.0, currentCongestion * 1.1 + 0.1);
+          if (f.type === 'parking') {
+            currentCongestion = pop > 0.5 ? (0.6 + pop * 0.4) : (pop + 0.1);
+          } else if (f.type === 'cafeteria') {
+            currentCongestion = pop > 0.7 ? (0.6 + pop * 0.4) : (pop * 0.6);
+          } else if (f.type === 'loading_dock') {
+            currentCongestion = pop > 0.6 ? (0.5 + pop * 0.5) : (pop * 0.7);
+          } else {
+            currentCongestion = pop * 0.5;
+          }
         }
       }
-      return { ...f, congestionLevel: currentCongestion };
+      return { ...f, congestionLevel: Math.min(1.0, currentCongestion) };
     }));
   }, [mockHour]);
 
