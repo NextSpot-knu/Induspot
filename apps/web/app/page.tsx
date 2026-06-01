@@ -25,9 +25,9 @@ export default function LoadingPage() {
   }, [router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[url('/bg.png')] bg-cover bg-center relative overflow-hidden">
-      {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-[#0b101e]/70 z-0"></div>
+    <div className="flex flex-col items-center justify-center min-h-screen mesh-gradient-dark relative overflow-hidden">
+      {/* Noise Texture */}
+      <div className="bg-grainy"></div>
 
       {/* Background decoration for glassmorphism feel later */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
@@ -37,10 +37,10 @@ export default function LoadingPage() {
           isVisible ? 'opacity-100 animate-fade-in' : 'opacity-0'
         }`}
       >
-        <h1 className="text-5xl font-bold tracking-tight text-white mb-4">
+        <h1 className="text-5xl font-bold tracking-tight text-white mb-4 text-shadow-sm">
           InduSpot
         </h1>
-        <p className="text-lg text-gray-300 font-medium">
+        <p className="text-lg text-white font-medium text-shadow-sm">
           기다림 없는 스마트한 공단 생활
         </p>
       </div>
