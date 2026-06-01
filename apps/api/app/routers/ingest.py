@@ -21,7 +21,9 @@ import structlog
 from fastapi import APIRouter, Request, HTTPException, status
 
 from app.core.config import settings
-from app.core.supabase import supabase_client
+# WP4 적재는 서버→서버 신뢰 경로이므로 service_role 클라이언트(RLS 우회)를 쓴다.
+# anon 클라이언트는 congestion_logs INSERT 가 RLS 로 막혀 Supabase 가 400 을 반환한다.
+from app.core.supabase import supabase_admin as supabase_client
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/ingest", tags=["ingest"])
