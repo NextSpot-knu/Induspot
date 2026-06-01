@@ -757,8 +757,8 @@ export default function MainPage() {
 
     // 마커 크기 반응형: 좁은 화면(모바일)은 작게, 넓은 화면은 크게. 핀 비율(≈36:46)은 유지.
     const isNarrow = typeof window !== 'undefined' && window.innerWidth < 640;
-    const mW = isNarrow ? 22 : 26;
-    const mH = isNarrow ? 28 : 33;
+    const mW = isNarrow ? 42 : 50;
+    const mH = isNarrow ? 54 : 64;
 
     const newMarkers = displayFacilities.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(

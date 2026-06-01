@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
 import { FacilityWithCongestion } from "@/app/worker/map/page";
+// 마커 SVG는 lib/utils 의 공용 getMarkerSvg 로 통일(예쁜 핀 + 올바른 흰색 렌더). 중복 인라인 제거.
+import { getMarkerSvg } from "@/lib/utils";
 
 interface CongestionMapProps {
   initialFacilities: FacilityWithCongestion[];
@@ -15,46 +17,6 @@ declare global {
     kakao: any;
   }
 }
-
-const getMarkerSvg = (type: string, level: number, features: any = {}) => {
-  let color = "#3b82f6"; // blue (한산)
-  if (level >= 0.75) {
-    color = "#f97316"; // orange (혼잡)
-  } else if (level >= 0.50) {
-    color = "#f59e0b"; // yellow/amber (보통)
-  } else if (level >= 0.25) {
-    color = "#10b981"; // green (여유)
-  }
-
-  let emoji = "📍";
-  if (type === "cafeteria") emoji = "🍴";
-  else if (type === "parking") emoji = "🚗";
-  else if (type === "meeting_room") emoji = "🤝";
-  else if (type === "rest_area" || type === "loading_dock") emoji = "🛋️";
-
-  const isPrivateParking = type === "parking" && (features?.is_private === true || features?.parking_type === "사내");
-
-  if (isPrivateParking) {
-    // Return a square-like marker for private parking
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
-        <rect x="2" y="2" width="32" height="32" rx="8" fill="${color}" stroke="%23ffffff" stroke-width="3"/>
-        <circle cx="18" cy="18" r="11" fill="%23ffffff"/>
-        <text x="18" y="23" font-size="12" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
-      </svg>
-    `;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
-  }
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
-      <path fill="${color}" stroke="%23ffffff" stroke-width="2" d="M18 0C8.1 0 0 8.1 0 18c0 13.5 16.5 26.5 17.1 27.1a1.2 1.2 0 0 0 1.8 0c.6-.6 17.1-13.6 17.1-27.1C36 8.1 27.9 0 18 0z"/>
-      <circle cx="18" cy="18" r="11" fill="%23ffffff"/>
-      <text x="18" y="22" font-size="12" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
-    </svg>
-  `;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
-};
 
 const calculateWaitTime = (type: string, level: number, features: any = {}) => {
   const defaultTimes: Record<string, number> = {
@@ -287,8 +249,11 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
 
     const newMarkers = filtered.map((f) => {
       const isPrivateParking = f.type === "parking" && (f.features?.is_private === true || f.features?.parking_type === "사내");
-      const size = isPrivateParking ? new kakao.maps.Size(36, 36) : new kakao.maps.Size(36, 46);
-      const offset = isPrivateParking ? new kakao.maps.Point(18, 18) : new kakao.maps.Point(18, 46);
+      // 마커 크기 반응형(좁은 화면=작게, 넓은 화면=크게)
+      const isNarrow = typeof window !== "undefined" && window.innerWidth < 640;
+      const nW = isNarrow ? 40 : 48, nH = isNarrow ? 51 : 61, sq = isNarrow ? 38 : 46;
+      const size = isPrivateParking ? new kakao.maps.Size(sq, sq) : new kakao.maps.Size(nW, nH);
+      const offset = isPrivateParking ? new kakao.maps.Point(sq / 2, sq / 2) : new kakao.maps.Point(nW / 2, nH);
 
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel, f.features),
@@ -431,7 +396,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     const handleSwitchToSimulation = () => {
       setIsSimulation(true);
       setMapLoaded(true);
-      setUserLocation({ lat: 37.3200, lng: 126.8120 });
+      setUserLocation({ lat: 36.1213, lng: 128.3476 });
       setMapError(false);
     };
 
@@ -483,7 +448,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
           {/* Technical Info Label */}
           <div className="absolute bottom-6 left-6 text-[9px] text-slate-500 font-mono space-y-0.5 z-10 pointer-events-none">
             <div>SYSTEM: SIMULATED SMART INDUSTRIAL PARK DIGITAL TWIN</div>
-            <div>COORDINATES IN USE: ANYANG COMPLEX SEED CLUSTER</div>
+            <div>COORDINATES IN USE: GUMI INDUSTRIAL COMPLEX SEED CLUSTER</div>
             <div>KAKAOMAPS: BYPASSED (SIMULATOR MODE ACTIVE)</div>
           </div>
 
@@ -550,7 +515,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
             <button
               key={chip.value}
               onClick={() => setFilterType(chip.value)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
                 filterType === chip.value
                   ? "bg-gradient-to-r from-sky-500 to-purple-600 text-white shadow-md shadow-blue-500/25"
                   : "text-slate-300 hover:text-white hover:bg-white/5"
