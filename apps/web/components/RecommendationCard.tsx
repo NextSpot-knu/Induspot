@@ -186,40 +186,59 @@ export function RecommendationCard({
       </div>
 
       {/* Top Header Row */}
-      <div className="flex justify-between items-start gap-4">
+      <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
-          <div className="flex items-center gap-1.5 text-blue-400 mb-1.5 text-xs font-semibold tracking-wider">
-            <Sparkles size={14} className="animate-pulse" />
-            <span>AI 추천 대안 경로</span>
-            {rank && totalCandidates && (
-              <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-md ml-1.5">
-                대안 {totalCandidates}개 중 {rank}등
+          <div className="flex items-center gap-2 mb-1.5">
+            {rank ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-blue-600 to-blue-400 text-white text-[10px] font-black rounded-lg shadow-sm shadow-blue-500/20">
+                <Sparkles size={12} />
+                추천 {rank}순위
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-300 text-[10px] font-bold rounded-lg">
+                <Sparkles size={12} />
+                AI 추천
               </span>
             )}
+            {totalCandidates && rank && (
+              <span className="text-[10px] text-gray-400 font-medium">대안 {totalCandidates}개 중</span>
+            )}
           </div>
-          <h3 className="text-xl font-bold text-white tracking-tight">{title}</h3>
+          <h3 className="text-xl font-bold text-white tracking-tight leading-tight">{title}</h3>
           
-          {!isExpanded && (
-            <p className="text-gray-400 text-xs mt-1 truncate max-w-[240px]">
-              {description}
-            </p>
+          {/* Status Pills */}
+          {!isExpanded && facility && facility.congestionLevel !== undefined && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                facility.congestionLevel >= 0.7 
+                  ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                  : facility.congestionLevel >= 0.3
+                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              }`}>
+                혼잡도: {facility.congestionLevel >= 0.7 ? '혼잡' : facility.congestionLevel >= 0.3 ? '보통' : '여유'}
+              </span>
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/5 border border-white/10 text-slate-300">
+                잔여: {Math.max(0, (facility.capacity || 0) - (facility.currentCount || 0))}자리 (총 {facility.capacity})
+              </span>
+            </div>
           )}
         </div>
 
         {/* Dynamic Badge (TTTV Score or match percentage) */}
         {hasTttvMetrics ? (
           <div 
-            className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-purple-500/30 bg-purple-500/10 cursor-pointer shadow-md"
+            className="flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-2xl border border-purple-500/40 bg-gradient-to-b from-purple-500/20 to-purple-500/5 cursor-pointer shadow-lg shadow-purple-500/10"
             onClick={toggleExpand}
           >
-            <span className="text-white font-black text-base">{Math.round(tttvScore || 0)}</span>
-            <span className="text-[9px] text-purple-300 font-bold uppercase">TTTV</span>
+            <span className="text-[9px] text-purple-300 font-bold uppercase mb-0.5">TTTV 점수</span>
+            <span className="text-white font-black text-xl leading-none">{Math.round(tttvScore || 0)}<span className="text-[10px] font-normal text-purple-200 ml-0.5">점</span></span>
           </div>
         ) : (
           matchPercentage !== undefined && (
-            <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl border border-blue-500/30 bg-blue-500/10 shadow-md">
-              <span className="text-white font-black text-sm">{matchPercentage}%</span>
-              <span className="text-[9px] text-blue-300 font-semibold">Match</span>
+            <div className="flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-2xl border border-blue-500/30 bg-blue-500/10 shadow-md">
+              <span className="text-white font-black text-lg">{matchPercentage}%</span>
+              <span className="text-[9px] text-blue-300 font-semibold mt-0.5">Match</span>
             </div>
           )
         )}
@@ -228,59 +247,53 @@ export function RecommendationCard({
       {/* TTTV Metric Grid (Only if metrics are provided) */}
       {hasTttvMetrics && facilityType !== 'loading_dock' && (
         <div className="flex flex-col gap-2 mt-1">
-          {/* Main Metrics */}
-          <div className={`grid gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px] ${facilityType === 'meeting_room' ? 'grid-cols-2' : 'grid-cols-3'}`}>
-            {facilityType === 'meeting_room' ? (
-              <>
-                <div className="text-center">
-                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">현재 이용현황</span>
-                  <span className="font-extrabold text-sky-400">
-                    {facility?.congestionLevel >= 0.7 ? '사용중' : '비어있음'}
-                  </span>
+          {facilityType === 'meeting_room' ? (
+            <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px]">
+              <div className="text-center">
+                <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">현재 이용현황</span>
+                <span className="font-extrabold text-sky-400">
+                  {facility?.congestionLevel >= 0.7 ? '사용중' : '비어있음'}
+                </span>
+              </div>
+              <div className="text-center border-l border-white/10">
+                <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">남은 시간</span>
+                <span className="font-extrabold text-amber-400">
+                  {facility?.congestionLevel >= 0.7 ? `${facility?.features?.remainingMinutes || 15}분` : '-'}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              {/* Time Cost Column */}
+              <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-20">
+                  <Clock size={24} className="text-blue-300" />
                 </div>
-                <div className="text-center border-l border-white/10">
-                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">남은 시간</span>
-                  <span className="font-extrabold text-amber-400">
-                    {facility?.congestionLevel >= 0.7 ? `${facility?.features?.remainingMinutes || 15}분` : '-'}
-                  </span>
+                <span className="text-blue-300 text-[10px] font-semibold mb-1">총 소요 시간</span>
+                <div className="flex items-baseline gap-1 mb-1.5">
+                  <span className="text-2xl font-black text-white">{timeToService}</span>
+                  <span className="text-xs text-blue-200 font-medium">분</span>
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="text-center">
-                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">선호 일치율</span>
-                  <span className="font-extrabold text-sky-400">{preferencePercent}%</span>
+                <div className="flex items-center gap-2 text-[9px] text-blue-200/80 font-medium">
+                  <span className="bg-blue-500/20 px-1.5 py-0.5 rounded text-blue-300">대기 {expectedWait}분</span>
+                  <span className="text-blue-500/50">+</span>
+                  <span className="bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-400">이동 {expectedTravel}분</span>
                 </div>
-                <div className="text-center border-x border-white/10">
-                  {facilityType === 'parking' ? (
-                    <>
-                      <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">주차자리</span>
-                      <span className="font-extrabold text-amber-400">
-                        {facility?.capacity && facility?.currentCount !== undefined 
-                          ? `${Math.max(0, facility.capacity - facility.currentCount)} / ${facility.capacity}`
-                          : '-'}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 대기</span>
-                      <span className="font-extrabold text-amber-400">{expectedWait}분</span>
-                    </>
-                  )}
-                </div>
-                <div className="text-center">
-                  <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 이동</span>
-                  <span className="font-extrabold text-emerald-400">{expectedTravel}분</span>
-                </div>
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Time to Service (Time cost sum) */}
-          {facilityType !== 'meeting_room' && (
-            <div className="flex justify-between items-center bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-2 text-xs font-semibold shadow-inner">
-              <span className="text-blue-300 font-medium">서비스 이용까지 (대기 + 이동)</span>
-              <span className="text-white font-black text-sm">{timeToService}분</span>
+              {/* Preference Column */}
+              <div className="w-[110px] bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col justify-center items-center text-center">
+                <span className="text-slate-400 text-[10px] font-semibold mb-1">취향 일치율</span>
+                <div className="flex items-baseline gap-0.5 mb-1">
+                  <span className="text-xl font-black text-sky-400">{preferencePercent}</span>
+                  <span className="text-xs text-sky-400/80 font-bold">%</span>
+                </div>
+                {facilityType === 'parking' ? (
+                  <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">주차공간 맞춤</span>
+                ) : (
+                  <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">사용자 패턴 기반</span>
+                )}
+              </div>
             </div>
           )}
         </div>
