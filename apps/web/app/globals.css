@@ -71,3 +71,9 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* 다크 지도: 타일 이미지(http)만 어둡게 invert. 마커/오버레이는 data: URI 라 제외되어
+   필터에 눌리지 않은 본래의 선명한 색으로 표시된다(마커 색이 어둡게 보이던 문제 해소). */
+.map-dark-tiles img:not([src^="data:"]) {
+  filter: invert(90%) hue-rotate(180deg) brightness(80%) contrast(120%) grayscale(20%);
+}

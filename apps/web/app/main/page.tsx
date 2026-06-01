@@ -863,13 +863,11 @@ export default function MainPage() {
   return (
     <div className="relative w-full h-screen overflow-hidden flex flex-col">
 
-      {/* Map Container */}
-      <div 
-        ref={mapContainerRef} 
-        className="w-full h-full absolute inset-0 z-0"
-        style={{ 
-          filter: 'invert(90%) hue-rotate(180deg) brightness(80%) contrast(120%) grayscale(20%)' 
-        }}
+      {/* Map Container — 다크 필터는 globals.css 의 .map-dark-tiles 로 '타일 이미지(http)'에만 적용.
+          마커/오버레이는 data: URI 이미지라 필터 제외 → 본래의 선명한 색으로 표시(필터 우회). */}
+      <div
+        ref={mapContainerRef}
+        className="w-full h-full absolute inset-0 z-0 map-dark-tiles"
       />
 
       {/* Top Layer: Search & Filters */}
