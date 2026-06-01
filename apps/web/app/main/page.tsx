@@ -56,42 +56,26 @@ export default function MainPage() {
   useEffect(() => {
     async function loadFacilities() {
       try {
-        // Fetch all facilities using pagination
-        let facilitiesData: any[] = [];
-        let fromFac = 0;
-        const limit = 1000;
-        while (true) {
-          const { data, error } = await supabase
-            .from("facilities")
-            .select("id, name, type, latitude, longitude, capacity, operating_hours, features")
-            .range(fromFac, fromFac + limit - 1);
-          if (error) {
-            console.warn("Failed to load facilities:", error);
-            return;
-          }
-          if (!data || data.length === 0) break;
-          facilitiesData = [...facilitiesData, ...data];
-          if (data.length < limit) break;
-          fromFac += limit;
+        // Fetch facilities (limit 2000)
+        const { data: facilitiesData, error: facError } = await supabase
+          .from("facilities")
+          .select("id, name, type, latitude, longitude, capacity, operating_hours, features")
+          .limit(2000);
+
+        if (facError) {
+          console.warn("Failed to load facilities:", facError);
+          return;
         }
 
-        // Fetch all logs using pagination
-        let logs: any[] = [];
-        let fromLogs = 0;
-        while (true) {
-          const { data, error } = await supabase
-            .from("congestion_logs")
-            .select("facility_id, congestion_level, current_count, timestamp")
-            .order("timestamp", { ascending: false })
-            .range(fromLogs, fromLogs + limit - 1);
-          if (error) {
-            console.warn("Failed to load congestion logs:", error);
-            break;
-          }
-          if (!data || data.length === 0) break;
-          logs = [...logs, ...data];
-          if (data.length < limit) break;
-          fromLogs += limit;
+        // Fetch only recent logs (limit 3000) to get the latest per facility
+        const { data: logs, error: logsError } = await supabase
+          .from("congestion_logs")
+          .select("facility_id, congestion_level, current_count, timestamp")
+          .order("timestamp", { ascending: false })
+          .limit(3000);
+
+        if (logsError) {
+          console.warn("Failed to load congestion logs:", logsError);
         }
 
         const latestLogsMap: Record<string, any> = {};
