@@ -23,6 +23,7 @@ export default function MainPage() {
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
   const activeOverlayRef = useRef<any>(null);
+  const selectionOverlayRef = useRef<any>(null); // 선택된 시설 강조(확대 핀 + 펄스 링)
 
   const [activeTab, setActiveTab] = useState('Home');
   const [activeFilter, setActiveFilter] = useState('주차장');
@@ -783,7 +784,7 @@ export default function MainPage() {
 
         if (f.isGroup) {
           const content = document.createElement('div');
-          content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[160px] max-h-[250px] overflow-y-auto pointer-events-auto';
+          content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[180px] max-w-[280px] max-h-[260px] overflow-y-auto pointer-events-auto';
           
           const titleEl = document.createElement('div');
           titleEl.className = 'text-[10px] text-blue-400 font-bold px-2 py-1 mb-1 border-b border-white/10 uppercase tracking-wider';
@@ -792,7 +793,7 @@ export default function MainPage() {
 
           f.subFacilities.forEach((sub: any) => {
             const btn = document.createElement('button');
-            btn.className = 'text-left text-white text-xs px-3 py-2.5 hover:bg-white/10 rounded-xl transition-colors font-semibold truncate cursor-pointer';
+            btn.className = 'text-left text-white text-xs px-3 py-2.5 hover:bg-white/10 rounded-xl transition-colors font-semibold whitespace-normal break-keep leading-snug cursor-pointer';
             btn.innerText = sub.name;
             btn.onclick = () => {
               setSelectedFacility(sub);
@@ -828,6 +829,48 @@ export default function MainPage() {
 
     markersRef.current = newMarkers;
   }, [facilities, activeFilter, mapLoaded]);
+
+  // 선택된 시설 강조: 확대된 핀 + 펄스 링 (그림자 없음). 좌표가 있는 시설만.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.kakao || !mapLoaded || !mapInstanceRef.current) return;
+    const kakao = window.kakao;
+
+    if (selectionOverlayRef.current) {
+      selectionOverlayRef.current.setMap(null);
+      selectionOverlayRef.current = null;
+    }
+    if (!selectedFacility || typeof selectedFacility.latitude !== 'number' || typeof selectedFacility.longitude !== 'number') return;
+
+    const isNarrow = window.innerWidth < 640;
+    const w = isNarrow ? 58 : 70;
+    const h = isNarrow ? 74 : 90;
+    const ring = Math.round(w * 0.74);
+    const rs = Math.round(ring * 0.58);
+    const headTop = Math.round(h * 0.39); // 핀 머리(원) 중심 높이
+    const half = Math.round(ring / 2);
+    const halfS = Math.round(rs / 2);
+
+    const el = document.createElement('div');
+    el.style.cssText = `position:relative;width:${w}px;height:${h}px;pointer-events:none;`;
+    // 위치용 래퍼와 애니메이션(scale)용 자식을 분리해 animate-ping 의 transform 과 충돌 방지
+    el.innerHTML = `
+      <span style="position:absolute;left:50%;top:${headTop}px;width:${ring}px;height:${ring}px;margin-left:-${half}px;margin-top:-${half}px;">
+        <span class="animate-ping" style="display:block;width:100%;height:100%;border-radius:9999px;background:rgba(59,130,246,0.38);"></span>
+      </span>
+      <span style="position:absolute;left:50%;top:${headTop}px;width:${rs}px;height:${rs}px;margin-left:-${halfS}px;margin-top:-${halfS}px;border-radius:9999px;border:2px solid rgba(96,165,250,0.95);box-sizing:border-box;"></span>
+      <img class="marker-pop" src="${getMarkerSvg(selectedFacility.type, selectedFacility.congestionLevel, selectedFacility.features)}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:block;" />
+    `;
+
+    const overlay = new kakao.maps.CustomOverlay({
+      position: new kakao.maps.LatLng(selectedFacility.latitude, selectedFacility.longitude),
+      content: el,
+      xAnchor: 0.5,
+      yAnchor: 1,
+      zIndex: 200,
+    });
+    overlay.setMap(mapInstanceRef.current);
+    selectionOverlayRef.current = overlay;
+  }, [selectedFacility, mapLoaded]);
 
   const filters = [
     { id: '식당', icon: Utensils },
