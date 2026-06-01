@@ -668,15 +668,11 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
-  // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.kakao && window.kakao.maps) {
-      initMap();
-    }
-  }, []);
+  // initMap is now triggered by the Next.js Script's onReady
 
   // Initialize Kakao Map
   const initMap = () => {
+    if (mapInstanceRef.current) return;
     if (window.kakao && window.kakao.maps && mapContainerRef.current) {
       window.kakao.maps.load(() => {
         let centerLat = 36.1198;
@@ -832,7 +828,7 @@ export default function MainPage() {
         <Script
           src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services,clusterer`}
           strategy="afterInteractive"
-          onLoad={initMap}
+          onReady={initMap}
         />
       )}
 
