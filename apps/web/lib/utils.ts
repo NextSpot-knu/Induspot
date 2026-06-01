@@ -5,14 +5,16 @@ export const getMarkerSvg = (
   selected: boolean = false
 ) => {
   // 평소엔 연한 색, 선택 시 진한 색으로 구분 (파랑 한산 / 초록 여유 / 노랑 보통 / 빨강 혼잡)
+  // 지도에 다크 invert 필터가 걸려 있어 'SVG가 진할수록 화면에선 밝게' 보인다.
+  // 평소 = 진한 600계열(화면에서 또렷·밝게), 선택 시 = 한 단계 더 진한 700계열(화면에서 더 밝게).
   const p =
     level >= 0.75
-      ? { base: "#fb7185", sel: "#e11d48" } // 혼잡 (red)
+      ? { base: "#e11d48", sel: "#be123c" } // 혼잡 (red)
       : level >= 0.5
-      ? { base: "#fbbf24", sel: "#d97706" } // 보통 (yellow)
+      ? { base: "#d97706", sel: "#b45309" } // 보통 (yellow)
       : level >= 0.25
-      ? { base: "#34d399", sel: "#059669" } // 여유 (green)
-      : { base: "#60a5fa", sel: "#2563eb" }; // 한산 (blue)
+      ? { base: "#059669", sel: "#047857" } // 여유 (green)
+      : { base: "#2563eb", sel: "#1d4ed8" }; // 한산 (blue)
   const color = selected ? p.sel : p.base;
 
   let emoji = "📍";
