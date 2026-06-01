@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "knudc-henryseo711"
-  }
+  },
+  "targets": {
+    "knudc-henryseo711": {
+      "hosting": {
+        "induspot": [
+          "induspot"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
