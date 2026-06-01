@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Search, Bell, Download, FileText, Calendar as CalendarIcon, 
   TrendingUp, BarChart2, PieChart as PieChartIcon
@@ -37,6 +37,21 @@ const tableData = [
 ];
 
 export default function ReportsPage() {
+  // 데모용 기간 표시: 마운트 후 현재 월(KST) 범위를 동적 생성해 hydration mismatch 회피
+  const [period, setPeriod] = useState('불러오는 중...');
+
+  useEffect(() => {
+    // UTC+9(KST) 오프셋을 적용한 '현재 시각' 기준으로 이번 달의 시작/끝 날짜 계산
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    const nowKst = new Date(Date.now() + KST_OFFSET_MS);
+    const year = nowKst.getUTCFullYear();
+    const month = nowKst.getUTCMonth(); // 0-based
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const mm = String(month + 1).padStart(2, '0');
+    const dd = String(lastDay).padStart(2, '0');
+    setPeriod(`${year}-${mm}-01 ~ ${year}-${mm}-${dd}`);
+  }, []);
+
   const handleExport = (type: string) => {
     alert(`[시연용] 프리미엄 요금제 기능입니다. 실제 서비스에서는 ${type} 파일 생성이 백그라운드에서 진행됩니다.`);
   };
@@ -72,7 +87,7 @@ export default function ReportsPage() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors">
                 <CalendarIcon size={18} className="text-slate-500" />
-                <span className="text-sm font-semibold text-slate-700">2023-10-01 ~ 2023-10-31</span>
+                <span className="text-sm font-semibold text-slate-700">{period}</span>
               </div>
             </div>
             <div className="flex items-center gap-3">

@@ -1,3 +1,5 @@
+// @deprecated 미사용 — 실제 계약은 apps/web/lib/types.ts 및 supabase/migrations/20250523120000_init.sql 기준. 어느 코드에서도 import되지 않음.
+
 // 1. 공용 인프라 타입 정의
 export type InfrastructureType = 'cafeteria' | 'parking' | 'meeting_room' | 'rest_area';
 

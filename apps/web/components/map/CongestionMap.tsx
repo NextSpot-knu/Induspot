@@ -17,11 +17,12 @@ declare global {
 }
 
 const getMarkerSvg = (type: string, level: number, features: any = {}) => {
-  let color = "#10b981"; // green (여유)
+  // 혼잡도 색상 정본 스킴(lib/utils.ts와 동일): 여유=Blue / 보통=Green / 혼잡=Red
+  let color = "#3b82f6"; // blue (여유)
   if (level >= 0.7) {
     color = "#ef4444"; // red (혼잡)
   } else if (level >= 0.3) {
-    color = "#f59e0b"; // yellow/amber (보통)
+    color = "#10b981"; // green (보통)
   }
 
   let emoji = "📍";
@@ -368,14 +369,14 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     } else if (level >= 0.3) {
       return {
         text: "보통",
-        colorClass: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-        barClass: "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]",
+        colorClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+        barClass: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]",
       };
     } else {
       return {
         text: "여유",
-        colorClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-        barClass: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]",
+        colorClass: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+        barClass: "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]",
       };
     }
   };

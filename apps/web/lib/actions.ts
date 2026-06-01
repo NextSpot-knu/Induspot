@@ -1,5 +1,9 @@
 "use server";
 
+// 주의: 아래 시설 CRUD 액션(createFacility/updateFacility/deleteFacility)과 /api/admin/facilities 라우트는
+// 현재 어떤 UI에서도 호출되지 않는 고아 코드임(FacilityTable 은 데모 mock 데이터를 사용). 데모상 무해.
+// 추후 실제 배선 시 body 는 snake_case(operating_hours, created_at 등)로 보낼 것.
+
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "./supabase";
 import { Facility } from "./types";

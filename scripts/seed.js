@@ -39,16 +39,8 @@ async function seed() {
 
   const { data: users, error: uErr } = await supabase.from('users').select('*');
   if (uErr || !users || users.length === 0) {
-    console.error('No users found. Creating mock users first...');
-    // Create 5 mock users if they don't exist
-    const { data: newUsers } = await supabase.from('users').insert([
-      { employee_id: 'EMP001', company_name: '삼성전자', preferred_categories: ['cafeteria', 'gym'], work_shift: 'day', role: 'user' },
-      { employee_id: 'EMP002', company_name: '삼성전자', preferred_categories: ['cafeteria', 'cafe'], work_shift: 'day', role: 'user' },
-      { employee_id: 'EMP003', company_name: '하이닉스', preferred_categories: ['gym', 'cafe'], work_shift: 'night', role: 'user' },
-      { employee_id: 'EMP004', company_name: '하이닉스', preferred_categories: ['cafeteria'], work_shift: 'day', role: 'user' },
-      { employee_id: 'EMP005', company_name: '협력사A', preferred_categories: ['cafeteria', 'gym'], work_shift: 'day', role: 'user' }
-    ]).select();
-    users.push(...(newUsers || []));
+    console.error('No users found. Create users via Supabase Auth first, then re-run.');
+    return;
   }
   console.log(`Active users count: ${users.length}`);
 
@@ -63,37 +55,29 @@ async function seed() {
   console.log('Generating congestion logs for the past 30 days...');
   const logsToInsert = [];
   
-  // Categorize facilities to apply realistic patterns
-  // Examples: 식당 (Restaurant), 체육관/헬스장 (Gym), 카페 (Cafe), 휴게실 (Lounge), 사무실 (Office)
+  // Categorize facilities to apply realistic patterns based on actual facility type.
+  // Real taxonomy: cafeteria (구내식당), parking (주차장), meeting_room (회의실), rest_area (휴게실)
   const categorizedFacilities = facilities.map(f => {
-    let type = 'office';
-    if (f.name.includes('식당') || f.name.includes('뷔페') || f.type === 'restaurant' || f.type === 'cafeteria') {
-      type = 'restaurant';
-    } else if (f.name.includes('체육') || f.name.includes('헬스') || f.name.includes('피트니스') || f.type === 'gym') {
-      type = 'gym';
-    } else if (f.name.includes('카페') || f.name.includes('커피') || f.type === 'cafe') {
-      type = 'cafe';
-    }
-    return { ...f, facilityType: type };
+    return { ...f, facilityType: f.type };
   });
 
   // Helper to determine congestion level by hour and facility type
   function getCongestion(type, hour) {
     let base = 0.15;
-    if (type === 'restaurant') {
+    if (type === 'cafeteria') {
       if (hour >= 11 && hour <= 13) base = 0.75 + Math.random() * 0.15; // 점심 피크
       else if (hour >= 17 && hour <= 19) base = 0.60 + Math.random() * 0.20; // 저녁 피크
       else base = 0.05 + Math.random() * 0.1;
-    } else if (type === 'gym') {
-      if (hour >= 7 && hour <= 9) base = 0.45 + Math.random() * 0.15; // 아침 운동
-      else if (hour >= 18 && hour <= 21) base = 0.70 + Math.random() * 0.22; // 퇴근 후 운동 피크 (이상 혼잡 발생 유도)
-      else base = 0.1 + Math.random() * 0.15;
-    } else if (type === 'cafe') {
-      if (hour === 8 || hour === 13 || hour === 15) base = 0.65 + Math.random() * 0.20; // 출근 및 휴식시간 피크
-      else base = 0.20 + Math.random() * 0.15;
-    } else { // Office / General
+    } else if (type === 'parking') {
+      if (hour >= 7 && hour <= 9) base = 0.70 + Math.random() * 0.22; // 출근 입차 피크
+      else if (hour >= 17 && hour <= 19) base = 0.45 + Math.random() * 0.15; // 퇴근 출차
+      else base = 0.30 + Math.random() * 0.15;
+    } else if (type === 'meeting_room') {
       if (hour >= 9 && hour <= 18) base = 0.40 + Math.random() * 0.25; // 업무 시간 일정한 흐름
       else base = 0.05 + Math.random() * 0.1;
+    } else { // rest_area / 휴게실
+      if (hour === 10 || hour === 13 || hour === 15) base = 0.65 + Math.random() * 0.20; // 휴식시간 피크
+      else base = 0.20 + Math.random() * 0.15;
     }
     return Math.min(Math.max(base, 0), 1);
   }
@@ -151,36 +135,36 @@ async function seed() {
   }
 
   // 4. Generate Anomaly Alerts for Today (Explicitly insert high congestion records)
-  // Let's create an anomaly for the Gym (fitness center) and one Cafeteria today
+  // Let's create an anomaly for the parking lot and one cafeteria today
   console.log('Injecting explicit anomalies for today...');
-  const gym = categorizedFacilities.find(f => f.facilityType === 'gym');
-  const restaurant = categorizedFacilities.find(f => f.facilityType === 'restaurant');
+  const parking = categorizedFacilities.find(f => f.facilityType === 'parking');
+  const cafeteria = categorizedFacilities.find(f => f.facilityType === 'cafeteria');
 
   const anomalyLogs = [];
-  if (gym) {
-    // Gym anomaly from 18:30 to 19:45 today (duration 75 mins)
+  if (parking) {
+    // Parking anomaly from 18:30 to 19:45 today (duration 75 mins)
     const times = [30, 45, 60, 75]; // offsets in minutes from 18:00
     for (const t of times) {
       const timestamp = getKstDate(0, 18, t);
       anomalyLogs.push({
-        facility_id: gym.id,
+        facility_id: parking.id,
         timestamp: timestamp.toISOString(),
-        current_count: Math.round(gym.capacity * 0.95),
+        current_count: Math.round(parking.capacity * 0.95),
         congestion_level: 0.95,
         source: 'iot_sensor'
       });
     }
   }
 
-  if (restaurant) {
-    // Restaurant anomaly from 12:00 to 12:45 today (duration 45 mins)
+  if (cafeteria) {
+    // Cafeteria anomaly from 12:00 to 12:45 today (duration 45 mins)
     const times = [0, 15, 30, 45];
     for (const t of times) {
       const timestamp = getKstDate(0, 12, t);
       anomalyLogs.push({
-        facility_id: restaurant.id,
+        facility_id: cafeteria.id,
         timestamp: timestamp.toISOString(),
-        current_count: Math.round(restaurant.capacity * 0.92),
+        current_count: Math.round(cafeteria.capacity * 0.92),
         congestion_level: 0.92,
         source: 'iot_sensor'
       });
@@ -198,9 +182,9 @@ async function seed() {
   const recsToInsert = [];
   
   // Find pairable facilities of the same type
-  const restaurants = categorizedFacilities.filter(f => f.facilityType === 'restaurant');
-  const gyms = categorizedFacilities.filter(f => f.facilityType === 'gym');
-  const cafes = categorizedFacilities.filter(f => f.facilityType === 'cafe');
+  const cafeterias = categorizedFacilities.filter(f => f.facilityType === 'cafeteria');
+  const parkings = categorizedFacilities.filter(f => f.facilityType === 'parking');
+  const restAreas = categorizedFacilities.filter(f => f.facilityType === 'rest_area');
 
   for (let d = -29; d <= 0; d++) {
     // 10 recommendations per day
@@ -212,15 +196,15 @@ async function seed() {
       const randType = Math.random();
       let original, recommended;
       
-      if (randType < 0.5 && restaurants.length >= 2) {
-        original = restaurants[0];
-        recommended = restaurants[1];
-      } else if (randType < 0.8 && gyms.length >= 2) {
-        original = gyms[0];
-        recommended = gyms[1];
-      } else if (cafes.length >= 2) {
-        original = cafes[0];
-        recommended = cafes[1];
+      if (randType < 0.5 && cafeterias.length >= 2) {
+        original = cafeterias[0];
+        recommended = cafeterias[1];
+      } else if (randType < 0.8 && parkings.length >= 2) {
+        original = parkings[0];
+        recommended = parkings[1];
+      } else if (restAreas.length >= 2) {
+        original = restAreas[0];
+        recommended = restAreas[1];
       } else {
         original = facilities[0];
         recommended = facilities[1];
@@ -236,8 +220,8 @@ async function seed() {
         user_id: user.id,
         original_facility_id: original.id,
         recommended_facility_id: recommended.id,
-        tttv_score: Math.round((60 + Math.random() * 35) * 10) / 10,
-        score_breakdown: { distance: 10, congestion_reduction: 15 },
+        tttv_score: Math.round((0.6 + Math.random() * 0.35) * 1000) / 1000,
+        score_breakdown: { preference: 0.45, wait_time: 0.25, travel_time: 0.30, incentive: 0.0 },
         accepted,
         created_at: created_at.toISOString()
       });

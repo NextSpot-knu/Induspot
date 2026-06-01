@@ -479,10 +479,11 @@ function RecommendContent() {
               latitude: f.latitude,
               longitude: f.longitude,
               capacity: f.capacity,
+              currentCount: Math.round(f.capacity * (f.congestion_logs?.[0]?.congestion_level ?? 0)),
               operatingHours: f.operating_hours,
               features: f.features
             },
-            tttvScore: 85 - (i * 10),
+            tttvScore: 0.85 - (i * 0.1),
             breakdown: {
               preference: 0.9 - (i * 0.15),
               waitTime: 5 + (i * 3),
@@ -501,7 +502,9 @@ function RecommendContent() {
     }
 
     checkHistoryAndFetch();
-  }, [userId, facilityId, lat, lng, originalFacility]);
+    // originalFacility 객체 전체를 의존성에 넣으면 비동기로 null→객체가 채워질 때 재실행되어
+    // getRecommendations 가 중복 호출(추천 이력 중복 INSERT)된다. 폴백에서 쓰는 type 원시값만 의존한다.
+  }, [userId, facilityId, lat, lng, originalFacility?.type]);
 
   // 추천 API 실패 시 데모용 목업 추천 생성 (회복탄력성)
   const buildMockRecommendations = (): RecommendationResponse[] => {
@@ -516,10 +519,11 @@ function RecommendContent() {
         latitude: f.latitude,
         longitude: f.longitude,
         capacity: f.capacity,
+        currentCount: Math.round(f.capacity * (f.congestion_logs?.[0]?.congestion_level ?? 0)),
         operatingHours: f.operating_hours,
         features: f.features,
       },
-      tttvScore: 85 - i * 10,
+      tttvScore: 0.85 - i * 0.1,
       breakdown: { preference: 0.9 - i * 0.15, waitTime: 5 + i * 3, travelTime: 2.5 + i, incentive: 0.2 },
       distanceM: 120 + i * 35,
       rank: i + 1,
@@ -565,6 +569,17 @@ function RecommendContent() {
     }
     setIsListening(false);
   };
+
+  // 언마운트 시 음성 인식 세션 정리(인식 중 다른 화면으로 이동해도 마이크/리스너가 남지 않도록)
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        /* noop */
+      }
+    };
+  }, []);
 
   // 자연어 → Gemini 파싱 → 선호 벡터/카테고리 반영 (서버가 저장까지 수행)
   const handleNlAnalyze = async () => {
@@ -627,7 +642,7 @@ function RecommendContent() {
   // Handle Onboarding Preferences Submission
   const handleOnboardingSubmit = async () => {
     if (selectedOnboardingCats.length < 3) {
-      alert("선호하는 인프라 종류를 3개 이상 선택해 주세요!");
+      setToast("선호하는 인프라 종류를 3개 이상 선택해 주세요!");
       return;
     }
     if (!userId || !facilityId) return;
@@ -669,10 +684,11 @@ function RecommendContent() {
             latitude: f.latitude,
             longitude: f.longitude,
             capacity: f.capacity,
+            currentCount: Math.round(f.capacity * (f.congestion_logs?.[0]?.congestion_level ?? 0)),
             operatingHours: f.operating_hours,
             features: f.features
           },
-          tttvScore: 85 - (i * 10),
+          tttvScore: 0.85 - (i * 0.1),
           breakdown: {
             preference: 0.9 - (i * 0.15),
             waitTime: 5 + (i * 3),
@@ -718,9 +734,16 @@ function RecommendContent() {
         if (newWindow) newWindow.location.href = destUrl;
         else window.location.href = destUrl;
       } else {
-        const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "8b9591c379e8cc301162469a713c4f4d";
+        const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY;
+        if (!restApiKey) {
+          // 키 미설정 시 transcoord 호출을 건너뛰고 좌표 기반 길안내 URL로 바로 이동(키를 소스에 박지 않음)
+          const destUrl = `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(rec.facility.name)}&sY=${lat}&sX=${lng}&eY=${rec.facility.latitude}&eX=${rec.facility.longitude}`;
+          if (newWindow) newWindow.location.href = destUrl;
+          else window.location.href = destUrl;
+          return;
+        }
         const headers = { 'Authorization': `KakaoAK ${restApiKey}` };
-        
+
         const urlStart = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${lng}&y=${lat}&input_coord=WGS84&output_coord=WCONGNAMUL`;
         const urlEnd = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${rec.facility.longitude}&y=${rec.facility.latitude}&input_coord=WGS84&output_coord=WCONGNAMUL`;
 
@@ -838,23 +861,43 @@ function RecommendContent() {
               <div className="h-4 bg-white/10 w-2/3 rounded-md" />
               <div className="h-3 bg-white/10 w-1/2 rounded-md" />
             </div>
-          ) : originalFacility ? (
-            <div className="glass-panel p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 shadow-[0_4px_24px_rgba(239,68,68,0.05)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
+          ) : originalFacility ? (() => {
+            // 실제 혼잡도 기반 분기(하드코딩 '혼잡' 제거). 0.7↑ 혼잡 / 0.3↑ 보통 / 그 외 여유.
+            // Tailwind v4 는 동적 보간 클래스를 생성하지 않으므로 전체 클래스명을 정적으로 분기한다.
+            const level = originalFacility.congestionLevel;
+            const isBusy = level >= 0.7;
+            const isModerate = level >= 0.3 && !isBusy;
+            const statusPhrase = isBusy ? "혼잡합니다" : isModerate ? "다소 붐빕니다" : "여유로운 편입니다";
+            // 혼잡도 색상 정본 스킴(lib/utils.ts·main·RecommendationCard와 동일): 여유=Blue / 보통=Green / 혼잡=Red
+            const cardCls = isBusy
+              ? "border-rose-500/20 bg-rose-500/5 shadow-[0_4px_24px_rgba(239,68,68,0.05)]"
+              : isModerate
+              ? "border-emerald-500/20 bg-emerald-500/5 shadow-[0_4px_24px_rgba(16,185,129,0.05)]"
+              : "border-blue-500/20 bg-blue-500/5 shadow-[0_4px_24px_rgba(59,130,246,0.05)]";
+            const glowCls = isBusy ? "bg-rose-500/10" : isModerate ? "bg-emerald-500/10" : "bg-blue-500/10";
+            const dotCls = isBusy ? "bg-rose-500" : isModerate ? "bg-emerald-500" : "bg-blue-500";
+            const textCls = isBusy ? "text-rose-400" : isModerate ? "text-emerald-400" : "text-blue-400";
+            const badge = isBusy ? "우회 추천" : isModerate ? "대안 비교" : "여유 확인";
+            return (
+            <div className={`glass-panel p-5 rounded-2xl border ${cardCls} relative overflow-hidden`}>
+              <div className={`absolute top-0 right-0 w-24 h-24 ${glowCls} rounded-full blur-2xl pointer-events-none`} />
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">우회 필요</span>
+                <span className={`w-2 h-2 rounded-full ${dotCls} animate-pulse`} />
+                <span className={`text-[10px] ${textCls} font-bold uppercase tracking-wider`}>{badge}</span>
               </div>
               <h2 className="text-base md:text-lg font-bold text-slate-100 mt-2">
-                지금 <span className="text-rose-400">{originalFacility.name}</span>은{" "}
-                <span className="text-rose-400">혼잡</span>합니다.
+                지금 <span className={textCls}>{originalFacility.name}</span>은{" "}
+                <span className={textCls}>{statusPhrase}</span>
               </h2>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                현재 대기 시간은 약 <span className="font-semibold text-rose-400">{originalWaitTime}분</span>으로
-                예상됩니다. 아래의 최적화된 TTTV 대안 시설을 권장합니다.
+                현재 예상 대기 시간은 약 <span className={`font-semibold ${textCls}`}>{originalWaitTime}분</span>입니다.
+                {isBusy
+                  ? " 아래의 최적화된 TTTV 대안 시설을 권장합니다."
+                  : " 그래도 TTTV가 더 빠르고 나은 대안을 찾았는지 아래에서 비교해 보세요."}
               </p>
             </div>
-          ) : (
+            );
+          })() : (
             <div className="glass-panel p-5 rounded-2xl border border-white/5 text-center text-xs text-slate-400">
               시설 정보를 불러오지 못했습니다.
             </div>
@@ -881,7 +924,9 @@ function RecommendContent() {
           ) : recommendations.length > 0 ? (
             recommendations.map((rec) => {
               const waitTime = rec.breakdown?.waitTime?.toFixed(1) || "--";
-              const travelTime = (rec.distanceM / 80).toFixed(1); // 80m/min (approx. 4.8 km/h)
+              // 백엔드 산출 도보분(breakdown.travelTime)을 우선 사용해 카드 표시와 TTTV/사유 문구를 일치시킨다.
+              // 없을 때만 직선거리 추정(80m/min)으로 폴백.
+              const travelTime = (rec.breakdown?.travelTime ?? rec.distanceM / 80).toFixed(1);
               const preferencePct = Math.round((rec.breakdown?.preference || 0) * 100);
 
               return (
@@ -907,7 +952,7 @@ function RecommendContent() {
                     <div className="text-right">
                       <span className="text-[10px] text-slate-400 block">TTTV 지수</span>
                       <span className="text-sm font-extrabold text-purple-400">
-                        {Math.round(rec.tttvScore <= 1.0 ? rec.tttvScore * 100 : rec.tttvScore)}점
+                        {Math.round((rec.tttvScore || 0) * 100)}점
                       </span>
                     </div>
                   </div>
@@ -1006,7 +1051,8 @@ function RecommendContent() {
               <span className="text-xl">🎯</span>
               <h3 className="text-lg font-extrabold text-slate-100">맞춤형 추천 온보딩</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                InduSpot AI의 최적화된 TTTV 대안 경로 매칭을 제공받기 위해, 평소에 자주 방문하시는 시설 종류를 **3개 이상** 선택해 주세요.
+                InduSpot AI의 최적화된 TTTV 대안 경로 매칭을 제공받기 위해, 평소에 자주 방문하시는 시설 종류를{" "}
+                <span className="font-bold text-sky-300">3개 이상</span> 선택해 주세요.
               </p>
             </div>
 

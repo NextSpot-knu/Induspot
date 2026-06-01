@@ -86,17 +86,23 @@ async function forwardRequest(request: NextRequest, params: { path?: string[] })
     const response = await fetch(finalUrl, fetchOptions);
     const responseText = await response.text();
 
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = responseText;
+    // (a) 빈 본문이면 빈 본문 그대로 반환
+    if (responseText.length === 0) {
+      return new Response(null, { status: response.status });
     }
 
-    return NextResponse.json(responseData, {
-      status: response.status,
-      statusText: response.statusText,
-    });
+    // (b) JSON 파싱 성공 시 파싱 결과를 JSON 으로 반환 (현 엔드포인트는 모두 JSON → 회귀 없음)
+    try {
+      const responseData = JSON.parse(responseText);
+      return NextResponse.json(responseData, { status: response.status });
+    } catch {
+      // (c) 파싱 실패면 원문 그대로 통과
+      const contentType = response.headers.get("content-type") ?? "text/plain";
+      return new Response(responseText, {
+        status: response.status,
+        headers: { "content-type": contentType },
+      });
+    }
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);

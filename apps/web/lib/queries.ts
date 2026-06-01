@@ -397,18 +397,24 @@ export async function fetchDistributionEffect(): Promise<DistributionDataPoint[]
     // 요일 구하기 (0: 일요일, 6: 토요일)
     const dayOfWeek = d.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    
-    // 주간 기본 혼잡도 패턴 (주말은 낮고 평일은 높음 + 사인파 추이 + 랜덤 노이즈)
-    const baseCongestion = isWeekend 
-      ? 0.08 + Math.sin(i * 0.5) * 0.02 + Math.random() * 0.03 
-      : 0.45 + Math.sin(i * 0.5) * 0.1 + Math.random() * 0.08;
-      
-    const baseAlternative = isWeekend
-      ? 0.03 + Math.random() * 0.03
-      : 0.2 + Math.cos(i * 0.5) * 0.06 + Math.random() * 0.06;
 
-    const baseTotal = isWeekend ? Math.floor(Math.random() * 3) : 12 + Math.floor(Math.random() * 8);
-    const baseAccepted = Math.floor(baseTotal * (0.65 + Math.random() * 0.15));
+    // i 시드 기반 의사 난수 (0~1) — 새로고침해도 안정적인 값 유지
+    const r = (o: number) => {
+      const x = Math.sin(i * 7 + o) * 10000;
+      return x - Math.floor(x);
+    };
+
+    // 주간 기본 혼잡도 패턴 (주말은 낮고 평일은 높음 + 사인파 추이 + 시드 기반 노이즈)
+    const baseCongestion = isWeekend
+      ? 0.08 + Math.sin(i * 0.5) * 0.02 + r(1) * 0.03
+      : 0.45 + Math.sin(i * 0.5) * 0.1 + r(2) * 0.08;
+
+    const baseAlternative = isWeekend
+      ? 0.03 + r(3) * 0.03
+      : 0.2 + Math.cos(i * 0.5) * 0.06 + r(4) * 0.06;
+
+    const baseTotal = isWeekend ? Math.floor(r(5) * 3) : 12 + Math.floor(r(6) * 8);
+    const baseAccepted = Math.floor(baseTotal * (0.65 + r(7) * 0.15));
 
     dailyData[dateStr] = {
       originalCongestionSum: baseCongestion,

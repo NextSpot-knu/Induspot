@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { Settings, Plus, Edit2, Trash2 } from 'lucide-react';
 
+// 시설 type 표준 라벨 매핑 (영문 코드 → 한글 표기)
+const FACILITY_TYPE_LABELS: Record<string, string> = {
+  cafeteria: '식당',
+  parking: '주차장',
+  meeting_room: '회의실',
+  rest_area: '휴게실',
+};
+
 export function FacilityTable() {
   // 백엔드 명세서 기반 시설 목록 구조 (Mock Data)
   const [facilities, setFacilities] = useState([
@@ -23,13 +31,13 @@ export function FacilityTable() {
       <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
         <div className="flex items-center gap-2">
           <Settings className="text-slate-500" size={20} />
-          <h3 className="text-lg font-bold text-slate-800">시설 관리 (CRUD)</h3>
+          <h3 className="text-lg font-bold text-slate-800">시설 관리 (CRUD) (데모)</h3>
         </div>
-        <button 
+        <button
           onClick={() => alert('시설 추가 모달 띄우기 (POST /api/admin/facilities)')}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
         >
-          <Plus size={16} /> 신규 시설 등록
+          <Plus size={16} /> 신규 시설 등록 (데모)
         </button>
       </div>
       <div className="overflow-x-auto">
@@ -49,8 +57,8 @@ export function FacilityTable() {
               <tr key={fac.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 <td className="p-4 font-bold text-slate-800">{fac.name}</td>
                 <td className="p-4">
-                  <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold uppercase">
-                    {fac.type}
+                  <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold">
+                    {FACILITY_TYPE_LABELS[fac.type] ?? fac.type}
                   </span>
                 </td>
                 <td className="p-4 text-slate-600">{fac.capacity}명/대</td>
@@ -63,14 +71,16 @@ export function FacilityTable() {
                   )}
                 </td>
                 <td className="p-4 flex justify-end gap-2">
-                  <button 
+                  <button
                     onClick={() => alert(`수정 (PUT /api/admin/facilities/${fac.id})`)}
+                    title="수정 (데모: DB 미반영)"
                     className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors bg-white border border-slate-200 rounded-md"
                   >
                     <Edit2 size={16} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDelete(fac.id)}
+                    title="삭제 (데모: 화면에서만 제거)"
                     className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors bg-white border border-slate-200 rounded-md"
                   >
                     <Trash2 size={16} />

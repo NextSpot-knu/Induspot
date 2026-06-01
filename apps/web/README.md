@@ -3,7 +3,7 @@
 산업단지 내 공용 인프라(식당, 주차장, 회의실, 휴게 공간)의 실시간 혼잡도를 분석하고, 혼잡 발생 시 TTTV(Total Time to Value) 알고리즘 기반 대안 경로 및 시간대를 추천하는 B2B SaaS 모노레포 프로젝트입니다.
 
 ## 기술 스택
-- **Frontend / BFF**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **Frontend / BFF**: Next.js 16.2 (App Router) + TypeScript + Tailwind CSS
 - **Backend API / ML**: FastAPI (Python 3.11) + Pydantic v2 + Poetry
 - **Database & Auth**: Supabase (PostgreSQL + Realtime + GoTrue)
 - **Vector DB**: Pinecone
@@ -14,11 +14,11 @@
 ```text
 induspot/
 ├── apps/
-│   ├── web/                  # Next.js 14
+│   ├── web/                  # Next.js 16.2
 │   └── api/                  # FastAPI (Python 3.11)
 ├── packages/
 │   └── shared-types/         # Next.js ↔ FastAPI 공유 타입 정의
-├── migrations/               # Supabase SQL 마이그레이션
+├── supabase/migrations/      # Supabase SQL 마이그레이션
 ├── docker-compose.yml
 └── README.md
 ```

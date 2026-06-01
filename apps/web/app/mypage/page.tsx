@@ -8,6 +8,7 @@ import {
   HelpCircle, Settings as SettingsIcon, BellRing, Star, Sparkles
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { createPublicClient } from '@/lib/supabase';
 
 interface UserProfile {
   name: string;
@@ -37,13 +38,39 @@ export default function MyPage() {
         // const data = await response.json();
         // setProfile(data);
         
-        // UI 확인을 위한 임시 목업 상태 (API 연동 전)
+        // 신원(name/email)은 세션 기반으로 일관성 유지 (admin/support 패턴과 동일)
+        let name = '사용자';
+        let email = '';
+        try {
+          const supabase = createPublicClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            email = session.user.email || '';
+            name = session.user.user_metadata?.full_name || email.split('@')[0] || '사용자';
+          }
+        } catch (sessionErr) {
+          console.error('Failed to load user session in mypage', sessionErr);
+        }
+
+        // saved 카운트는 localStorage 의 저장된 시설 목록 기준
+        let saved = 0;
+        try {
+          const rawSaved = localStorage.getItem('induspot_saved_facilities');
+          if (rawSaved) {
+            const parsed = JSON.parse(rawSaved);
+            if (Array.isArray(parsed)) saved = parsed.length;
+          }
+        } catch (savedErr) {
+          console.error('Failed to parse saved facilities in mypage', savedErr);
+        }
+
+        // routes/rating 등 나머지 수치는 데모용 더미로 유지
         setProfile({
-          name: 'Yun Seong',
-          email: 'yun.seong@induspot.global',
+          name,
+          email,
           role: 'Senior Operator',
           routes: 24,
-          saved: 7,
+          saved,
           rating: 4.9,
           alertEnabled: true,
         });
@@ -162,7 +189,7 @@ export default function MyPage() {
                         <div className="w-full bg-slate-950/40 rounded h-16 border border-white/5 relative overflow-hidden">
                           <div 
                             className="bg-gradient-to-t from-blue-600 to-sky-400 absolute bottom-0 left-0 right-0 rounded-t-sm transition-all duration-500" 
-                            style={{ height: `${Math.max(0, Math.min(100, (val + 1) * 50))}%` }} 
+                            style={{ height: `${Math.max(0, Math.min(100, val * 100))}%` }}
                           />
                         </div>
                         <span className="text-[9px] text-gray-500 font-mono">D{idx+1}</span>

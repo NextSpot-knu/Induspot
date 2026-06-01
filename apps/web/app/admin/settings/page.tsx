@@ -162,12 +162,12 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <AlertCircle size={20} className="text-amber-500" />
                     <div>
-                      <h5 className="font-bold text-slate-800 text-sm">Redis 캐시 초기화</h5>
-                      <p className="text-xs text-slate-500">지도 데이터 로딩이 느릴 때 수동으로 캐시를 비웁니다.</p>
+                      <h5 className="font-bold text-slate-800 text-sm">예측 캐시 갱신</h5>
+                      <p className="text-xs text-slate-500">BigQuery ARIMA 혼잡 예측 결과 캐시를 수동으로 갱신합니다.</p>
                     </div>
                   </div>
                   <button className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg transition-colors">
-                    캐시 삭제
+                    캐시 갱신
                   </button>
                 </div>
               </div>
