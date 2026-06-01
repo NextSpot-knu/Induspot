@@ -1,9 +1,15 @@
 # pyrefly: ignore [missing-import]
 import asyncio
+from typing import Literal
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from app.core.supabase import supabase_client, get_current_user
+# 이 라우터는 인증된 사용자 컨텍스트에서 본인 소유 데이터만 다루는 서버→서버 신뢰 경로다.
+# recommendations/user_feedback 는 RLS 가 service_role/authenticated 만 INSERT 를 허용하는데,
+# anon 클라이언트는 요청별 JWT 를 PostgREST 로 싣지 않아 auth.uid()=null → RLS 거부가 된다.
+# (ingest/preferences 라우터가 동일 사유로 supabase_admin 을 쓴다.) 따라서 service_role 클라이언트로
+# 통일하고, 신뢰 경계는 아래 get_recommendations/submit_feedback 의 소유권 가드로 강제한다.
+from app.core.supabase import supabase_admin as supabase_client, get_current_user
 from app.services.pinecone_service import pinecone_service
 from app.services.reason_service import generate_reason
 from app.services.tttv.score import calculate_tttv_score
@@ -32,7 +38,8 @@ class RecommendItem(BaseModel):
 
 class FeedbackRequest(BaseModel):
     recommendation_id: str
-    action: str  # accepted, rejected, ignored
+    # DB CHECK(action IN accepted/rejected/ignored)와 정합. 잘못된 값은 라우터 진입 전 422로 거부된다.
+    action: Literal["accepted", "rejected", "ignored"]
 
 # --- Helpers for async DB Calls ---
 async def fetch_user(user_id: str):
@@ -94,6 +101,11 @@ async def get_recommendations(
 ):
     logger.info("recommendation_request_received", user_id=req.user_id, original_infra=req.original_facility_id)
 
+    # 0. 소유권 가드 (IDOR 방지): 본문 user_id 는 토큰 주체와 일치해야 한다.
+    #    타인의 user_id 로 선호벡터 조회/추천이력 INSERT 를 일으키는 신뢰 경계 위반을 차단.
+    if req.user_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="요청한 user_id가 인증된 사용자와 일치하지 않습니다.")
+
     # 1. 사용자 정보 및 원본 시설 정보 병렬 조회
     user_task = fetch_user(req.user_id)
     original_infra_task = fetch_facility(req.original_facility_id)
@@ -134,6 +146,10 @@ async def get_recommendations(
     #    (후보 수만큼 직렬 await 하던 것을 asyncio.gather 로 동시 실행 → 후보가 많아도 지연이 누적되지 않음)
     async def _score_candidate(f: dict, dist: float) -> dict:
         candidate_congestion = await fetch_latest_congestion(f["id"])
+        # 현재 인원 추정치를 응답 facility 에 주입한다(원본 리스트는 건드리지 않도록 얕은 복사).
+        # facilities 스키마에는 current_count 컬럼이 없고 실시간 인원은 congestion_logs 에만 있으므로,
+        # capacity × 혼잡도(0~1)로 추정해 프런트 주차 카드의 '주차자리' 표시가 깨지지 않게 한다.
+        f = {**f, "current_count": round(f.get("capacity", 0) * candidate_congestion)}
         score_res = await calculate_tttv_score(
             user_id=req.user_id,
             preferred_categories=user_info.get("preferred_categories", []),
@@ -229,6 +245,11 @@ async def submit_feedback(
     
     recommendation = rec_res.data[0]
     user_id = recommendation["user_id"]
+
+    # 소유권 가드: 타인의 추천 기록에 피드백을 넣어 그 사람의 Pinecone 선호벡터를 오염시키는 것을 차단.
+    if user_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="해당 추천 기록에 대한 권한이 없습니다.")
+
     facility = recommendation.get("recommended_facility")
     if not facility:
         # facilities를 조인하지 못했을 시 단독으로 시설 추가 조회

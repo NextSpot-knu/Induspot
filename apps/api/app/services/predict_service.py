@@ -81,27 +81,29 @@ def _load_gcs_artifacts() -> Optional[Tuple[Any, Any]]:
     global _gcs_artifacts, _gcs_loaded
     if _gcs_loaded:
         return _gcs_artifacts
+    # 무거운 초기화(다운로드/역직렬화)를 락 안에서 완결하고, 캐시가 확정된 뒤에만 _gcs_loaded=True 로 둔다.
+    # (플래그만 먼저 세우고 락 밖에서 채우면, 첫 동시 요청의 다른 스레드가 아직 None 인 캐시를 받는 race 발생)
     with _init_lock:
         if _gcs_loaded:
             return _gcs_artifacts
+        try:
+            from google.cloud import storage  # lazy import
+
+            project_id = _resolve_project_id()
+            if os.environ.get("ENV") == "production":
+                storage_client = storage.Client()
+            else:
+                storage_client = storage.Client(project=project_id)
+
+            bucket = storage_client.bucket(settings.GCS_BUCKET_NAME)
+            blob = bucket.blob("models/model.pkl")
+            model_data = pickle.loads(blob.download_as_bytes())
+            _gcs_artifacts = (model_data["model"], model_data["encoder"])
+            logger.info("predict_model_loaded", source="gcs", bucket=settings.GCS_BUCKET_NAME)
+        except Exception as e:
+            logger.warning("predict_model_load_failed", source="gcs", error=str(e))
+            _gcs_artifacts = None
         _gcs_loaded = True
-    try:
-        from google.cloud import storage  # lazy import
-
-        project_id = _resolve_project_id()
-        if os.environ.get("ENV") == "production":
-            storage_client = storage.Client()
-        else:
-            storage_client = storage.Client(project=project_id)
-
-        bucket = storage_client.bucket(settings.GCS_BUCKET_NAME)
-        blob = bucket.blob("models/model.pkl")
-        model_data = pickle.loads(blob.download_as_bytes())
-        _gcs_artifacts = (model_data["model"], model_data["encoder"])
-        logger.info("predict_model_loaded", source="gcs", bucket=settings.GCS_BUCKET_NAME)
-    except Exception as e:
-        logger.warning("predict_model_load_failed", source="gcs", error=str(e))
-        _gcs_artifacts = None
     return _gcs_artifacts
 
 
@@ -113,22 +115,22 @@ def _load_local_artifacts() -> Optional[Tuple[Any, Any]]:
     with _init_lock:
         if _local_loaded:
             return _local_artifacts
-        _local_loaded = True
-    local_model_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "model.pkl",
-    )
-    try:
-        if os.path.exists(local_model_path):
-            with open(local_model_path, "rb") as f:
-                model_data = pickle.load(f)
-            _local_artifacts = (model_data["model"], model_data["encoder"])
-            logger.info("predict_model_loaded", source="local", path=local_model_path)
-        else:
+        local_model_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "model.pkl",
+        )
+        try:
+            if os.path.exists(local_model_path):
+                with open(local_model_path, "rb") as f:
+                    model_data = pickle.load(f)
+                _local_artifacts = (model_data["model"], model_data["encoder"])
+                logger.info("predict_model_loaded", source="local", path=local_model_path)
+            else:
+                _local_artifacts = None
+        except Exception as e:
+            logger.warning("predict_model_load_failed", source="local", error=str(e))
             _local_artifacts = None
-    except Exception as e:
-        logger.warning("predict_model_load_failed", source="local", error=str(e))
-        _local_artifacts = None
+        _local_loaded = True
     return _local_artifacts
 
 
@@ -156,24 +158,25 @@ def _get_vertex_endpoint():
     with _init_lock:
         if _vertex_init_attempted:
             return _vertex_endpoint
+        if not settings.VERTEX_ENDPOINT_ID:
+            # WP1 비활성화: Endpoint 미배포 환경 → GCS 폴백 경로로 동작
+            _vertex_init_attempted = True
+            return None
+        try:
+            from google.cloud import aiplatform  # lazy import
+
+            aiplatform.init(project=settings.GCP_PROJECT_ID, location=settings.VERTEX_LOCATION)
+            _vertex_endpoint = aiplatform.Endpoint(settings.VERTEX_ENDPOINT_ID)
+            logger.info(
+                "vertex_endpoint_initialized",
+                endpoint_id=settings.VERTEX_ENDPOINT_ID,
+                location=settings.VERTEX_LOCATION,
+            )
+        except Exception as e:
+            logger.warning("vertex_endpoint_init_failed", error=str(e))
+            _vertex_endpoint = None
+        # 캐시(또는 None)가 확정된 뒤에만 시도 완료 플래그를 세운다.
         _vertex_init_attempted = True
-
-    if not settings.VERTEX_ENDPOINT_ID:
-        # WP1 비활성화: Endpoint 미배포 환경 → GCS 폴백 경로로 동작
-        return None
-    try:
-        from google.cloud import aiplatform  # lazy import
-
-        aiplatform.init(project=settings.GCP_PROJECT_ID, location=settings.VERTEX_LOCATION)
-        _vertex_endpoint = aiplatform.Endpoint(settings.VERTEX_ENDPOINT_ID)
-        logger.info(
-            "vertex_endpoint_initialized",
-            endpoint_id=settings.VERTEX_ENDPOINT_ID,
-            location=settings.VERTEX_LOCATION,
-        )
-    except Exception as e:
-        logger.warning("vertex_endpoint_init_failed", error=str(e))
-        _vertex_endpoint = None
     return _vertex_endpoint
 
 

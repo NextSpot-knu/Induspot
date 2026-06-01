@@ -11,10 +11,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { password } = body;
 
-    // 개발용 간이 비밀번호 확인
-    if (password === "admin") {
+    // 비밀번호/세션 토큰은 환경변수로 분리한다. 미설정 시 데모 기본값('admin'/'authenticated')으로 폴백해
+    // 로컬·데모 동작은 보존하되, 운영에서 ADMIN_PASSWORD/ADMIN_SESSION_TOKEN 을 설정하면 즉시 강화된다.
+    // (proxy.ts 가 동일한 ADMIN_SESSION_TOKEN 폴백으로 쿠키값을 검증한다.)
+    const expectedPassword = process.env.ADMIN_PASSWORD || "admin";
+    const sessionToken = process.env.ADMIN_SESSION_TOKEN || "authenticated";
+
+    if (password === expectedPassword) {
       const cookieStore = await cookies();
-      cookieStore.set("admin_session", "authenticated", {
+      cookieStore.set("admin_session", sessionToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",

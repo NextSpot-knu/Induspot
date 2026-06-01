@@ -3,7 +3,7 @@ import json
 from typing import List, Union
 # pyrefly: ignore [missing-import]
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     ENV: str = "development"
@@ -66,7 +66,10 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
+            # 빈 토큰 제거 후, 결과가 비면 와일드카드로 폴백.
+            # (ALLOWED_ORIGINS="" 같은 빈 환경변수가 [''] 가 되어 모든 오리진이 조용히 차단되는 footgun 방지)
+            parts = [i.strip() for i in v.split(",") if i.strip()]
+            return parts or ["*"]
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)

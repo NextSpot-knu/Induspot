@@ -1,8 +1,12 @@
 # pyrefly: ignore [missing-import]
 import asyncio
 import math
+import structlog
 from pinecone import Pinecone
 from app.core.config import settings
+
+logger = structlog.get_logger()
+
 
 class PineconeService:
     def __init__(self):
@@ -13,7 +17,7 @@ class PineconeService:
                 self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
                 self.index = self.pc.Index(settings.PINECONE_INDEX_NAME)
             except Exception as e:
-                print(f"[PineconeService] Failed to initialize index: {str(e)}")
+                logger.warning("pinecone_index_init_failed", error=str(e))
 
     def _normalize_vector(self, vector: list[float]) -> list[float]:
         """
@@ -43,8 +47,8 @@ class PineconeService:
             if f"user_{user_id}" in vectors:
                 return vectors[f"user_{user_id}"]["values"]
         except Exception as e:
-            print(f"[PineconeService] Fetch user vector failed: {str(e)}")
-        
+            logger.warning("pinecone_fetch_user_vector_failed", user_id=user_id, error=str(e))
+
         return None
 
     async def upsert_user_vector(self, user_id: str, vector: list[float]):
@@ -61,28 +65,7 @@ class PineconeService:
                 vectors=[(f"user_{user_id}", normalized, {"type": "user"})]
             )
         except Exception as e:
-            print(f"[PineconeService] Upsert user vector failed: {str(e)}")
-
-    async def query_similar_facilities(self, user_vector: list[float], top_k: int = 5) -> list[dict]:
-        """
-        사용자 벡터와 유사도가 높은 시설들을 검색합니다.
-        """
-        if not self.index:
-            return []
-        
-        normalized = self._normalize_vector(user_vector)
-        try:
-            result = await asyncio.to_thread(
-                self.index.query,
-                vector=normalized,
-                top_k=top_k,
-                include_metadata=True,
-                filter={"type": {"$eq": "facility"}}
-            )
-            return result.get("matches", [])
-        except Exception as e:
-            print(f"[PineconeService] Query similar facilities failed: {str(e)}")
-            return []
+            logger.warning("pinecone_upsert_user_vector_failed", user_id=user_id, error=str(e))
 
     async def adjust_user_vector_on_feedback(self, user_id: str, facility_vector: list[float], action: str):
         """

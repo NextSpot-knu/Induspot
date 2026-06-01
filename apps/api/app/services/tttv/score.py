@@ -80,10 +80,13 @@ async def calculate_tttv_score(
     )
 
     # 4. 예측 혼잡도를 적용한 대기 시간 계산
+    #    피크 시간대 보정도 predict_congestion 과 동일하게 '도착 예상 시점(UTC) hour' 기준을 공유한다
+    #    (한 산식 안에서 대기시간만 '현재 시각'으로 보정되던 시점 불일치 제거).
     predicted_wait = await calculate_predicted_wait_time(
         facility_type=candidate_facility["type"],
         congestion_level=predicted_congestion,
-        facility_features=candidate_facility.get("features")
+        facility_features=candidate_facility.get("features"),
+        hour=arrival_hour,
     )
 
     total_time = predicted_wait + travel_time_min
@@ -91,6 +94,10 @@ async def calculate_tttv_score(
 
     # 5. 혼잡도 분산 기여 인센티브 (w3)
     # 기존에 요청했던 혼잡 시설에서 덜 혼잡한 후보 시설로 갈수록 높은 인센티브를 부여
+    # 주의(설계 메모): 이 항은 원본/후보 모두 '현재' 혼잡도를 쓴다(호출측 fetch_latest_congestion).
+    # 반면 위 time_cost(대기시간)는 후보의 '도착 예상 시점' 예측 혼잡도를 쓴다. 두 항의 혼잡도 기준
+    # 시점이 다른 것은 의도된 단순화이며(원본 도착시점 정의 모호 + 가중치/랭킹 동작 보존), 도착시점으로
+    # 통일하려면 가중치 고정 정책상 사전 합의가 필요하다. 현 시점에선 시점 차이를 명시만 한다.
     incentive = max(0.0, original_congestion_level - candidate_congestion_level)
 
     # 6. TTTV 종합 스코어 계산 및 Min-Max 정규화 적용

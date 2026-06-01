@@ -7,8 +7,9 @@ services:
       context: ./apps/api
       dockerfile: Dockerfile
     container_name: induspot-api
+    # 컨테이너는 8080(Dockerfile EXPOSE/CMD)을 리슨한다 → 호스트 8000 → 컨테이너 8080 매핑.
     ports:
-      - "8000:8000"
+      - "8000:8080"
     volumes:
       - ./apps/api:/app
     environment:

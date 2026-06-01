@@ -10,10 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Poetry 설치
-ENV POETRY_VERSION=1.7.1
+# poetry.lock 이 lock-version 2.1(Poetry 2.x 생성)이라 1.7.x 로는 읽지 못한다 → 생성 버전과 정합.
+ENV POETRY_VERSION=2.4.1
 ENV POETRY_HOME=/opt/poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
 ENV PATH="${POETRY_HOME}/bin:${PATH}"
+
+# Poetry 2.0+ 부터 export 는 코어에서 분리되어 별도 플러그인 설치가 필요하다.
+RUN poetry self add poetry-plugin-export
 
 # 설정 파일 복사
 COPY pyproject.toml poetry.lock* ./

@@ -78,6 +78,12 @@ async def calculate_preference_similarity(
     norm = math.sqrt(sq_sum) if sq_sum > 0 else 1.0
     facility_vector = [x / norm for x in facility_vector]
 
+    # 사용자 벡터 방어적 정규화: user_vector 인자는 '호출측이 넘긴 임의 벡터'일 수 있어
+    # (프로덕션 경로는 이미 정규화되어 있어 결과 불변) 비정규화 입력에도 코사인 의미가 깨지지 않도록 한다.
+    u_sq = sum(x ** 2 for x in user_vector)
+    u_norm = math.sqrt(u_sq) if u_sq > 0 else 1.0
+    user_vector = [x / u_norm for x in user_vector]
+
     # 3. 코사인 유사도(Cosine Similarity) 계산 (정규화된 두 벡터의 내적)
     similarity = sum(u * f for u, f in zip(user_vector, facility_vector))
     

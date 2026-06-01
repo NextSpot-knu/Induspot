@@ -10,9 +10,12 @@ export function proxy(request: NextRequest) {
   }
 
   // /admin/* 및 /api/admin/* 경로에 대해 권한 검증
+  // 세션 토큰은 env(ADMIN_SESSION_TOKEN)로 분리, 미설정 시 데모 기본값 'authenticated' 폴백
+  // (login route 의 쿠키 설정값과 동일 폴백을 공유한다).
+  const expectedToken = process.env.ADMIN_SESSION_TOKEN || "authenticated";
   const adminSession = request.cookies.get("admin_session")?.value;
 
-  if (!adminSession || adminSession !== "authenticated") {
+  if (!adminSession || adminSession !== expectedToken) {
     // API 요청인 경우 401 반환
     if (pathname.startsWith("/api/admin")) {
       return Response.json(

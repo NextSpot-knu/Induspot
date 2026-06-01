@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.core.supabase import get_current_user
 from app.core.logging import setup_logging
 from app.routers import recommendations, infrastructures, predict, ingest, preferences
 
@@ -53,30 +52,6 @@ def health_check():
         "environment": settings.ENV
     }
 
-# 2. 테스트용 보호된 엔드포인트 (JWT 검증 데모)
-@app.get("/api/v1/auth-test")
-def auth_test(current_user: dict = Depends(get_current_user)):
-    return {
-        "message": "인증에 성공했습니다.",
-        "user_id": current_user["id"],
-        "email": current_user["email"],
-        "role": current_user["role"]
-    }
-
-# 3. TTTV(Total Time to Value) 추천 예시 API
-@app.get("/api/v1/recommendations/tttv")
-def get_tttv_recommendation(
-    infra_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    # 실제로는 DB 조회 및 ML/수학적 계산 수행
-    # 여기선 데모 목업 데이터를 반환
-    return {
-        "requested_infra_id": infra_id,
-        "recommended_infra_id": "south-lounge-a",
-        "recommended_infra_name": "남부 직원 휴게라운지 A",
-        "original_estimated_wait_time": 45,  # 분
-        "recommended_estimated_wait_time": 10,  # 분
-        "travel_time_saved": 35,  # 분
-        "reason": "현재 중앙 휴게라운지에 이용객이 몰려 있습니다. 남부 휴게라운지로 3분간 이동 시 즉시 이용이 가능하여 총 35분을 절약할 수 있습니다."
-    }
+# 실제 추천 단일 진입점은 recommendations 라우터(POST /api/v1/recommendations)다.
+# (과거 /api/v1 네임스페이스에 있던 하드코딩 데모 목업 응답 및 JWT 데모용 auth-test 엔드포인트는
+#  실데이터 오인을 유발해 제거했다.)

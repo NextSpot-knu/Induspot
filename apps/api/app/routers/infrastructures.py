@@ -2,7 +2,9 @@ import asyncio
 import structlog
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.core.supabase import supabase_client
+# 읽기는 anon, congestion_logs 쓰기(simulate_peak)는 RLS 우회가 필요해 service_role 을 쓴다
+# (ingest 라우터와 동일 사유 — anon INSERT 는 RLS 로 거부됨).
+from app.core.supabase import supabase_client, supabase_admin
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["infrastructures"])
@@ -32,6 +34,7 @@ async def fetch_latest_congestion_for_all(facility_ids: list[str]) -> dict:
             .select("facility_id, congestion_level, current_count, timestamp")
             .in_("facility_id", facility_ids)
             .order("timestamp", desc=True)
+            .order("id", desc=True)  # 동일 timestamp 동률 시 결정적 정렬(시설별 최신 1건 선택 안정화)
             .execute
         )
         latest: dict = {}
@@ -164,8 +167,9 @@ async def simulate_peak():
         inserted_count = 0
         for i in range(0, len(logs), 10):
             chunk = logs[i:i+10]
-            res_insert = await asyncio.to_thread(supabase_client.table("congestion_logs").insert(chunk).execute)
-            inserted_count += len(res_insert.data)
+            # service_role 로 INSERT (anon 은 congestion_logs RLS 로 거부됨)
+            res_insert = await asyncio.to_thread(supabase_admin.table("congestion_logs").insert(chunk).execute)
+            inserted_count += len(res_insert.data or [])
             
         logger.info("simulate_peak_success", inserted_logs=inserted_count)
         return {"status": "success", "message": f"모의 피크타임 혼잡 로그 {inserted_count}개가 성공적으로 삽입되었습니다."}

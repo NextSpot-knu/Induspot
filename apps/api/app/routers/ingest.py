@@ -36,14 +36,17 @@ _VALID_SOURCES = {"iot_sensor", "cctv", "access_card"}
 
 
 def _already_processed(message_id: str) -> bool:
+    """조회 전용: 이미 '성공 적재'된 messageId 인지만 확인한다(여기서 등록하지 않는다)."""
+    return bool(message_id) and message_id in _seen_message_ids
+
+
+def _mark_processed(message_id: str) -> None:
+    """적재 성공 후에만 호출한다. insert 실패 시엔 등록하지 않아 Pub/Sub 재전송이 정상 재시도된다."""
     if not message_id:
-        return False
-    if message_id in _seen_message_ids:
-        return True
+        return
     _seen_message_ids[message_id] = True
     if len(_seen_message_ids) > _SEEN_MAX:
         _seen_message_ids.popitem(last=False)
-    return False
 
 
 def _verify_oidc(request: Request) -> None:
@@ -127,8 +130,11 @@ async def ingest_pubsub(request: Request):
     except Exception as e:
         logger.error("pubsub_ingest_insert_failed", error=str(e), facility_id=facility_id)
         # 5xx 를 주면 Pub/Sub 가 재전송 → 일시 장애엔 적절하나 영구 오류엔 폭주.
-        # 여기서는 500 으로 재시도 유도(멱등 처리로 중복은 방어됨).
+        # 여기서는 500 으로 재시도 유도. 멱등 마킹은 성공 후에만 하므로(아래) 재시도가 무력화되지 않는다.
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="적재 실패")
+
+    # 적재가 확정된 뒤에만 messageId 를 '처리됨'으로 등록 → 일시 장애로 실패한 메시지의 영구 유실 방지.
+    _mark_processed(message_id)
 
     logger.info("pubsub_ingested", facility_id=facility_id, congestion=row["congestion_level"], source=source)
     return {"status": "ok", "facility_id": facility_id}
