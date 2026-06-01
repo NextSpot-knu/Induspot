@@ -63,11 +63,11 @@ export function FacilityTable() {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden col-span-2">
-      <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+    <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden col-span-2">
+      <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
         <div className="flex items-center gap-2">
-          <Settings className="text-slate-500" size={20} />
-          <h3 className="text-lg font-bold text-slate-800">시설 관리 (CRUD)</h3>
+          <Settings className="text-slate-400" size={20} />
+          <h3 className="text-lg font-bold text-slate-100">시설 관리 (CRUD)</h3>
         </div>
         <button 
           onClick={() => {
@@ -98,11 +98,11 @@ export function FacilityTable() {
       </div>
       <div className="overflow-x-auto">
         {loading ? (
-          <div className="p-8 text-center text-slate-400">데이터 로딩 중...</div>
+          <div className="p-8 text-center text-slate-500">데이터 로딩 중...</div>
         ) : (
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-white text-slate-500 text-sm border-b border-slate-200">
+              <tr className="bg-slate-900 text-slate-400 text-sm border-b border-slate-800">
                 <th className="p-4 font-semibold">시설명</th>
                 <th className="p-4 font-semibold">유형</th>
                 <th className="p-4 font-semibold">수용 인원</th>
@@ -113,17 +113,17 @@ export function FacilityTable() {
             </thead>
             <tbody className="text-sm">
               {facilities.map((fac) => (
-                <tr key={fac.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                  <td className="p-4 font-bold text-slate-800">{fac.name}</td>
+                <tr key={fac.id} className="border-b border-slate-800 hover:bg-slate-800 transition-colors">
+                  <td className="p-4 font-bold text-slate-100">{fac.name}</td>
                   <td className="p-4">
-                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold uppercase">
+                    <span className="px-2 py-1 bg-slate-800 text-slate-300 rounded-md text-xs font-semibold uppercase">
                       {fac.type}
                     </span>
                   </td>
-                  <td className="p-4 text-slate-600">{fac.capacity}명/대</td>
-                  <td className="p-4 text-slate-600">{getHoursText(fac.operating_hours)}</td>
+                  <td className="p-4 text-slate-300">{fac.capacity}명/대</td>
+                  <td className="p-4 text-slate-300">{getHoursText(fac.operating_hours)}</td>
                   <td className="p-4">
-                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md">활성</span>
+                    <span className="px-2 py-1 bg-emerald-500/15 text-emerald-300 text-xs font-bold rounded-md">활성</span>
                   </td>
                   <td className="p-4 flex justify-end gap-2">
                     <button 
@@ -146,13 +146,13 @@ export function FacilityTable() {
                             }
                           });
                       }}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors bg-white border border-slate-200 rounded-md"
+                      className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors bg-slate-900 border border-slate-800 rounded-md"
                     >
                       <Edit2 size={16} />
                     </button>
                     <button 
                       onClick={() => handleDelete(fac.id, fac.name)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors bg-white border border-slate-200 rounded-md"
+                      className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors bg-slate-900 border border-slate-800 rounded-md"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -161,7 +161,7 @@ export function FacilityTable() {
               ))}
               {facilities.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center p-8 text-slate-400">등록된 시설이 없습니다.</td>
+                  <td colSpan={6} className="text-center p-8 text-slate-500">등록된 시설이 없습니다.</td>
                 </tr>
               )}
             </tbody>

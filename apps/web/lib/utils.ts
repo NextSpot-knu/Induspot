@@ -67,8 +67,8 @@ export const getMarkerSvg = (
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
         <rect x="2" y="2" width="36" height="36" rx="11" fill="${color}"/>
-        <circle cx="20" cy="20" r="11.5" fill="#000000"/>
-        ${icon(20, 20, 16.5)}
+        <circle cx="20" cy="20" r="13.5" fill="#000000"/>
+        ${icon(20, 20, 19)}
       </svg>
     `;
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
@@ -78,8 +78,8 @@ export const getMarkerSvg = (
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
       <path fill="${color}" d="M18 0C8.1 0 0 8.1 0 18c0 13.5 16.5 26.5 17.1 27.1a1.2 1.2 0 0 0 1.8 0c.6-.6 17.1-13.6 17.1-27.1C36 8.1 27.9 0 18 0z"/>
-      <circle cx="18" cy="18" r="11" fill="#000000"/>
-      ${icon(18, 18, 16)}
+      <circle cx="18" cy="18" r="13" fill="#000000"/>
+      ${icon(18, 18, 18.5)}
     </svg>
   `;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;

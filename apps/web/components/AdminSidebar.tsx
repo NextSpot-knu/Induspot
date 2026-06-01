@@ -17,10 +17,10 @@ export function AdminSidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-screen overflow-y-auto">
-      <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
-        <h1 className="text-2xl font-black text-blue-700 tracking-tight">
-          InduSpot<span className="text-slate-400 font-medium text-sm ml-2">B2B Admin</span>
+    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col flex-shrink-0 h-screen overflow-y-auto">
+      <div className="p-6 border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
+        <h1 className="text-2xl font-black text-blue-400 tracking-tight">
+          InduSpot<span className="text-slate-500 font-medium text-sm ml-2">B2B Admin</span>
         </h1>
       </div>
       <nav className="flex-1 p-4 flex flex-col gap-2">
@@ -33,8 +33,8 @@ export function AdminSidebar() {
               href={item.path}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-colors ${
                 isActive
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-slate-600 hover:bg-slate-50 font-medium'
+                  ? 'bg-blue-500/10 text-blue-300'
+                  : 'text-slate-300 hover:bg-slate-800 font-medium'
               }`}
             >
               <Icon size={20} />

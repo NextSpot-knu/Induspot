@@ -172,13 +172,176 @@ function generateClientFallbackData(realFacilities?: any[]) {
   };
 }
 
+// KST '오늘' 00:00~23:59:59 구간을 UTC ISO 문자열로 반환.
+// congestion_logs.timestamp 는 UTC 로 적재되므로, 브라우저 로컬 TZ 와 무관하게 KST(UTC+9) 고정 환산한다.
+function getKstTodayRangeUtc() {
+  const now = new Date();
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 벽시계
+  const y = kstNow.getUTCFullYear();
+  const m = kstNow.getUTCMonth();
+  const d = kstNow.getUTCDate();
+  const startUtcMs = Date.UTC(y, m, d, 0, 0, 0, 0) - 9 * 60 * 60 * 1000;
+  const endUtcMs = Date.UTC(y, m, d, 23, 59, 59, 999) - 9 * 60 * 60 * 1000;
+  return { start: new Date(startUtcMs).toISOString(), end: new Date(endUtcMs).toISOString() };
+}
+
+// 조인된 facility 가 배열/객체 어느 형태로 와도 안전하게 name/type 추출
+function joinedFacility(log: any): { name: string | null; type: string | null } {
+  const f = log?.facility;
+  if (!f) return { name: null, type: null };
+  const o = Array.isArray(f) ? f[0] : f;
+  return { name: o?.name ?? null, type: o?.type ?? null };
+}
+
+// 정적 export(Firebase 호스팅) 환경에서는 서버 라우트가 없으므로, 관리자 대시보드의 실데이터는
+// 로그인된 admin 세션을 실은 publicClient 로 브라우저에서 직접 조회한다.
+//  - congestion_logs/facilities: RLS 가 authenticated 에 USING(true) → 실데이터.
+//  - recommendations/user_feedback: 같은 회사 admin 에게만 열려 있어, 데모 계정 권한 밖이면 빈 배열 → null 반환.
+// 반환값의 null 지표는 호출부에서 합성 폴백으로 채운다(프로토타입 데모 무중단).
+async function fetchRealDashboard(supabaseClient: any) {
+  const { start, end } = getKstTodayRangeUtc();
+
+  // 1) 오늘자 혼잡 로그 (페이지네이션, 시설명/유형 조인). maxPages 로 과다 조회 방지.
+  let logs: any[] = [];
+  const limit = 1000;
+  const maxPages = 12;
+  let from = 0;
+  for (let p = 0; p < maxPages; p++) {
+    const { data, error } = await supabaseClient
+      .from('congestion_logs')
+      .select('congestion_level, current_count, timestamp, facility:facilities(name, type)')
+      .gte('timestamp', start)
+      .lte('timestamp', end)
+      .order('timestamp', { ascending: true })
+      .range(from, from + limit - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    logs = logs.concat(data);
+    if (data.length < limit) break;
+    from += limit;
+  }
+
+  const hasLogs = logs.length >= 5;
+
+  // 2) KPI: 평균 혼잡도 + 이상(>=0.9) 건수
+  let avgCongestion: { value: number; changePercent: number } | null = null;
+  let anomalyCount: number | null = null;
+  if (hasLogs) {
+    const avg = logs.reduce((a, l) => a + (l.congestion_level || 0), 0) / logs.length;
+    avgCongestion = { value: Math.round(avg * 100) / 100, changePercent: 0 };
+    anomalyCount = logs.filter((l) => (l.congestion_level || 0) >= 0.9).length;
+
+    // 전일 평균으로 변화율 보정 (있을 때만)
+    try {
+      const yStart = new Date(new Date(start).getTime() - 24 * 60 * 60 * 1000).toISOString();
+      const yEnd = new Date(new Date(end).getTime() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: yLogs } = await supabaseClient
+        .from('congestion_logs')
+        .select('congestion_level')
+        .gte('timestamp', yStart)
+        .lte('timestamp', yEnd)
+        .limit(5000);
+      if (yLogs && yLogs.length > 0) {
+        const yAvg = yLogs.reduce((a: number, l: any) => a + (l.congestion_level || 0), 0) / yLogs.length;
+        if (yAvg > 0) {
+          avgCongestion.changePercent = Math.round(((avgCongestion.value - yAvg) / yAvg) * 1000) / 10;
+        }
+      }
+    } catch { /* 변화율은 보조 지표 — 실패 시 0 유지 */ }
+  }
+
+  // 3) 히트맵: 시설명 × KST시간 평균 (로그가 있는 시설만)
+  let heatmap: any[] | null = null;
+  if (hasLogs) {
+    const cell: Record<string, { sum: number; n: number }> = {};
+    const typeOf: Record<string, string> = {};
+    const names: string[] = [];
+    for (const l of logs) {
+      const { name, type } = joinedFacility(l);
+      if (!name) continue;
+      if (!(name in typeOf)) { typeOf[name] = type || 'unknown'; names.push(name); }
+      const hour = new Date(new Date(l.timestamp).getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+      const key = `${name}__${hour}`;
+      if (!cell[key]) cell[key] = { sum: 0, n: 0 };
+      cell[key].sum += l.congestion_level || 0;
+      cell[key].n += 1;
+    }
+    const cells: any[] = [];
+    for (const name of names) {
+      for (let h = 0; h < 24; h++) {
+        const c = cell[`${name}__${h}`];
+        cells.push({
+          facility: name,
+          facilityType: typeOf[name],
+          hour: h,
+          value: c && c.n ? Math.round((c.sum / c.n) * 100) / 100 : 0,
+        });
+      }
+    }
+    heatmap = cells;
+  }
+
+  // 4) 이상 알림: 오늘 >=0.9 피크 (시설별 최고 1건, 상위 6)
+  let anomalies: any[] | null = null;
+  if (hasLogs) {
+    const peak: Record<string, any> = {};
+    for (const l of logs) {
+      if ((l.congestion_level || 0) < 0.9) continue;
+      const { name } = joinedFacility(l);
+      if (!name) continue;
+      if (!peak[name] || l.congestion_level > peak[name].congestionLevel) {
+        peak[name] = {
+          id: `${name}-${l.timestamp}`,
+          facilityName: name,
+          timestamp: l.timestamp,
+          congestionLevel: l.congestion_level,
+          durationMinutes: 30,
+        };
+      }
+    }
+    anomalies = Object.values(peak)
+      .sort((a: any, b: any) => b.congestionLevel - a.congestionLevel)
+      .slice(0, 6);
+  }
+
+  // 5) 추천 수락률(최근 7일) / DAU(오늘 피드백) — RLS 권한 밖이면 빈 배열 → null
+  let acceptRate: { value: number; total: number; accepted: number } | null = null;
+  let activeUsers: number | null = null;
+  try {
+    const weekAgo = new Date(new Date(start).getTime() - 6 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recs } = await supabaseClient
+      .from('recommendations')
+      .select('accepted')
+      .gte('created_at', weekAgo)
+      .lte('created_at', end)
+      .limit(5000);
+    if (recs && recs.length > 0) {
+      const total = recs.length;
+      const accepted = recs.filter((r: any) => r.accepted).length;
+      acceptRate = { value: Math.round((accepted / total) * 1000) / 1000, total, accepted };
+    }
+  } catch { /* 권한/스키마 차이 시 폴백 */ }
+  try {
+    const { data: fb } = await supabaseClient
+      .from('user_feedback')
+      .select('user_id')
+      .gte('timestamp', start)
+      .lte('timestamp', end)
+      .limit(5000);
+    if (fb && fb.length > 0) activeUsers = new Set(fb.map((f: any) => f.user_id)).size;
+  } catch { /* 권한/스키마 차이 시 폴백 */ }
+
+  return { hasLogs, avgCongestion, anomalyCount, heatmap, anomalies, acceptRate, activeUsers };
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     async function loadData() {
-      // 1단계: 실시간 시설 목록을 DB로부터 안전하게 로드 시도 (publicClient 사용 - 클라이언트 컴포넌트)
+      // 1) 실시간 시설 목록 로드 (publicClient + 로그인된 admin 세션 → RLS 통과).
       let databaseFacilities: any[] = [];
       try {
         let from = 0;
@@ -196,38 +359,47 @@ export default function DashboardPage() {
           from += limit;
         }
       } catch (dbErr) {
-        console.warn("DB Facility fetch failed, using fallback list:", dbErr);
+        console.warn("시설 목록 로드 실패, 합성 폴백 사용:", dbErr);
       }
 
+      // 2) 실시설 기반 합성 폴백 준비 (실데이터가 비는 지표를 채울 안전망).
+      const fallback = generateClientFallbackData(databaseFacilities);
+
+      // 3) 실데이터를 직접 조회한 뒤, 지표별로 실데이터 우선·폴백 보완으로 병합.
       try {
-        // 백엔드 API 연동을 우선 시도
-        const res = await fetch('/api/admin/dashboard');
-        if (res.ok) {
-          const raw = await res.json();
-          const kpi = raw.kpi;
-          const isInvalid = !kpi || (kpi.avgCongestion?.value === 0 && kpi.acceptRate?.value === 0 && kpi.activeUsers === 0);
-          
-          if (isInvalid) {
-            setData(generateClientFallbackData(databaseFacilities));
-          } else {
-            setData(raw);
-          }
-        } else {
-          setData(generateClientFallbackData(databaseFacilities));
-        }
+        const real = await fetchRealDashboard(supabase);
+        const merged = {
+          kpi: {
+            avgCongestion: real.avgCongestion ?? fallback.kpi.avgCongestion,
+            acceptRate: real.acceptRate ?? fallback.kpi.acceptRate,
+            activeUsers: real.activeUsers ?? fallback.kpi.activeUsers,
+            anomalyCount:
+              real.hasLogs && real.anomalyCount != null ? real.anomalyCount : fallback.kpi.anomalyCount,
+          },
+          // 오늘자 로그가 있으면 실측 히트맵, 없으면 합성 히트맵.
+          heatmap: real.heatmap ?? fallback.heatmap,
+          // 30일 수요 분산 효과는 장기 A/B 추이라 일관된 합성 추이를 유지(데모 가독성).
+          distribution: fallback.distribution,
+          // 실측 이상 알림이 있으면 그것을, 없으면 합성 알림으로 패널이 비지 않게.
+          anomalies: real.anomalies && real.anomalies.length ? real.anomalies : fallback.anomalies,
+        };
+        if (active) setData(merged);
       } catch (err) {
-        console.warn("Using Client Fallback Dashboard Generator:", err);
-        setData(generateClientFallbackData(databaseFacilities));
+        console.warn("실데이터 조회 실패, 합성 폴백으로 대체:", err);
+        if (active) setData(fallback);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
     loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading || !data) {
     return (
-      <div className="flex h-screen w-screen bg-slate-50 items-center justify-center font-sans text-slate-500">
+      <div className="flex h-screen w-screen bg-[#070b19] items-center justify-center font-sans text-slate-400">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="font-semibold text-sm">대시보드 데이터를 조회 중입니다...</p>
@@ -238,33 +410,66 @@ export default function DashboardPage() {
 
   const { kpi, heatmap, distribution, anomalies } = data;
 
+  // 정적 export 에는 서버 라우트(/api/admin/export)가 없으므로, 현재 로드된 데이터로
+  // 클라이언트에서 CSV 를 생성해 다운로드한다(엑셀 한글 깨짐 방지를 위해 BOM 부착).
+  const handleExportCsv = () => {
+    try {
+      const lines: string[] = [];
+      lines.push('구분,항목,값');
+      lines.push(`KPI,오늘 평균 혼잡도(%),${(kpi.avgCongestion.value * 100).toFixed(1)}`);
+      lines.push(`KPI,AI 추천 수락률(%),${(kpi.acceptRate.value * 100).toFixed(1)}`);
+      lines.push(`KPI,활성 사용자(DAU),${kpi.activeUsers}`);
+      lines.push(`KPI,이상 혼잡 발생(건),${kpi.anomalyCount}`);
+      lines.push('');
+      lines.push('시설명,유형,시간(시),혼잡도(%)');
+      for (const c of heatmap as any[]) {
+        const name = String(c.facility).replace(/[",\n]/g, ' ');
+        lines.push(`${name},${c.facilityType},${c.hour},${Math.round(c.value * 100)}`);
+      }
+      const csv = '﻿' + lines.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `induspot-dashboard-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('CSV 내보내기 실패:', e);
+      alert('CSV 내보내기에 실패했습니다.');
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
-      
+    <div className="flex h-screen bg-[#070b19] text-slate-100 font-sans overflow-hidden">
+
       {/* Sidebar */}
       <AdminSidebar />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 flex-shrink-0">
-          <h2 className="text-xl font-bold text-slate-800">공단 시설 종합 대시보드</h2>
+        <header className="h-20 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-8 flex-shrink-0">
+          <h2 className="text-xl font-bold text-slate-100">공단 시설 종합 대시보드</h2>
           <div className="flex items-center gap-6">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search..." 
-                className="pl-10 pr-4 py-2 bg-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="pl-10 pr-4 py-2 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               />
             </div>
-            <button className="relative text-slate-500 hover:text-slate-700">
+            <button className="relative text-slate-400 hover:text-slate-200">
               <Bell size={24} />
               {kpi.anomalyCount > 0 && (
-                <span className="absolute 2 top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-slate-900"></span>
               )}
             </button>
-            <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700">
+            <div className="w-10 h-10 rounded-full bg-blue-500/15 border border-blue-500/30 flex items-center justify-center font-bold text-blue-300">
               AD
             </div>
           </div>
@@ -276,75 +481,76 @@ export default function DashboardPage() {
           {/* Action Bar (Export & Simulation) */}
           <div className="flex justify-end items-center gap-4">
             <SimulatePeakButton />
-            <a 
-              href="/api/admin/export?period=daily" 
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm"
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm cursor-pointer"
             >
               <Download size={16} /> 데이터 내보내기 (CSV)
-            </a>
+            </button>
           </div>
 
           {/* KPI Cards (Server Rendered) */}
           <div className="grid grid-cols-4 gap-6">
             {/* 오늘 평균 혼잡도 */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+                <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400">
                   <Activity size={24} />
                 </div>
-                <span className={`px-2 py-1 text-xs font-bold rounded-full ${kpi.avgCongestion.changePercent < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                <span className={`px-2 py-1 text-xs font-bold rounded-full ${kpi.avgCongestion.changePercent < 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>
                   {kpi.avgCongestion.changePercent > 0 ? '+' : ''}{kpi.avgCongestion.changePercent}%
                 </span>
               </div>
               <div>
-                <h3 className="text-slate-500 text-sm font-semibold mb-1">오늘 평균 혼잡도</h3>
-                <div className="text-3xl font-black text-slate-800">
+                <h3 className="text-slate-400 text-sm font-semibold mb-1">오늘 평균 혼잡도</h3>
+                <div className="text-3xl font-black text-slate-100">
                   {(kpi.avgCongestion.value * 100).toFixed(1)}%
                 </div>
               </div>
             </div>
 
             {/* 추천 수락률 */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-purple-50 rounded-xl text-purple-600">
+                <div className="p-3 bg-purple-500/10 rounded-xl text-purple-400">
                   <TrendingUp size={24} />
                 </div>
-                <span className="text-xs font-bold text-slate-400">지난 7일</span>
+                <span className="text-xs font-bold text-slate-500">지난 7일</span>
               </div>
               <div>
-                <h3 className="text-slate-500 text-sm font-semibold mb-1">AI 추천 수락률</h3>
-                <div className="text-3xl font-black text-slate-800">
+                <h3 className="text-slate-400 text-sm font-semibold mb-1">AI 추천 수락률</h3>
+                <div className="text-3xl font-black text-slate-100">
                   {(kpi.acceptRate.value * 100).toFixed(1)}%
                 </div>
-                <div className="text-xs text-slate-400 mt-1">총 {kpi.acceptRate.total}건 중 {kpi.acceptRate.accepted}건 수락</div>
+                <div className="text-xs text-slate-500 mt-1">총 {kpi.acceptRate.total}건 중 {kpi.acceptRate.accepted}건 수락</div>
               </div>
             </div>
 
             {/* DAU */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+                <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
                   <Users size={24} />
                 </div>
               </div>
               <div>
-                <h3 className="text-slate-500 text-sm font-semibold mb-1">활성 사용자 수 (DAU)</h3>
-                <div className="text-3xl font-black text-slate-800">
+                <h3 className="text-slate-400 text-sm font-semibold mb-1">활성 사용자 수 (DAU)</h3>
+                <div className="text-3xl font-black text-slate-100">
                   {kpi.activeUsers.toLocaleString()}명
                 </div>
               </div>
             </div>
 
             {/* 이상 혼잡 알림 건수 */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
+                <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400">
                   <AlertTriangle size={24} />
                 </div>
               </div>
               <div>
-                <h3 className="text-slate-500 text-sm font-semibold mb-1">이상 혼잡 발생 (오늘)</h3>
+                <h3 className="text-slate-400 text-sm font-semibold mb-1">이상 혼잡 발생 (오늘)</h3>
                 <div className="text-3xl font-black text-rose-600">
                   {kpi.anomalyCount}건
                 </div>
@@ -364,30 +570,30 @@ export default function DashboardPage() {
             <FacilityTable />
 
             {/* Anomaly Alerts List (Server Rendered) */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-200 flex items-center gap-2 bg-slate-50">
-                <AlertTriangle className="text-rose-500" size={20} />
-                <h3 className="text-lg font-bold text-slate-800">이상 혼잡 알림 내역</h3>
+            <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-800 flex items-center gap-2 bg-slate-800/30">
+                <AlertTriangle className="text-rose-400" size={20} />
+                <h3 className="text-lg font-bold text-slate-100">이상 혼잡 알림 내역</h3>
               </div>
               <div className="flex-1 p-4 overflow-y-auto">
                 <div className="flex flex-col gap-3">
                   {anomalies.map((alert: any) => (
-                    <div key={alert.id} className="p-4 rounded-xl border border-rose-100 bg-rose-50 flex flex-col gap-2 relative overflow-hidden">
+                    <div key={alert.id} className="p-4 rounded-xl border border-rose-500/15 bg-rose-500/10 flex flex-col gap-2 relative overflow-hidden">
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
                       <div className="flex justify-between items-start">
-                        <span className="font-bold text-rose-700">{alert.facilityName}</span>
+                        <span className="font-bold text-rose-300">{alert.facilityName}</span>
                         <span className="text-xs font-semibold text-rose-400">
                           {new Date(alert.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                       </div>
-                      <div className="text-sm text-rose-600 flex justify-between">
+                      <div className="text-sm text-rose-400 flex justify-between">
                         <span>임계치 초과: {(alert.congestionLevel * 100).toFixed(0)}%</span>
                         <span className="font-bold">지속: {alert.durationMinutes}분</span>
                       </div>
                     </div>
                   ))}
                   {anomalies.length === 0 && (
-                    <div className="text-center text-slate-400 py-10 text-sm">
+                    <div className="text-center text-slate-500 py-10 text-sm">
                       현재 발생한 이상 알림이 없습니다.
                     </div>
                   )}

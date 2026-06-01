@@ -30,6 +30,8 @@ export default function MainPage() {
   const [activeFilter, setActiveFilter] = useState('주차장');
   const [facilities, setFacilities] = useState<any[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
+  // 그룹(모음) 마커 하이라이트 id — 카드 선택(selectedFacility)과 분리해 마커 확대/색상변경만 적용
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isCardHidden, setIsCardHidden] = useState(false);
   const [isMockLocationMinimized, setIsMockLocationMinimized] = useState(true);
@@ -669,12 +671,13 @@ export default function MainPage() {
           sessionStorage.setItem('induspot_map_level', lvl.toString());
         });
 
-        // 빈 지도(마커 외) 클릭 시 열린 그룹 팝업 닫기 — 일반 지도앱 UX
+        // 빈 지도(마커 외) 클릭 시 열린 그룹 팝업 닫기 + 그룹 하이라이트 해제 — 일반 지도앱 UX
         window.kakao.maps.event.addListener(map, 'click', () => {
           if (activeOverlayRef.current) {
             activeOverlayRef.current.setMap(null);
             activeOverlayRef.current = null;
           }
+          setActiveGroupId(null);
         });
       });
     }
@@ -715,7 +718,10 @@ export default function MainPage() {
     const newMarkers = displayFacilities.map((f) => {
       // 사내 주차장은 정사각형 마커 → 정사각 크기 + 중앙 앵커(가로세로 비율 유지). 그 외 핀은 바닥(끝) 앵커.
       const isPriv = f.type === 'parking' && f.features && (f.features.is_private === true || f.features.is_public === false);
-      const isSel = !!selectedFacility && f.id === selectedFacility.id; // 선택 시 진한 색 + 확대
+      // 그룹 마커는 activeGroupId 로, 개별 마커는 selectedFacility 로 선택 판정 → 둘 다 진한 색 + 확대
+      const isSel = f.isGroup
+        ? activeGroupId === f.id
+        : (!!selectedFacility && f.id === selectedFacility.id);
       const w = isSel ? selW : baseW;
       const h = isSel ? selH : baseH;
       const markerImage = new kakao.maps.MarkerImage(
@@ -740,6 +746,9 @@ export default function MainPage() {
         }
 
         if (f.isGroup) {
+          // 그룹 마커 자체를 하이라이트(확대+색) — 카드는 띄우지 않음(개별 선택 해제)
+          setActiveGroupId(f.id);
+          setSelectedFacility(null);
           const content = document.createElement('div');
           content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[180px] max-w-[280px] max-h-[260px] overflow-y-auto no-scrollbar pointer-events-auto';
 
@@ -753,6 +762,7 @@ export default function MainPage() {
             btn.className = 'text-left text-white text-xs px-3 py-2.5 hover:bg-white/10 rounded-xl transition-colors font-semibold whitespace-normal break-keep leading-snug cursor-pointer';
             btn.innerText = sub.name;
             btn.onclick = () => {
+              setActiveGroupId(null);
               setSelectedFacility(sub);
               setIsCardHidden(false);
               if (activeOverlayRef.current) {
@@ -774,6 +784,7 @@ export default function MainPage() {
           activeOverlayRef.current = overlay;
           mapInstanceRef.current.panTo(marker.getPosition());
         } else {
+          setActiveGroupId(null);
           setSelectedFacility(f);
           setIsCardHidden(false);
           mapInstanceRef.current.panTo(new kakao.maps.LatLng(f.latitude, f.longitude));
@@ -786,7 +797,7 @@ export default function MainPage() {
 
     markersRef.current = newMarkers;
     // selectedFacility 변경 시에도 재렌더해 선택 마커만 진한 색으로 갱신(기존 마커는 effect 시작부에서 정리)
-  }, [facilities, activeFilter, mapLoaded, selectedFacility?.id]);
+  }, [facilities, activeFilter, mapLoaded, selectedFacility?.id, activeGroupId]);
 
   const filters = [
     { id: '식당', icon: Utensils },
@@ -840,6 +851,7 @@ export default function MainPage() {
                 onClick={() => {
                   setActiveFilter(filter.id);
                   setIsCardHidden(false);
+                  setActiveGroupId(null);
                   if (typeof window !== 'undefined') {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
