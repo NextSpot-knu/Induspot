@@ -289,36 +289,37 @@ export default function MainPage() {
     }
 
     const userSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+      <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
         <defs>
           <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
+            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
           </filter>
           <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#ffff00" stop-opacity="1"/>
-            <stop offset="50%" stop-color="#fde047" stop-opacity="0.6"/>
-            <stop offset="100%" stop-color="#eab308" stop-opacity="0"/>
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+            <stop offset="30%" stop-color="#ffffe0" stop-opacity="0.7"/>
+            <stop offset="70%" stop-color="#ffffa1" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#ffffa1" stop-opacity="0"/>
           </radialGradient>
         </defs>
         <style>
           @keyframes pulse {
             0% { transform: scale(0.3); opacity: 1; }
-            100% { transform: scale(2.0); opacity: 0; }
+            100% { transform: scale(1.6); opacity: 0; }
           }
           .pulse-circle {
-            animation: pulse 2s infinite cubic-bezier(0.2, 0, 0.2, 1);
-            transform-origin: 40px 40px;
+            animation: pulse 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);
+            transform-origin: 50px 50px;
           }
         </style>
-        <circle class="pulse-circle" cx="40" cy="40" r="20" fill="url(#glow)"/>
-        <circle cx="40" cy="40" r="11" fill="#ffffff" filter="url(#shadow)"/>
-        <circle cx="40" cy="40" r="8" fill="#facc15"/>
+        <circle class="pulse-circle" cx="50" cy="50" r="30" fill="url(#glow)"/>
+        <circle cx="50" cy="50" r="12" fill="#ffffff" filter="url(#shadow)"/>
+        <circle cx="50" cy="50" r="8" fill="#ffffa1"/>
       </svg>
     `;
     const userImage = new kakao.maps.MarkerImage(
       `data:image/svg+xml;charset=utf-8,${encodeURIComponent(userSvg.trim())}`,
-      new kakao.maps.Size(80, 80),
-      { offset: new kakao.maps.Point(40, 40) }
+      new kakao.maps.Size(100, 100),
+      { offset: new kakao.maps.Point(50, 50) }
     );
 
     const userMarker = new kakao.maps.Marker({
