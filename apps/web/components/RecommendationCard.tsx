@@ -41,10 +41,17 @@ export function RecommendationCard({
   totalCandidates,
 }: RecommendationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [translateY, setTranslateY] = useState(0);
   const [startY, setStartY] = useState<number | null>(null);
   
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setIsExpanded(false);
+    setIsMinimized(false);
+    setTranslateY(0);
+  }, [title]);
 
   useEffect(() => {
     setCurrentTime(new Date());
@@ -128,12 +135,10 @@ export function RecommendationCard({
     const diff = clientY - startY;
     
     if (isExpanded) {
-      // Pulling down to close
-      if (diff > 0) {
-        setTranslateY(diff);
-      }
+      if (diff > 0) setTranslateY(diff);
+    } else if (isMinimized) {
+      if (diff < 0) setTranslateY(diff);
     } else {
-      // Pulling up to open or pulling down to hide card
       setTranslateY(diff);
     }
   };
@@ -143,19 +148,18 @@ export function RecommendationCard({
     setStartY(null);
     
     if (isExpanded) {
-      // If pulled down sufficiently, collapse
-      if (translateY > 70) {
-        setIsExpanded(false);
-      }
+      if (translateY > 70) setIsExpanded(false);
+    } else if (isMinimized) {
+      if (translateY < -30) setIsMinimized(false);
     } else {
-      // If pulled down in normal state, trigger close/hide
-      if (translateY > 70) {
+      if (translateY > 50) {
         if (onClose) {
           onClose();
+        } else {
+          setIsMinimized(true);
         }
       }
-      // If pulled up sufficiently, expand
-      if (translateY < -70) {
+      if (translateY < -50) {
         setIsExpanded(true);
       }
     }
@@ -181,10 +185,10 @@ export function RecommendationCard({
 
   return (
     <div 
-      className="w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col gap-3 select-none transition-all duration-300 relative overflow-hidden"
+      className={`w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
       style={{
         transform: `translateY(${translateY}px)`,
-        transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s, gap 0.3s',
         touchAction: 'none'
       }}
       onTouchStart={(e) => handleStart(e.touches[0].clientY)}
@@ -201,12 +205,27 @@ export function RecommendationCard({
       {/* Swipe/Drag Handle Bar */}
       <div 
         className="w-16 h-1.5 bg-white/20 hover:bg-white/30 rounded-full mx-auto mb-1 cursor-pointer flex items-center justify-center transition-colors"
-        onClick={toggleExpand}
+        onClick={() => {
+          if (isMinimized) setIsMinimized(false);
+          else toggleExpand();
+        }}
       >
         <div className="sr-only">Drag handle</div>
       </div>
 
-      {/* Top Header Row */}
+      {isMinimized ? (
+        <div 
+          className="flex items-center justify-between px-2 pb-1 cursor-pointer"
+          onClick={() => setIsMinimized(false)}
+        >
+           <span className="text-sm font-bold text-white truncate max-w-[200px]">{title}</span>
+           <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 whitespace-nowrap">
+             열기 <ChevronUp size={12} className="inline mb-0.5" />
+           </span>
+        </div>
+      ) : (
+        <>
+          {/* Top Header Row */}
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1.5">
@@ -514,6 +533,8 @@ export function RecommendationCard({
             })}
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Meeting Room Booking Modal (Mock) */}
