@@ -121,7 +121,7 @@ export default function SavedPage() {
   };
 
   return (
-    <div className="relative w-full min-h-screen bg-[url('/bg.png')] bg-cover bg-center flex flex-col overflow-hidden">
+    <div className="relative w-full h-[100dvh] bg-[url('/bg.png')] bg-cover bg-center flex flex-col overflow-hidden">
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 bg-[#0b101e]/70 z-0"></div>
 
