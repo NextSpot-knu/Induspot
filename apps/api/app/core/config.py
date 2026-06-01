@@ -53,8 +53,14 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX_NAME: str = "induspot-poi-index"
 
+    # Kakao Mobility Directions API (도보/차량 실거리·실시간 이동시간).
+    # 비어 있으면 Haversine 직선거리 도보 환산으로 폴백(기본). 키가 있으면 실경로 호출.
+    KAKAO_REST_API_KEY: str = ""
+
     # CORS Settings
-    ALLOWED_ORIGINS: Union[str, List[str]] = ["http://localhost:3000"]
+    # 기본값은 와일드카드(미설정 환경에서 프런트가 막히지 않도록). 운영에서는 실제 도메인을
+    # 콤마로 지정하면 main.py 가 자동으로 엄격 모드(해당 오리진만 + credentials)로 전환한다.
+    ALLOWED_ORIGINS: Union[str, List[str]] = ["*"]
 
     @field_validator("ALLOWED_ORIGINS")
     @classmethod

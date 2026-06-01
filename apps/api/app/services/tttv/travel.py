@@ -37,11 +37,10 @@ async def get_travel_time_and_distance(
     # 기본값: Haversine 도보 속도 기준
     travel_time_min = distance_m / WALKING_SPEED_M_PER_MIN
 
-    # Kakao Maps API App Key가 설정되어 있는 경우 다이렉션 연동 수행 (예: 로드 뷰, 차로 주행 등 대응)
-    # 카카오의 경우 REST API 키가 주입되어 동작한다고 가정 (Kakao Developers Directions API 호출)
-    kakao_key = settings.SUPABASE_ANON_KEY  # 혹은 설정된 KAKAO_KEY 활용 (여기선 CONFIG의 Key)
-    # 실제 카카오 다이렉션 API 호출 Mocking or Fallback 구조
-    if settings.PINECONE_API_KEY and False: # 카카오 연동 API 구현 템플릿 (필요 시 활성화 가능)
+    # Kakao Mobility Directions API 키가 설정돼 있으면 실거리/실시간 이동시간으로 보정.
+    # 키가 없으면(기본) 위 Haversine 도보 환산값을 그대로 사용한다.
+    kakao_key = settings.KAKAO_REST_API_KEY
+    if kakao_key:
         try:
             headers = {"Authorization": f"KakaoAK {kakao_key}"}
             url = f"https://apis-navi.kakaomobility.com/v1/directions"

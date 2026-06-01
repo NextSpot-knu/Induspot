@@ -8,7 +8,7 @@ from app.services.pinecone_service import pinecone_service
 from app.services.reason_service import generate_reason
 from app.services.tttv.score import calculate_tttv_score
 from app.services.tttv.travel import calculate_haversine_distance, WALKING_SPEED_M_PER_MIN
-from app.services.tttv.preference import CATEGORY_VECTORS
+from app.services.tttv.preference import CATEGORY_VECTORS, get_category_average_vector
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["recommendations"])
@@ -123,12 +123,17 @@ async def get_recommendations(
 
     logger.info("candidates_filtered", count=len(candidates), max_radius_m=150)
 
-    # 3. 각 후보군에 대해 TTTV 스코어 비동기 연산
-    recommendation_results = []
-    for f, dist in candidates:
+    # 사용자 선호 벡터는 요청당 1개뿐이므로 후보마다 Pinecone 를 재조회하지 않도록 여기서 1회만 조회한다.
+    # (없으면 Cold Start 벡터 생성 후 1회 업서트)
+    user_vector = await pinecone_service.get_user_vector(req.user_id)
+    if not user_vector:
+        user_vector = get_category_average_vector(user_info.get("preferred_categories", []))
+        await pinecone_service.upsert_user_vector(req.user_id, user_vector)
+
+    # 3. 각 후보군에 대해 TTTV 스코어를 병렬 연산
+    #    (후보 수만큼 직렬 await 하던 것을 asyncio.gather 로 동시 실행 → 후보가 많아도 지연이 누적되지 않음)
+    async def _score_candidate(f: dict, dist: float) -> dict:
         candidate_congestion = await fetch_latest_congestion(f["id"])
-        
-        # 스코어 계산
         score_res = await calculate_tttv_score(
             user_id=req.user_id,
             preferred_categories=user_info.get("preferred_categories", []),
@@ -137,16 +142,20 @@ async def get_recommendations(
             candidate_facility=f,
             candidate_congestion_level=candidate_congestion,
             user_lat=req.user_lat,
-            user_lng=req.user_lng
+            user_lng=req.user_lng,
+            user_vector=user_vector,
         )
-        
-        recommendation_results.append({
+        return {
             "facility": f,
             "tttv_score": score_res.score,
             "breakdown": score_res.breakdown,
             "distance_m": dist,
-            "candidate_congestion": candidate_congestion
-        })
+            "candidate_congestion": candidate_congestion,
+        }
+
+    recommendation_results = list(
+        await asyncio.gather(*[_score_candidate(f, dist) for f, dist in candidates])
+    )
 
     # 4. 스코어 기준 내림차순 정렬 및 상위 3개 선별
     recommendation_results.sort(key=lambda x: x["tttv_score"], reverse=True)
@@ -169,11 +178,9 @@ async def get_recommendations(
     reasons = await asyncio.gather(*[_reason_for(item) for item in top_3])
 
     # 5. DB(recommendations)에 추천 이력 저장 후 recommendation_id 획득 및 응답 매핑
-    response_items = []
-    total_count = len(recommendation_results)
-    for idx, item in enumerate(top_3):
-        # DB 이력 추가
-        db_res = await asyncio.to_thread(
+    #    상위 N개 INSERT 도 병렬로 처리(직렬 await 제거).
+    async def _persist(item: dict):
+        return await asyncio.to_thread(
             supabase_client.table("recommendations").insert({
                 "user_id": req.user_id,
                 "original_facility_id": req.original_facility_id,
@@ -183,9 +190,14 @@ async def get_recommendations(
                 "accepted": False
             }).execute
         )
-        
+
+    db_results = await asyncio.gather(*[_persist(item) for item in top_3])
+
+    response_items = []
+    total_count = len(recommendation_results)
+    for idx, (item, db_res) in enumerate(zip(top_3, db_results)):
         rec_id = db_res.data[0]["id"] if db_res.data else "mock-rec-id"
-        
+
         response_items.append(RecommendItem(
             recommendation_id=rec_id,
             facility=item["facility"],

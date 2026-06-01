@@ -41,18 +41,22 @@ async def calculate_preference_similarity(
     user_id: str,
     facility_type: str,
     preferred_categories: list[str],
-    facility_features: dict = None
+    facility_features: dict = None,
+    user_vector: list[float] | None = None,
 ) -> float:
     """
     Pinecone에서 사용자 선호 벡터를 획득(없으면 Cold Start 벡터 생성 후 적재)하고,
     후보 시설의 특성 벡터 간 코사인 유사도를 계산합니다.
+
+    user_vector 가 주어지면(추천 루프에서 1회만 조회해 전달) Pinecone 재조회를 생략한다.
     """
-    # 1. 사용자 선호 벡터 조회
-    user_vector = await pinecone_service.get_user_vector(user_id)
-    if not user_vector:
-        # Cold Start: 온보딩 선호 목록 기반 생성 및 저장
-        user_vector = get_category_average_vector(preferred_categories)
-        await pinecone_service.upsert_user_vector(user_id, user_vector)
+    # 1. 사용자 선호 벡터 조회 (호출측에서 미리 넘겨줬으면 재사용)
+    if user_vector is None:
+        user_vector = await pinecone_service.get_user_vector(user_id)
+        if not user_vector:
+            # Cold Start: 온보딩 선호 목록 기반 생성 및 저장
+            user_vector = get_category_average_vector(preferred_categories)
+            await pinecone_service.upsert_user_vector(user_id, user_vector)
 
     # 2. 시설 특징 벡터 구성
     # 기본적으로 시설 카테고리 전용 벡터를 기준값으로 획득

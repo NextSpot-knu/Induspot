@@ -16,6 +16,7 @@ WP1: 추론 경로를 다단계 폴백으로 재구성한다.
 import os
 import json
 import pickle
+import threading
 from typing import Optional, Tuple, Any
 
 import structlog
@@ -34,6 +35,10 @@ _local_artifacts: Optional[Tuple[Any, Any]] = None    # (model, encoder)
 _local_loaded = False
 _vertex_endpoint = None
 _vertex_init_attempted = False
+
+# 추천 채점이 후보를 병렬(asyncio.to_thread)로 돌리므로, 최초 1회 lazy 로드가 여러 워커
+# 스레드에서 동시에 들어올 수 있다. 중복 초기화/경쟁을 막기 위한 락(double-checked locking).
+_init_lock = threading.Lock()
 
 
 def _resolve_project_id() -> str:
@@ -72,7 +77,10 @@ def _load_gcs_artifacts() -> Optional[Tuple[Any, Any]]:
     global _gcs_artifacts, _gcs_loaded
     if _gcs_loaded:
         return _gcs_artifacts
-    _gcs_loaded = True
+    with _init_lock:
+        if _gcs_loaded:
+            return _gcs_artifacts
+        _gcs_loaded = True
     try:
         from google.cloud import storage  # lazy import
 
@@ -98,7 +106,10 @@ def _load_local_artifacts() -> Optional[Tuple[Any, Any]]:
     global _local_artifacts, _local_loaded
     if _local_loaded:
         return _local_artifacts
-    _local_loaded = True
+    with _init_lock:
+        if _local_loaded:
+            return _local_artifacts
+        _local_loaded = True
     local_model_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         "model.pkl",
@@ -138,7 +149,10 @@ def _get_vertex_endpoint():
     global _vertex_endpoint, _vertex_init_attempted
     if _vertex_init_attempted:
         return _vertex_endpoint
-    _vertex_init_attempted = True
+    with _init_lock:
+        if _vertex_init_attempted:
+            return _vertex_endpoint
+        _vertex_init_attempted = True
 
     if not settings.VERTEX_ENDPOINT_ID:
         # WP1 비활성화: Endpoint 미배포 환경 → GCS 폴백 경로로 동작
