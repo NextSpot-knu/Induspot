@@ -44,6 +44,16 @@ export function RecommendationCard({
   const [translateY, setTranslateY] = useState(0);
   const [startY, setStartY] = useState<number | null>(null);
   
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+  
   // Meeting room mock state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -158,6 +168,17 @@ export function RecommendationCard({
 
   const hasTttvMetrics = tttvScore !== undefined;
 
+  const travelMins = expectedTravel || 0;
+  const waitMins = expectedWait || 0;
+  
+  const arrivalTime = currentTime ? new Date(currentTime.getTime() + travelMins * 60000) : null;
+  const serviceTime = arrivalTime ? new Date(arrivalTime.getTime() + waitMins * 60000) : null;
+
+  const formatTime = (date: Date | null) => {
+    if (!date) return '';
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
   return (
     <div 
       className="w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col gap-3 select-none transition-all duration-300 relative overflow-hidden"
@@ -263,37 +284,79 @@ export function RecommendationCard({
               </div>
             </div>
           ) : (
-            <div className="flex gap-2">
-              {/* Time Cost Column */}
-              <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-2 opacity-20">
-                  <Clock size={24} className="text-blue-300" />
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                {/* Time Cost Column */}
+                <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-20">
+                    <Clock size={24} className="text-blue-300" />
+                  </div>
+                  <span className="text-blue-300 text-[10px] font-semibold mb-1">총 소요 시간</span>
+                  <div className="flex items-baseline gap-1 mb-1.5">
+                    <span className="text-2xl font-black text-white">{timeToService}</span>
+                    <span className="text-xs text-blue-200 font-medium">분</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[9px] text-blue-200/80 font-medium">
+                    <span className="bg-blue-500/20 px-1.5 py-0.5 rounded text-blue-300">대기 {expectedWait}분</span>
+                    <span className="text-blue-500/50">+</span>
+                    <span className="bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-400">이동 {expectedTravel}분</span>
+                  </div>
                 </div>
-                <span className="text-blue-300 text-[10px] font-semibold mb-1">총 소요 시간</span>
-                <div className="flex items-baseline gap-1 mb-1.5">
-                  <span className="text-2xl font-black text-white">{timeToService}</span>
-                  <span className="text-xs text-blue-200 font-medium">분</span>
-                </div>
-                <div className="flex items-center gap-2 text-[9px] text-blue-200/80 font-medium">
-                  <span className="bg-blue-500/20 px-1.5 py-0.5 rounded text-blue-300">대기 {expectedWait}분</span>
-                  <span className="text-blue-500/50">+</span>
-                  <span className="bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-400">이동 {expectedTravel}분</span>
+
+                {/* Preference Column */}
+                <div className="w-[110px] bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col justify-center items-center text-center">
+                  <span className="text-slate-400 text-[10px] font-semibold mb-1">취향 일치율</span>
+                  <div className="flex items-baseline gap-0.5 mb-1">
+                    <span className="text-xl font-black text-sky-400">{preferencePercent}</span>
+                    <span className="text-xs text-sky-400/80 font-bold">%</span>
+                  </div>
+                  {facilityType === 'parking' ? (
+                    <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">주차공간 맞춤</span>
+                  ) : (
+                    <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">사용자 패턴 기반</span>
+                  )}
                 </div>
               </div>
 
-              {/* Preference Column */}
-              <div className="w-[110px] bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col justify-center items-center text-center">
-                <span className="text-slate-400 text-[10px] font-semibold mb-1">취향 일치율</span>
-                <div className="flex items-baseline gap-0.5 mb-1">
-                  <span className="text-xl font-black text-sky-400">{preferencePercent}</span>
-                  <span className="text-xs text-sky-400/80 font-bold">%</span>
+              {/* Timeline UI */}
+              {currentTime && arrivalTime && serviceTime && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-3">
+                  <div className="flex items-start justify-between relative mt-1">
+                    {/* Connecting Line */}
+                    <div className="absolute top-[3px] left-4 right-4 h-[2px] bg-white/10 z-0" />
+                    
+                    {/* Travel Duration Label */}
+                    <div className="absolute top-[-10px] left-[25%] -translate-x-1/2 z-10">
+                      <span className="text-[9px] font-medium text-emerald-400 bg-[#161c28] px-1.5 py-0.5 rounded border border-emerald-500/20">이동 {travelMins}분</span>
+                    </div>
+                    {/* Wait Duration Label */}
+                    <div className="absolute top-[-10px] left-[75%] -translate-x-1/2 z-10">
+                      <span className="text-[9px] font-medium text-amber-400 bg-[#161c28] px-1.5 py-0.5 rounded border border-amber-500/20">대기 {waitMins}분</span>
+                    </div>
+                    
+                    {/* Current Time Step */}
+                    <div className="flex flex-col items-center z-10 w-12">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 ring-4 ring-[#1a2133] mb-1.5" />
+                      <span className="text-[10px] text-white font-bold">{formatTime(currentTime)}</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">출발</span>
+                    </div>
+                    
+                    {/* Arrival Time Step */}
+                    <div className="flex flex-col items-center z-10 w-12">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 ring-4 ring-[#1a2133] mb-1.5" />
+                      <span className="text-[10px] text-white font-bold">{formatTime(arrivalTime)}</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">도착</span>
+                    </div>
+
+                    {/* Service Start Step */}
+                    <div className="flex flex-col items-center z-10 w-12">
+                      <div className="w-2 h-2 rounded-full bg-amber-400 ring-4 ring-[#1a2133] mb-1.5" />
+                      <span className="text-[10px] text-white font-bold">{formatTime(serviceTime)}</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">{facilityType === 'cafeteria' ? '식사' : '이용'}</span>
+                    </div>
+                  </div>
                 </div>
-                {facilityType === 'parking' ? (
-                  <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">주차공간 맞춤</span>
-                ) : (
-                  <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">사용자 패턴 기반</span>
-                )}
-              </div>
+              )}
             </div>
           )}
         </div>
