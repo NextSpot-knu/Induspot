@@ -45,7 +45,7 @@ export function DashboardHeatmap({ heatmapData }: { heatmapData: any[] }) {
     { id: 'cafeteria', name: '식당' },
     { id: 'parking', name: '주차장' },
     { id: 'meeting_room', name: '회의실' },
-    { id: 'loading_dock', name: '휴게실' },
+    { id: 'rest_area', name: '휴게실' },
   ];
 
   // Selected category data

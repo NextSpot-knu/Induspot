@@ -1,4 +1,4 @@
-export type InfrastructureType = 'restaurant' | 'parking' | 'meeting_room' | 'loading_dock';
+export type InfrastructureType = 'cafeteria' | 'parking' | 'meeting_room' | 'rest_area';
 export interface Infrastructure {
     id: string;
     name: string;

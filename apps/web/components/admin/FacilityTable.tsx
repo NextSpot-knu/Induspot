@@ -6,10 +6,10 @@ import { Settings, Plus, Edit2, Trash2 } from 'lucide-react';
 export function FacilityTable() {
   // 백엔드 명세서 기반 시설 목록 구조 (Mock Data)
   const [facilities, setFacilities] = useState([
-    { id: '1', name: '제1식당', type: 'restaurant', capacity: 250, hours: '11:30-13:30', active: true },
-    { id: '2', name: '제1체육관', type: 'gym', capacity: 100, hours: '06:00-22:00', active: true },
+    { id: '1', name: '제1식당', type: 'cafeteria', capacity: 250, hours: '11:30-13:30', active: true },
+    { id: '2', name: '본관 대회의실', type: 'meeting_room', capacity: 60, hours: '09:00-22:00', active: true },
     { id: '3', name: 'A주차장', type: 'parking', capacity: 500, hours: '24시간', active: true },
-    { id: '4', name: '동관 휴게실', type: 'lounge', capacity: 30, hours: '09:00-18:00', active: false },
+    { id: '4', name: '동관 휴게라운지', type: 'rest_area', capacity: 30, hours: '09:00-18:00', active: false },
   ]);
 
   const handleDelete = (id: string) => {

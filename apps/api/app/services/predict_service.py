@@ -67,6 +67,10 @@ def normalize_facility_type(facility_type: str) -> str:
         return "loading_dock"
     elif facility_type == "office":
         return "meeting_room"
+    # 휴게 공간(rest_area)의 ML 학습 버킷은 loading_dock 이다.
+    # (모델/Vertex Endpoint/BQML 을 재학습하지 않고 4번째 카테고리를 rest_area 로 개명하기 위한 매핑)
+    elif facility_type in ["rest_area", "lounge"]:
+        return "loading_dock"
     elif facility_type in ["cafeteria", "parking", "meeting_room", "loading_dock"]:
         return facility_type
     return facility_type

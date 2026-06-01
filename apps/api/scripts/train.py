@@ -25,6 +25,9 @@ def normalize_facility_type(facility_type: str) -> str:
         return "loading_dock"
     elif facility_type == "office":
         return "meeting_room"
+    # 휴게 공간(rest_area)의 학습 버킷은 loading_dock (4번째 카테고리 개명 호환)
+    elif facility_type in ["rest_area", "lounge"]:
+        return "loading_dock"
     elif facility_type in ["cafeteria", "parking", "meeting_room", "loading_dock"]:
         return facility_type
     return facility_type

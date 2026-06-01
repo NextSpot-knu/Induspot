@@ -7,7 +7,7 @@ export const revalidate = 0;
 export interface FacilityWithCongestion {
   id: string;
   name: string;
-  type: "cafeteria" | "parking" | "meeting_room" | "loading_dock";
+  type: "cafeteria" | "parking" | "meeting_room" | "rest_area";
   latitude: number;
   longitude: number;
   capacity: number;
@@ -131,24 +131,24 @@ const MOCK_SEED_FACILITIES = [
   },
   {
     id: "f4000000-0000-0000-0000-000000000001",
-    name: "북부 종합 물류하역장 D-1",
-    type: "loading_dock",
+    name: "북부 직원 휴게라운지 D-1",
+    type: "rest_area",
     latitude: 37.3250,
     longitude: 126.8145,
     capacity: 10,
     operating_hours: { "24_7": true },
-    features: { max_tonnage: 15, has_forklift: true, average_processing_time: 30 },
+    features: { massageChairs: { inUse: 3, total: 3 }, sleepCapsules: { inUse: 2, total: 2 }, playstation: { inUse: 1, total: 1 }, average_processing_time: 10 },
     congestion_logs: [{ congestion_level: 0.95, current_count: 9, timestamp: new Date().toISOString() }]
   },
   {
     id: "f4000000-0000-0000-0000-000000000002",
-    name: "남부 컨테이너 하역장 E-2",
-    type: "loading_dock",
+    name: "남부 직원 휴게라운지 E-2",
+    type: "rest_area",
     latitude: 37.3150,
     longitude: 126.8110,
     capacity: 6,
     operating_hours: { "24_7": true },
-    features: { max_tonnage: 25, has_forklift: true, average_processing_time: 30 },
+    features: { massageChairs: { inUse: 0, total: 3 }, sleepCapsules: { inUse: 0, total: 2 }, playstation: { inUse: 0, total: 1 }, average_processing_time: 10 },
     congestion_logs: [{ congestion_level: 0.15, current_count: 1, timestamp: new Date().toISOString() }]
   }
 ];

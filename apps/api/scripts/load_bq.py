@@ -48,6 +48,8 @@ def normalize_facility_type(facility_type: str) -> str:
         return "loading_dock"
     elif facility_type == "office":
         return "meeting_room"
+    elif facility_type in ["rest_area", "lounge"]:
+        return "loading_dock"  # 휴게 공간 학습 버킷 = loading_dock
     elif facility_type in ["cafeteria", "parking", "meeting_room", "loading_dock"]:
         return facility_type
     return facility_type

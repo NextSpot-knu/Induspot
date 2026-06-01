@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
-import { getRecommendations, submitFeedback, RecommendationResponse } from "@/lib/api-client";
+import { getRecommendations, submitFeedback, parsePreference, RecommendationResponse } from "@/lib/api-client";
 
 // Extend global Window
 declare global {
@@ -146,6 +146,14 @@ function RecommendContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [selectedOnboardingCats, setSelectedOnboardingCats] = useState<string[]>([]);
   const [isOnboardingSubmitting, setIsOnboardingSubmitting] = useState(false);
+
+  // 자연어 선호 입력(텍스트 + 음성) 상태
+  const [nlText, setNlText] = useState("");
+  const [isParsingNl, setIsParsingNl] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [nlSummary, setNlSummary] = useState<string | null>(null);
+  const [nlApplied, setNlApplied] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // Toast message state
   const [toast, setToast] = useState<string | null>(null);
@@ -332,24 +340,24 @@ function RecommendContent() {
     },
     {
       id: "f4000000-0000-0000-0000-000000000001",
-      name: "북부 종합 물류하역장 D-1",
-      type: "loading_dock",
+      name: "북부 직원 휴게라운지 D-1",
+      type: "rest_area",
       latitude: 37.3250,
       longitude: 126.8145,
       capacity: 10,
       operating_hours: { "24_7": true },
-      features: { max_tonnage: 15, has_forklift: true, average_processing_time: 30 },
+      features: { massageChairs: { inUse: 3, total: 3 }, sleepCapsules: { inUse: 2, total: 2 }, playstation: { inUse: 1, total: 1 }, average_processing_time: 10 },
       congestion_logs: [{ congestion_level: 0.95, current_count: 9, timestamp: new Date().toISOString() }]
     },
     {
       id: "f4000000-0000-0000-0000-000000000002",
-      name: "남부 컨테이너 하역장 E-2",
-      type: "loading_dock",
+      name: "남부 직원 휴게라운지 E-2",
+      type: "rest_area",
       latitude: 37.3150,
       longitude: 126.8110,
       capacity: 6,
       operating_hours: { "24_7": true },
-      features: { max_tonnage: 25, has_forklift: true, average_processing_time: 30 },
+      features: { massageChairs: { inUse: 0, total: 3 }, sleepCapsules: { inUse: 0, total: 2 }, playstation: { inUse: 0, total: 1 }, average_processing_time: 10 },
       congestion_logs: [{ congestion_level: 0.15, current_count: 1, timestamp: new Date().toISOString() }]
     }
   ];
@@ -400,6 +408,7 @@ function RecommendContent() {
             cafeteria: 20,
             parking: 5,
             meeting_room: 10,
+            rest_area: 10,
             loading_dock: 30,
           };
           const avgProcessTime = originalData.features?.average_processing_time ?? defaultTimes[originalData.type] ?? 15;
@@ -494,6 +503,127 @@ function RecommendContent() {
     checkHistoryAndFetch();
   }, [userId, facilityId, lat, lng, originalFacility]);
 
+  // 추천 API 실패 시 데모용 목업 추천 생성 (회복탄력성)
+  const buildMockRecommendations = (): RecommendationResponse[] => {
+    const filteredMock = MOCK_SEED_FACILITIES
+      .filter((f) => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"));
+    return filteredMock.slice(0, 3).map((f, i) => ({
+      recommendationId: `mock-rec-id-${i}`,
+      facility: {
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        latitude: f.latitude,
+        longitude: f.longitude,
+        capacity: f.capacity,
+        operatingHours: f.operating_hours,
+        features: f.features,
+      },
+      tttvScore: 85 - i * 10,
+      breakdown: { preference: 0.9 - i * 0.15, waitTime: 5 + i * 3, travelTime: 2.5 + i, incentive: 0.2 },
+      distanceM: 120 + i * 35,
+      rank: i + 1,
+      totalCandidates: filteredMock.length,
+    }));
+  };
+
+  // 음성 입력 시작 (Web Speech API). 미지원 브라우저는 텍스트 입력으로 폴백.
+  const startVoice = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      setToast("이 브라우저는 음성 인식을 지원하지 않아요. 텍스트로 입력해 주세요.");
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = "ko-KR";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onresult = (e: any) => {
+        const transcript = e.results?.[0]?.[0]?.transcript ?? "";
+        if (transcript) setNlText((prev) => (prev ? prev + " " : "") + transcript);
+      };
+      rec.onend = () => setIsListening(false);
+      rec.onerror = () => {
+        setIsListening(false);
+        setToast("음성 인식에 실패했어요. 텍스트로 입력해 주세요.");
+      };
+      recognitionRef.current = rec;
+      setIsListening(true);
+      rec.start();
+    } catch {
+      setIsListening(false);
+      setToast("음성 인식을 시작할 수 없어요.");
+    }
+  };
+
+  const stopVoice = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      /* noop */
+    }
+    setIsListening(false);
+  };
+
+  // 자연어 → Gemini 파싱 → 선호 벡터/카테고리 반영 (서버가 저장까지 수행)
+  const handleNlAnalyze = async () => {
+    if (!nlText.trim()) {
+      setToast("선호하는 시설이나 분위기를 말하거나 적어주세요.");
+      return;
+    }
+    setIsParsingNl(true);
+    try {
+      const result = await parsePreference(nlText.trim());
+      setNlSummary(result.summary);
+      if (result.preferredCategories?.length) {
+        setSelectedOnboardingCats(result.preferredCategories);
+      }
+      setNlApplied(true);
+      setToast(result.isFallback ? "선호를 반영했어요 (키워드 분석)" : "AI가 선호를 반영했어요 🎯");
+    } catch (err) {
+      // 서버(Gemini) 연결 실패 시 클라이언트 키워드 폴백 — 데모가 끊기지 않게.
+      console.warn("NL preference parse failed, client-side keyword fallback:", err);
+      const low = nlText.toLowerCase();
+      const kw: Record<string, string[]> = {
+        cafeteria: ["식당", "밥", "점심", "먹", "한식", "중식", "양식", "분식", "카페테리아"],
+        parking: ["주차", "전기차", "충전", "차"],
+        meeting_room: ["회의", "미팅", "컨퍼런스", "회의실"],
+        rest_area: ["휴게", "쉬", "쉴", "낮잠", "안마", "수면", "라운지", "휴식"],
+      };
+      const cats = Object.entries(kw)
+        .filter(([, ws]) => ws.some((w) => low.includes(w)))
+        .map(([c]) => c);
+      if (cats.length) {
+        setSelectedOnboardingCats(cats);
+        setNlSummary("AI 서버에 연결하지 못해 키워드로 분석했어요. 아래에서 조정할 수 있어요.");
+        setNlApplied(true);
+        setToast("키워드로 선호를 반영했어요");
+      } else {
+        setToast("AI 분석에 실패했어요. 아래에서 직접 선택해 주세요.");
+      }
+    } finally {
+      setIsParsingNl(false);
+    }
+  };
+
+  // 자연어 선호 반영 후 바로 추천 받기 (parse 단계에서 서버가 이미 벡터/카테고리 저장)
+  const handleApplyNlAndFetch = async () => {
+    if (!userId || !facilityId) return;
+    stopVoice();
+    setShowOnboarding(false);
+    setLoadingRecommendations(true);
+    try {
+      const list = await getRecommendations(facilityId, { lat, lng });
+      setRecommendations(list);
+    } catch (err) {
+      console.warn("Fetch after NL preference failed, using mock fallback:", err);
+      setRecommendations(buildMockRecommendations());
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
   // Handle Onboarding Preferences Submission
   const handleOnboardingSubmit = async () => {
     if (selectedOnboardingCats.length < 3) {
@@ -576,7 +706,7 @@ function RecommendContent() {
       let greeting = "즐거운 시간 되세요!";
       if (rec.facility.type === "cafeteria") greeting = "맛있게 드세요!";
       else if (rec.facility.type === "parking") greeting = "안전 주차 하세요!";
-      else if (rec.facility.type === "loading_dock") greeting = "안전 조업 하세요!";
+      else if (rec.facility.type === "rest_area") greeting = "푹 쉬세요!";
 
       setToast(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
 
@@ -662,8 +792,8 @@ function RecommendContent() {
         return "주차장";
       case "meeting_room":
         return "회의실";
-      case "loading_dock":
-        return "하역장";
+      case "rest_area":
+        return "휴게실";
       default:
         return "공용시설";
     }
@@ -679,7 +809,7 @@ function RecommendContent() {
     { id: "cafeteria", label: "식당 🍴" },
     { id: "parking", label: "주차장 🚗" },
     { id: "meeting_room", label: "회의실 🤝" },
-    { id: "loading_dock", label: "하역장 🚚" },
+    { id: "rest_area", label: "휴게실 🛋️" },
   ];
 
   return (
@@ -878,6 +1008,63 @@ function RecommendContent() {
               <p className="text-xs text-slate-400 leading-relaxed">
                 InduSpot AI의 최적화된 TTTV 대안 경로 매칭을 제공받기 위해, 평소에 자주 방문하시는 시설 종류를 **3개 이상** 선택해 주세요.
               </p>
+            </div>
+
+            {/* 자연어 선호 입력 (텍스트 + 음성) */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
+                🎙️ 선호를 자연어로 말하거나 적어주세요 (AI가 분석)
+              </label>
+              <div className="relative">
+                <textarea
+                  value={nlText}
+                  onChange={(e) => setNlText(e.target.value)}
+                  rows={2}
+                  placeholder="예: 조용한 회의실이랑 전기차 충전되는 가까운 주차장이 좋아요"
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 pr-11 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-sky-400/50 resize-none"
+                />
+                <button
+                  type="button"
+                  onClick={isListening ? stopVoice : startVoice}
+                  title="음성으로 말하기"
+                  className={`absolute right-2 top-2 w-8 h-8 rounded-full flex items-center justify-center border transition-all ${
+                    isListening
+                      ? "bg-rose-500/20 border-rose-400 text-rose-300 animate-pulse"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/20"
+                  }`}
+                >
+                  {isListening ? "■" : "🎤"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleNlAnalyze}
+                disabled={isParsingNl || !nlText.trim()}
+                className="w-full py-2.5 bg-sky-500/15 border border-sky-400/30 text-sky-200 rounded-xl font-bold text-xs transition-all hover:bg-sky-500/25 disabled:opacity-40"
+              >
+                {isParsingNl ? "AI 분석 중..." : "AI로 선호 분석하기 ✨"}
+              </button>
+              {nlSummary && (
+                <p className="text-[11px] leading-snug text-emerald-200/90 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                  💡 {nlSummary}
+                </p>
+              )}
+              {nlApplied && (
+                <button
+                  type="button"
+                  onClick={handleApplyNlAndFetch}
+                  className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-sky-600 rounded-xl font-bold text-xs transition-all hover:opacity-90 active:scale-[0.98] shadow-lg shadow-emerald-500/20"
+                >
+                  이 선호로 추천 받기 →
+                </button>
+              )}
+            </div>
+
+            {/* 구분선 */}
+            <div className="flex items-center gap-3 text-[10px] text-slate-500">
+              <div className="flex-1 h-px bg-white/10" />
+              또는 직접 선택
+              <div className="flex-1 h-px bg-white/10" />
             </div>
 
             {/* Checkbox Grid */}

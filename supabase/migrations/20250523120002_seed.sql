@@ -47,11 +47,11 @@ INSERT INTO public.facilities (id, name, type, latitude, longitude, capacity, op
 ('f3000000-0000-0000-0000-000000000004', '테크노타워 다목적홀 C', 'meeting_room', 37.3225, 126.8138, 60, 
  '{"weekday": "09:00-22:00", "weekend": "09:00-18:00"}'::jsonb, '{"has_beam_projector": true, "has_audio_system": true}'::jsonb),
 
--- 하역장 (loading_dock) - 2개
-('f4000000-0000-0000-0000-000000000001', '북부 종합 물류하역장 D-1', 'loading_dock', 37.3250, 126.8145, 10, 
- '{"24_7": true}'::jsonb, '{"max_tonnage": 15, "has_forklift": true}'::jsonb),
-('f4000000-0000-0000-0000-000000000002', '남부 컨테이너 하역장 E-2', 'loading_dock', 37.3150, 126.8110, 6, 
- '{"24_7": true}'::jsonb, '{"max_tonnage": 25, "has_forklift": true}'::jsonb)
+-- 휴게실 (rest_area) - 2개
+('f4000000-0000-0000-0000-000000000001', '북부 직원 휴게라운지 D-1', 'rest_area', 37.3250, 126.8145, 10,
+ '{"24_7": true}'::jsonb, '{"massageChairs": {"total": 3, "inUse": 3}, "sleepCapsules": {"total": 2, "inUse": 2}, "playstation": {"total": 1, "inUse": 1}}'::jsonb),
+('f4000000-0000-0000-0000-000000000002', '남부 직원 휴게라운지 E-2', 'rest_area', 37.3150, 126.8110, 6,
+ '{"24_7": true}'::jsonb, '{"massageChairs": {"total": 3, "inUse": 0}, "sleepCapsules": {"total": 2, "inUse": 0}, "playstation": {"total": 1, "inUse": 0}}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
 
@@ -109,16 +109,16 @@ SELECT
             ELSE 0.0
           END
 
-        -- 4) 하역장 (loading_dock) 패턴
-        WHEN f.type = 'loading_dock' THEN
+        -- 4) 휴게실 (rest_area) 패턴
+        WHEN f.type = 'rest_area' THEN
           CASE
             -- 주말 패턴: 한산
             WHEN EXTRACT(ISODOW FROM t) IN (6, 7) THEN 0.05 + random() * 0.10
-            -- 평일 오전 물류 피크 (08:00 ~ 11:30)
+            -- 평일 오전 휴식 피크 (08:00 ~ 11:30)
             WHEN EXTRACT(HOUR FROM t) BETWEEN 8 AND 11 THEN 0.60 + random() * 0.35
-            -- 평일 오후 물류 피크 (13:30 ~ 16:30)
+            -- 평일 점심 직후 휴식 피크 (13:30 ~ 16:30)
             WHEN EXTRACT(HOUR FROM t) BETWEEN 13 AND 16 THEN 0.55 + random() * 0.35
-            -- 평일 야간 물류 교대
+            -- 평일 야간 교대 휴식
             WHEN EXTRACT(HOUR FROM t) BETWEEN 21 AND 23 THEN 0.20 + random() * 0.30
             ELSE 0.05 + random() * 0.15
           END
@@ -151,7 +151,7 @@ SELECT
             WHEN EXTRACT(HOUR FROM t) BETWEEN 18 AND 21 THEN 0.05 + random() * 0.25
             ELSE 0.0
           END
-        WHEN f.type = 'loading_dock' THEN
+        WHEN f.type = 'rest_area' THEN
           CASE
             WHEN EXTRACT(ISODOW FROM t) IN (6, 7) THEN 0.05 + random() * 0.10
             WHEN EXTRACT(HOUR FROM t) BETWEEN 8 AND 11 THEN 0.60 + random() * 0.35

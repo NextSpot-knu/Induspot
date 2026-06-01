@@ -28,7 +28,7 @@ const getMarkerSvg = (type: string, level: number, features: any = {}) => {
   if (type === "cafeteria") emoji = "🍴";
   else if (type === "parking") emoji = "🚗";
   else if (type === "meeting_room") emoji = "🤝";
-  else if (type === "loading_dock") emoji = "🚚";
+  else if (type === "rest_area" || type === "loading_dock") emoji = "🛋️";
 
   const isPrivateParking = type === "parking" && (features?.is_private === true || features?.parking_type === "사내");
 
@@ -59,6 +59,7 @@ const calculateWaitTime = (type: string, level: number, features: any = {}) => {
     cafeteria: 20,
     parking: 5,
     meeting_room: 10,
+    rest_area: 10,
     loading_dock: 30,
   };
   const avgProcessTime = features?.average_processing_time ?? defaultTimes[type] ?? 15;
@@ -387,8 +388,9 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
         return "주차장 🚗";
       case "meeting_room":
         return "회의실 🤝";
+      case "rest_area":
       case "loading_dock":
-        return "하역장 🚚";
+        return "휴게실 🛋️";
       default:
         return "공용시설 📍";
     }
@@ -408,7 +410,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     { label: "식당 🍴", value: "cafeteria" },
     { label: "주차장 🚗", value: "parking" },
     { label: "회의실 🤝", value: "meeting_room" },
-    { label: "하역장 🚚", value: "loading_dock" },
+    { label: "휴게실 🛋️", value: "rest_area" },
   ];
 
   const filteredFacilities = facilities.filter((f) => {

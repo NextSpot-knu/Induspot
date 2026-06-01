@@ -309,7 +309,7 @@ export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
           } else {
             mockVal = 0.02 + noise * 0.1;
           }
-        } else { // loading_dock
+        } else { // rest_area (휴게 공간)
           if (hour >= 8 && hour <= 20) {
             mockVal = 0.15 + noise * 0.45;
           } else {

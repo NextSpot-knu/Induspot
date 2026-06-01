@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE TABLE IF NOT EXISTS public.facilities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('cafeteria', 'parking', 'meeting_room', 'loading_dock')),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('cafeteria', 'parking', 'meeting_room', 'rest_area')),
     latitude DOUBLE PRECISION NOT NULL,
     longitude DOUBLE PRECISION NOT NULL,
     capacity INT NOT NULL,

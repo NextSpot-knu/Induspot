@@ -7,6 +7,7 @@ interface RecommendationCardProps {
   title: string;
   matchPercentage?: number;
   description: string;
+  reason?: string; // WP3: Gemini 생성 추천 사유
   onAccept: () => void;
   onReject: () => void;
   onPutOff?: () => void;
@@ -27,6 +28,7 @@ export function RecommendationCard({
   title,
   matchPercentage,
   description,
+  reason,
   onAccept,
   onReject,
   onPutOff,
@@ -292,8 +294,15 @@ export function RecommendationCard({
         )}
       </div>
 
+      {/* AI 추천 사유 (WP3 Gemini, 있을 때만) */}
+      {reason && (
+        <p className="text-[11px] leading-snug text-sky-200/90 bg-sky-500/10 border border-sky-500/20 rounded-2xl px-3 py-2">
+          💡 {reason}
+        </p>
+      )}
+
       {/* TTTV Metric Grid (Only if metrics are provided) */}
-      {hasTttvMetrics && facilityType !== 'loading_dock' && (
+      {hasTttvMetrics && facilityType !== 'rest_area' && (
         <div className="flex flex-col gap-2 mt-1">
           {facilityType === 'meeting_room' ? (
             <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px]">
@@ -390,7 +399,7 @@ export function RecommendationCard({
       )}
 
       {/* 휴게실 특화 UI (TTTV 미사용) */}
-      {facilityType === 'loading_dock' && (
+      {facilityType === 'rest_area' && (
         <div className="flex flex-col gap-2 mt-1">
           <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
             <span className="text-slate-300 font-medium">안마의자 이용현황</span>
@@ -478,7 +487,7 @@ export function RecommendationCard({
       </div>
 
       {/* Action Buttons: Reject, Put off, Accept Route (or custom for meeting rooms) */}
-      {facilityType === 'loading_dock' ? null : facilityType === 'meeting_room' ? (
+      {facilityType === 'rest_area' ? null : facilityType === 'meeting_room' ? (
         <div className="flex gap-2 mt-1">
           <button
             onClick={() => setShowScheduleModal(true)}

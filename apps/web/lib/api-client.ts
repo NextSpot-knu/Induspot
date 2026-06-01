@@ -163,3 +163,22 @@ export async function submitFeedback(
     action
   });
 }
+
+// --- 자연어 선호 입력 (Gemini 파싱 → 추천 반영) ---
+
+export interface ParsePreferenceResult {
+  preferredCategories: string[];
+  attributes: string[];
+  summary: string;       // 'AI가 이렇게 이해했어요' 한국어 문장
+  isFallback: boolean;   // Gemini 미사용/실패로 키워드 규칙을 썼는지
+  vectorUpdated: boolean;
+  categoriesSaved: boolean;
+}
+
+/**
+ * 근로자가 자연어로 말한/적은 선호를 백엔드(Gemini)로 보내 구조화하고,
+ * 선호 벡터(Pinecone)와 preferred_categories 에 즉시 반영한다.
+ */
+export async function parsePreference(text: string): Promise<ParsePreferenceResult> {
+  return apiClient.post("/api/v1/preferences/parse", { text });
+}
