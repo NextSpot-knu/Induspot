@@ -317,7 +317,7 @@ export default function MainPage() {
       </svg>
     `;
     const userImage = new kakao.maps.MarkerImage(
-      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(userSvg.trim())}`,
+      `data:image/svg+xml;base64,${btoa(userSvg.trim())}`,
       new kakao.maps.Size(100, 100),
       { offset: new kakao.maps.Point(50, 50) }
     );
