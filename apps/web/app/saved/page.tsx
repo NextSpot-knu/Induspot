@@ -23,6 +23,20 @@ export default function SavedPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBookmark, setSelectedBookmark] = useState<BookmarkData | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (date: Date | null) => {
+    if (!date) return '';
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -165,7 +179,7 @@ export default function SavedPage() {
               <button
                 key={bookmark.id}
                 onClick={() => setSelectedBookmark(bookmark)}
-                className={`group flex justify-between items-center p-4 rounded-2xl border backdrop-blur-md transition-all text-left relative overflow-hidden ${
+                className={`group flex flex-col p-4 rounded-2xl border backdrop-blur-md transition-all text-left relative overflow-hidden ${
                   selectedBookmark?.id === bookmark.id
                     ? 'bg-blue-600/20 border-blue-500'
                     : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -176,45 +190,89 @@ export default function SavedPage() {
                   {index + 1}위
                 </div>
                 
-                <div className="pl-4">
-                  <div className="flex items-center gap-2 mb-1 mt-1">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/10 text-gray-300">
-                      {bookmark.category}
-                    </span>
-                    {renderTrafficIndicator(bookmark.trafficStatus)}
+                {/* 상단: 기본 정보 */}
+                <div className="flex justify-between items-start w-full">
+                  <div className="pl-4">
+                    <div className="flex items-center gap-2 mb-1 mt-1">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/10 text-gray-300">
+                        {bookmark.category}
+                      </span>
+                      {renderTrafficIndicator(bookmark.trafficStatus)}
+                    </div>
+                    <h3 className="text-lg font-bold text-white">{bookmark.name}</h3>
                   </div>
-                  <h3 className="text-lg font-bold text-white">{bookmark.name}</h3>
-                </div>
-                
-                <div className="flex flex-col items-end gap-1 text-right pr-8 md:pr-12">
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
-                    <span className="text-gray-400">예상 대기:</span>
-                    <span className="font-semibold text-gray-200">{(bookmark.tttv?.expectedWait ?? parseInt(bookmark.waitTime)) || 0}분</span>
+                  
+                  {/* Delete Button */}
+                  <div className="flex flex-col items-end pr-1 z-20">
+                    <div 
+                      onClick={(e) => handleDelete(bookmark.id, e)}
+                      className="p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity md:flex hidden"
+                    >
+                      <Trash2 size={18} />
+                    </div>
+                    <div 
+                      onClick={(e) => handleDelete(bookmark.id, e)}
+                      className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 md:hidden flex"
+                    >
+                      <Trash2 size={16} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
-                    <span className="text-gray-400">예상 이동:</span>
-                    <span className="font-semibold text-gray-200">{bookmark.tttv?.expectedTravel ?? 0}분</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs sm:text-sm mt-0.5">
-                    <span className="text-blue-300/80 font-medium">총 소요:</span>
-                    <span className="font-bold text-blue-400 text-sm sm:text-base">{(bookmark.tttv?.timeToService ?? parseInt(bookmark.waitTime)) || 0}분</span>
-                  </div>
                 </div>
-                
-                {/* Delete Button */}
-                <div 
-                  onClick={(e) => handleDelete(bookmark.id, e)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity md:flex hidden z-20"
-                >
-                  <Trash2 size={18} />
-                </div>
-                {/* Mobile Delete Button (Always visible on small screens but subtle) */}
-                <div 
-                  onClick={(e) => handleDelete(bookmark.id, e)}
-                  className="absolute bottom-3 right-4 p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 md:hidden z-20"
-                >
-                  <Trash2 size={16} />
-                </div>
+
+                {/* 하단: 타임라인 */}
+                {(() => {
+                  const travelMins = bookmark.tttv?.expectedTravel ?? 0;
+                  const waitMins = bookmark.tttv?.expectedWait ?? parseInt(bookmark.waitTime) ?? 0;
+                  const timeToService = bookmark.tttv?.timeToService ?? parseInt(bookmark.waitTime) ?? 0;
+                  
+                  const arrivalTime = currentTime ? new Date(currentTime.getTime() + travelMins * 60000) : null;
+                  const serviceTime = arrivalTime ? new Date(arrivalTime.getTime() + waitMins * 60000) : null;
+                  
+                  if (!currentTime || !arrivalTime || !serviceTime) return null;
+                  
+                  return (
+                    <div className="w-full mt-4 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-3">
+                      <div className="flex justify-between items-center px-1 mb-1">
+                        <span className="text-blue-300 text-[10px] font-semibold">총 소요 시간</span>
+                        <span className="text-blue-400 font-bold text-sm">{timeToService}분</span>
+                      </div>
+                      <div className="flex items-start justify-between relative">
+                        {/* Connecting Line */}
+                        <div className="absolute top-[3px] left-4 right-4 h-[2px] bg-white/10 z-0" />
+                        
+                        {/* Travel Duration Label */}
+                        <div className="absolute top-[-10px] left-[25%] -translate-x-1/2 z-10">
+                          <span className="text-[9px] font-medium text-emerald-400 bg-[#1a2133] px-1.5 py-0.5 rounded border border-emerald-500/20">이동 {travelMins}분</span>
+                        </div>
+                        {/* Wait Duration Label */}
+                        <div className="absolute top-[-10px] left-[75%] -translate-x-1/2 z-10">
+                          <span className="text-[9px] font-medium text-amber-400 bg-[#1a2133] px-1.5 py-0.5 rounded border border-amber-500/20">대기 {waitMins}분</span>
+                        </div>
+                        
+                        {/* Current Time Step */}
+                        <div className="flex flex-col items-center z-10 w-12">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 ring-4 ring-[#1a2133] mb-1.5" />
+                          <span className="text-[10px] text-white font-bold">{formatTime(currentTime)}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">출발</span>
+                        </div>
+                        
+                        {/* Arrival Time Step */}
+                        <div className="flex flex-col items-center z-10 w-12">
+                          <div className="w-2 h-2 rounded-full bg-emerald-400 ring-4 ring-[#1a2133] mb-1.5" />
+                          <span className="text-[10px] text-white font-bold">{formatTime(arrivalTime)}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">도착</span>
+                        </div>
+
+                        {/* Service Start Step */}
+                        <div className="flex flex-col items-center z-10 w-12">
+                          <div className="w-2 h-2 rounded-full bg-amber-400 ring-4 ring-[#1a2133] mb-1.5" />
+                          <span className="text-[10px] text-white font-bold">{formatTime(serviceTime)}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">{bookmark.category === '식당' ? '식사' : '이용'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </button>
             ))}
           </div>
@@ -228,6 +286,17 @@ export default function SavedPage() {
             title={selectedBookmark.name}
             matchPercentage={100}
             description={`현재 혼잡도: ${selectedBookmark.trafficStatus === 'red' ? '혼잡' : selectedBookmark.trafficStatus === 'yellow' ? '보통' : '여유'}. 예상 대기 시간: ${selectedBookmark.waitTime}.`}
+            tttvScore={selectedBookmark.tttv?.score}
+            preferencePercent={selectedBookmark.tttv?.preferencePercent}
+            expectedWait={selectedBookmark.tttv?.expectedWait ?? parseInt(selectedBookmark.waitTime) ?? 0}
+            expectedTravel={selectedBookmark.tttv?.expectedTravel ?? 0}
+            timeToService={selectedBookmark.tttv?.timeToService ?? parseInt(selectedBookmark.waitTime) ?? 0}
+            facilityType={selectedBookmark.category === '식당' ? 'cafeteria' : selectedBookmark.category === '휴게실' ? 'loading_dock' : 'meeting_room'}
+            facility={{
+              congestionLevel: selectedBookmark.trafficStatus === 'red' ? 0.8 : selectedBookmark.trafficStatus === 'yellow' ? 0.5 : 0.1,
+              capacity: 100,
+              currentCount: selectedBookmark.trafficStatus === 'red' ? 80 : selectedBookmark.trafficStatus === 'yellow' ? 50 : 10,
+            }}
             onAccept={() => {
               const destUrl = selectedBookmark.latitude && selectedBookmark.longitude
                 ? `https://map.kakao.com/link/to/${encodeURIComponent(selectedBookmark.name)},${selectedBookmark.latitude},${selectedBookmark.longitude}`
