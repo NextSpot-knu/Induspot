@@ -9,6 +9,8 @@ import { DashboardCharts, DashboardHeatmap } from '@/components/admin/DashboardC
 import { FacilityTable } from '@/components/admin/FacilityTable';
 import { SimulatePeakButton } from '@/components/admin/SimulatePeakButton';
 
+import { fetchFacilities } from '@/lib/queries';
+
 // KST 시간대 보정 헬퍼
 function getKstHours() {
   const now = new Date();
@@ -17,7 +19,7 @@ function getKstHours() {
 }
 
 // 클라이언트 단의 실시간 Fallback 데이터 생성기
-function generateClientFallbackData() {
+function generateClientFallbackData(realFacilities?: any[]) {
   const kstHour = getKstHours();
   const seed = new Date().getDate() * 100 + kstHour;
   
@@ -42,19 +44,15 @@ function generateClientFallbackData() {
   const isPeak = (kstHour >= 11 && kstHour <= 13) || (kstHour >= 17 && kstHour <= 19);
   const anomalyCount = isPeak ? 2 + Math.floor(pseudoRand(10) * 4) : Math.floor(pseudoRand(10) * 3);
 
-  // 히트맵용 가상 데이터 생성
+  // 히트맵용 가상 데이터 생성 (실제 DB 시설 엔티티 연동 우선)
   const dummyHeatmap: any[] = [];
-  const facilityTypes = ['cafeteria', 'parking', 'meeting_room', 'loading_dock'];
-  const baseNames: Record<string, string[]> = {
-    cafeteria: ['중앙식당', '서브카페', '구내식당 A', '구내식당 B'],
-    parking: ['A1 주차장', 'B2 주차타워', '야외 주차장', '화물 주차구역'],
-    meeting_room: ['대회의실 1', '소회의실 A', '컨퍼런스룸', '세미나실 B'],
-    loading_dock: ['남부 하역장 A', '북부 하역장 B', '중앙 대기소']
-  };
-
-  facilityTypes.forEach((type) => {
-    const names = baseNames[type] || [];
-    names.forEach((name) => {
+  
+  if (realFacilities && realFacilities.length > 0) {
+    // 1. DB에서 로드된 실제 시설을 기반으로 혼잡도 수치만 Fallback 채우기
+    realFacilities.forEach((fac) => {
+      const name = fac.name;
+      const type = fac.type;
+      
       let facSeed = 0;
       for (let i = 0; i < name.length; i++) facSeed += name.charCodeAt(i);
       
@@ -71,7 +69,7 @@ function generateClientFallbackData() {
         } else if (type === 'meeting_room') {
           if (hour >= 9 && hour <= 17) mockVal = 0.3 + noise * 0.55;
           else mockVal = 0.02 + noise * 0.1;
-        } else {
+        } else { // rest_area, loading_dock 등
           if (hour >= 8 && hour <= 20) mockVal = 0.15 + noise * 0.45;
           else mockVal = 0.02 + noise * 0.15;
         }
@@ -84,7 +82,50 @@ function generateClientFallbackData() {
         });
       }
     });
-  });
+  } else {
+    // 2. DB 연결 실패 시 최후의 폴백 (하드코딩 더미 장소)
+    const facilityTypes = ['cafeteria', 'parking', 'meeting_room', 'loading_dock'];
+    const baseNames: Record<string, string[]> = {
+      cafeteria: ['중앙식당', '서브카페', '구내식당 A', '구내식당 B'],
+      parking: ['A1 주차장', 'B2 주차타워', '야외 주차장', '화물 주차구역'],
+      meeting_room: ['대회의실 1', '소회의실 A', '컨퍼런스룸', '세미나실 B'],
+      loading_dock: ['남부 하역장 A', '북부 하역장 B', '중앙 대기소']
+    };
+
+    facilityTypes.forEach((type) => {
+      const names = baseNames[type] || [];
+      names.forEach((name) => {
+        let facSeed = 0;
+        for (let i = 0; i < name.length; i++) facSeed += name.charCodeAt(i);
+        
+        for (let hour = 0; hour < 24; hour++) {
+          const noise = ((facSeed * (hour + 1)) % 100) / 100;
+          let mockVal = 0.1;
+          if (type === 'cafeteria') {
+            if (hour >= 11 && hour <= 13) mockVal = 0.65 + noise * 0.25;
+            else if (hour >= 17 && hour <= 19) mockVal = 0.45 + noise * 0.25;
+            else mockVal = 0.05 + noise * 0.15;
+          } else if (type === 'parking') {
+            if (hour >= 8 && hour <= 18) mockVal = 0.55 + noise * 0.35;
+            else mockVal = 0.15 + noise * 0.2;
+          } else if (type === 'meeting_room') {
+            if (hour >= 9 && hour <= 17) mockVal = 0.3 + noise * 0.55;
+            else mockVal = 0.02 + noise * 0.1;
+          } else {
+            if (hour >= 8 && hour <= 20) mockVal = 0.15 + noise * 0.45;
+            else mockVal = 0.02 + noise * 0.15;
+          }
+          
+          dummyHeatmap.push({
+            facility: name,
+            facilityType: type,
+            hour,
+            value: Math.max(0, Math.min(1, Math.round(mockVal * 100) / 100))
+          });
+        }
+      });
+    });
+  }
 
   // 최근 30일 추이 가상 데이터 생성
   const dummyDistribution: any[] = [];
@@ -135,26 +176,33 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
+      // 1단계: 실시간 시설 목록을 DB로부터 안전하게 로드 시도
+      let databaseFacilities: any[] = [];
+      try {
+        databaseFacilities = await fetchFacilities();
+      } catch (dbErr) {
+        console.warn("DB Facility fetch failed, using fallback list:", dbErr);
+      }
+
       try {
         // 백엔드 API 연동을 우선 시도
         const res = await fetch('/api/admin/dashboard');
         if (res.ok) {
           const raw = await res.json();
-          // 데이터 유효성 검사 (0으로 고정된 값이거나 비어있으면 fallback 발동)
           const kpi = raw.kpi;
           const isInvalid = !kpi || (kpi.avgCongestion?.value === 0 && kpi.acceptRate?.value === 0 && kpi.activeUsers === 0);
           
           if (isInvalid) {
-            setData(generateClientFallbackData());
+            setData(generateClientFallbackData(databaseFacilities));
           } else {
             setData(raw);
           }
         } else {
-          setData(generateClientFallbackData());
+          setData(generateClientFallbackData(databaseFacilities));
         }
       } catch (err) {
         console.warn("Using Client Fallback Dashboard Generator:", err);
-        setData(generateClientFallbackData());
+        setData(generateClientFallbackData(databaseFacilities));
       } finally {
         setLoading(false);
       }
