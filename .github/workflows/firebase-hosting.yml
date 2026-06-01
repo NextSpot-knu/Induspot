@@ -24,7 +24,9 @@ jobs:
       - name: Build Next.js Static Site
         run: npm run web:build
         env:
-          NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-api-7k46d5q.uc.gateway.dev" # 배포된 API 게이트웨이 주소 지정
+          NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-api-7k46d5q.uc.gateway.dev"
+          NEXT_PUBLIC_SUPABASE_URL: "https://xdwnwrthrgflbzpvkouq.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_OOV6VgafzdczmjIBlR9hOQ_ZejGcj2y"
 
       - name: Deploy to Firebase Hosting
         uses: w9jds/firebase-action@v2.2.0
