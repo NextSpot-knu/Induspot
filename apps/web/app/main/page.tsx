@@ -120,19 +120,26 @@ export default function MainPage() {
         const companyLat = 36.109031;
         const companyLng = 128.388471;
         
-        const dummyLoungesSub = Array.from({length: 5}).map((_, i) => ({
-           id: `dummy-lounge-${i}`,
-           name: `사내 휴게실 ${i+1}`,
-           type: 'rest_area',
-           capacity: 10,
-           congestionLevel: Math.random(),
-           currentCount: Math.floor(Math.random() * 10),
-           features: {
-             massageChairs: { total: 3, inUse: Math.floor(Math.random() * 4) },
-             sleepCapsules: { total: 2, inUse: Math.floor(Math.random() * 3) },
-             playstation: { total: 1, inUse: Math.floor(Math.random() * 2) }
-           }
-        }));
+        const dummyLoungesSub = Array.from({length: 5}).map((_, i) => {
+           // 혼잡도 하나로 이용 인원·설비 이용수를 함께 결정(혼잡↑ → 이용↑ → 잔여↓, 서로 연관되게)
+           const congestionLevel = Math.random();
+           const currentCount = Math.round(congestionLevel * 10);
+           return {
+             id: `dummy-lounge-${i}`,
+             name: `사내 휴게실 ${i+1}`,
+             type: 'rest_area',
+             latitude: companyLat,
+             longitude: companyLng,
+             capacity: 10,
+             congestionLevel,
+             currentCount,
+             features: {
+               massageChairs: { total: 3, inUse: Math.round(congestionLevel * 3) },
+               sleepCapsules: { total: 2, inUse: Math.round(congestionLevel * 2) },
+               playstation: { total: 1, inUse: Math.round(congestionLevel) }
+             }
+           };
+        });
 
         const dummyLoungeGroup = {
            id: `dummy-lounge-group`,
@@ -141,21 +148,30 @@ export default function MainPage() {
            latitude: companyLat,
            longitude: companyLng,
            congestionLevel: dummyLoungesSub.reduce((acc, curr) => acc + curr.congestionLevel, 0) / 5,
+           capacity: dummyLoungesSub.reduce((a, c) => a + c.capacity, 0),
+           currentCount: dummyLoungesSub.reduce((a, c) => a + c.currentCount, 0),
            isGroup: true,
            subFacilities: dummyLoungesSub
         };
         
-        const dummyMeetingsInsideSub = Array.from({length: 8}).map((_, i) => ({
-           id: `dummy-meeting-in-${i}`,
-           name: `사내 회의실 ${i+1}호`,
-           type: 'meeting_room',
-           capacity: 8,
-           congestionLevel: Math.random(),
-           currentCount: Math.floor(Math.random() * 8),
-           features: {
-             remainingMinutes: Math.floor(Math.random() * 60)
-           }
-        }));
+        const dummyMeetingsInsideSub = Array.from({length: 8}).map((_, i) => {
+           // 혼잡도로 사용 여부·이용 인원·남은 시간(예상 대기)을 일관되게 결정
+           const congestionLevel = Math.random();
+           const occupied = congestionLevel >= 0.3; // 보통 이상이면 사용중
+           const currentCount = occupied ? Math.max(1, Math.round(congestionLevel * 8)) : 0;
+           const remainingMinutes = occupied ? Math.max(5, Math.round(congestionLevel * 55)) : 0; // 혼잡↑ → 대기↑
+           return {
+             id: `dummy-meeting-in-${i}`,
+             name: `사내 회의실 ${i+1}호`,
+             type: 'meeting_room',
+             latitude: companyLat,
+             longitude: companyLng,
+             capacity: 8,
+             congestionLevel,
+             currentCount,
+             features: { remainingMinutes }
+           };
+        });
 
         const dummyMeetingGroup = {
            id: `dummy-meeting-group`,
@@ -164,23 +180,29 @@ export default function MainPage() {
            latitude: companyLat,
            longitude: companyLng,
            congestionLevel: dummyMeetingsInsideSub.reduce((acc, curr) => acc + curr.congestionLevel, 0) / 8,
+           capacity: dummyMeetingsInsideSub.reduce((a, c) => a + c.capacity, 0),
+           currentCount: dummyMeetingsInsideSub.reduce((a, c) => a + c.currentCount, 0),
            isGroup: true,
            subFacilities: dummyMeetingsInsideSub
         };
 
-        const dummyMeetingsOutside = Array.from({length: 2}).map((_, i) => ({
-           id: `dummy-meeting-out-${i}`,
-           name: `외부 공유오피스 회의실 ${['A','B'][i]}`,
-           type: 'meeting_room',
-           latitude: companyLat + (Math.random() > 0.5 ? 0.006 : -0.006) + (Math.random() * 0.001),
-           longitude: companyLng - 0.02 + (Math.random() * 0.005),
-           capacity: 12,
-           congestionLevel: Math.random(),
-           currentCount: Math.floor(Math.random() * 12),
-           features: {
-             remainingMinutes: Math.floor(Math.random() * 60)
-           }
-        }));
+        const dummyMeetingsOutside = Array.from({length: 2}).map((_, i) => {
+           const congestionLevel = Math.random();
+           const occupied = congestionLevel >= 0.3;
+           const currentCount = occupied ? Math.max(1, Math.round(congestionLevel * 12)) : 0;
+           const remainingMinutes = occupied ? Math.max(5, Math.round(congestionLevel * 55)) : 0;
+           return {
+             id: `dummy-meeting-out-${i}`,
+             name: `외부 공유오피스 회의실 ${['A','B'][i]}`,
+             type: 'meeting_room',
+             latitude: companyLat + (Math.random() > 0.5 ? 0.006 : -0.006) + (Math.random() * 0.001),
+             longitude: companyLng - 0.02 + (Math.random() * 0.005),
+             capacity: 12,
+             congestionLevel,
+             currentCount,
+             features: { remainingMinutes }
+           };
+        });
 
         const finalFacilities = [...mapped, dummyLoungeGroup, dummyMeetingGroup, ...dummyMeetingsOutside];
         setFacilities(finalFacilities);
@@ -777,7 +799,8 @@ export default function MainPage() {
             position: marker.getPosition(),
             content: content,
             yAnchor: 1.3,
-            zIndex: 50
+            zIndex: 50,
+            clickable: true // 팝업 내부 버튼 클릭이 지도로 새지 않게(목록 선택 시 하단 카드 표시)
           });
           
           overlay.setMap(mapInstanceRef.current);

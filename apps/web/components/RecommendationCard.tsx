@@ -296,7 +296,7 @@ export function RecommendationCard({
 
       {/* AI 추천 사유 (WP3 Gemini, 있을 때만) */}
       {reason && (
-        <p className="text-[11px] leading-snug text-sky-200/90 bg-sky-500/10 border border-sky-500/20 rounded-2xl px-3 py-2">
+        <p className="text-[13px] leading-relaxed text-sky-200/95 bg-sky-500/10 border border-sky-500/20 rounded-2xl px-3.5 py-2.5">
           💡 {reason}
         </p>
       )}
@@ -308,14 +308,14 @@ export function RecommendationCard({
             <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px]">
               <div className="text-center">
                 <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">현재 이용현황</span>
-                <span className="font-extrabold text-sky-400">
-                  {facility?.congestionLevel >= 0.7 ? '사용중' : '비어있음'}
+                <span className={`font-extrabold ${(facility?.currentCount ?? 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {(facility?.currentCount ?? 0) > 0 ? `사용중 ${facility.currentCount}/${facility.capacity}` : '비어있음'}
                 </span>
               </div>
               <div className="text-center border-l border-white/10">
-                <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">남은 시간</span>
+                <span className="text-slate-400 block text-[9px] mb-0.5 font-medium">예상 대기</span>
                 <span className="font-extrabold text-amber-400">
-                  {facility?.congestionLevel >= 0.7 ? `${facility?.features?.remainingMinutes || 15}분` : '-'}
+                  {(facility?.currentCount ?? 0) > 0 ? `${facility?.features?.remainingMinutes || 15}분` : '즉시 이용'}
                 </span>
               </div>
             </div>
@@ -401,6 +401,18 @@ export function RecommendationCard({
       {/* 휴게실 특화 UI (TTTV 미사용) */}
       {facilityType === 'rest_area' && (
         <div className="flex flex-col gap-2 mt-1">
+          {/* 예상 대기 — 혼잡도와 연관(혼잡↑ → 대기↑) */}
+          <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
+            <span className="text-slate-300 font-medium">예상 대기</span>
+            <span className="font-extrabold text-rose-300">
+              {(() => {
+                const c = facility?.congestionLevel ?? 0;
+                if (c >= 0.7) return `약 ${5 + Math.round(((c - 0.7) / 0.3) * 15)}분`;
+                if (c >= 0.3) return `약 ${Math.max(1, Math.round(c * 8))}분`;
+                return '즉시 이용 가능';
+              })()}
+            </span>
+          </div>
           <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
             <span className="text-slate-300 font-medium">안마의자 이용현황</span>
             <span className="font-extrabold text-amber-400">
