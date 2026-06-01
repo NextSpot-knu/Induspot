@@ -44,6 +44,10 @@ __pycache__/
 *.pyo
 *.pkl
 
+# Python 가상환경
+.venv/
+poetry.toml
+
 # WP1 Vertex 배포 임시 산출물 (재생성 가능)
 *.joblib
 .venv_deploy/
