@@ -288,44 +288,24 @@ export default function MainPage() {
       userMarkerRef.current.setMap(null);
     }
 
-    const userSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-        <defs>
-          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
-          </filter>
-          <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
-            <stop offset="30%" stop-color="#ffffe0" stop-opacity="0.7"/>
-            <stop offset="70%" stop-color="#ffffa1" stop-opacity="0.3"/>
-            <stop offset="100%" stop-color="#ffffa1" stop-opacity="0"/>
-          </radialGradient>
-        </defs>
-        <style>
-          @keyframes pulse {
-            0% { transform: scale(0.3); opacity: 1; }
-            100% { transform: scale(1.6); opacity: 0; }
-          }
-          .pulse-circle {
-            animation: pulse 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);
-            transform-origin: 50px 50px;
-          }
-        </style>
-        <circle class="pulse-circle" cx="50" cy="50" r="30" fill="url(#glow)"/>
-        <circle cx="50" cy="50" r="12" fill="#ffffff" filter="url(#shadow)"/>
-        <circle cx="50" cy="50" r="8" fill="#ffffa1"/>
-      </svg>
+    const content = `
+      <style>
+        @keyframes pulse-user-marker {
+          0% { transform: scale(0.3); opacity: 1; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+      </style>
+      <div style="position: relative; width: 100px; height: 100px; pointer-events: none;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,224,0.7) 30%, rgba(255,255,161,0.3) 70%, rgba(255,255,161,0) 100%); animation: pulse-user-marker 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
+        <div style="position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; margin-top: -12px; margin-left: -12px; background: #ffffff; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.6);"></div>
+        <div style="position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin-top: -8px; margin-left: -8px; background: #ffffa1; border-radius: 50%;"></div>
+      </div>
     `;
-    const userImage = new kakao.maps.MarkerImage(
-      `data:image/svg+xml;base64,${btoa(userSvg.trim())}`,
-      new kakao.maps.Size(100, 100),
-      { offset: new kakao.maps.Point(50, 50) }
-    );
 
-    const userMarker = new kakao.maps.Marker({
+    const userMarker = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(userLocation.lat, userLocation.lng),
-      image: userImage,
-      zIndex: 10,
+      content: content,
+      zIndex: 10
     });
 
     userMarker.setMap(mapInstanceRef.current);
