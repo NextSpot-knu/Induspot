@@ -68,6 +68,8 @@ export default function MainPage() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isCardHidden, setIsCardHidden] = useState(false);
   const [isMockLocationMinimized, setIsMockLocationMinimized] = useState(true);
+  const [isMockTimeMinimized, setIsMockTimeMinimized] = useState(true);
+  const [mockHour, setMockHour] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -416,7 +418,7 @@ export default function MainPage() {
       loading_dock: 30
     };
     const avgProcessTime = facility.features?.average_processing_time ?? defaultTimes[facility.type] ?? 15;
-    const hour = new Date().getHours();
+    const hour = mockHour !== null ? mockHour : new Date().getHours();
     let timeMultiplier = 1.0;
     if (hour >= 12 && hour < 14) timeMultiplier = 1.3;
     else if (hour === 7 || hour === 15) timeMultiplier = 1.2;
@@ -909,6 +911,7 @@ export default function MainPage() {
                 facility={selectedFacility}
                 rank={rank}
                 totalCandidates={totalCandidates}
+                mockHour={mockHour}
               />
             </div>
           );
@@ -918,8 +921,9 @@ export default function MainPage() {
         }
       })()}
 
-      {/* Test Mock Locations Sidebar (Right Side) */}
-      <div className="absolute right-4 top-[170px] z-20 flex flex-col gap-2 pointer-events-auto">
+      {/* Test Mock Sidebar (Right Side) */}
+      <div className="absolute right-4 top-[170px] z-20 flex flex-col gap-3 pointer-events-auto">
+        {/* Location Mock */}
         <div className="bg-[#111622]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg flex flex-col overflow-hidden transition-all duration-300">
           <div 
             className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors"
@@ -929,7 +933,7 @@ export default function MainPage() {
               <span className="text-cyan-400">📍</span>
               {!isMockLocationMinimized && (
                 <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-                  모킹
+                  위치 모킹
                 </span>
               )}
             </div>
@@ -972,6 +976,58 @@ export default function MainPage() {
                       }`}
                     >
                       {loc.id}번
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Time Mock */}
+        <div className="bg-[#111622]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg flex flex-col overflow-hidden transition-all duration-300">
+          <div 
+            className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors"
+            onClick={() => setIsMockTimeMinimized(!isMockTimeMinimized)}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-purple-400">🕒</span>
+              {!isMockTimeMinimized && (
+                <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">
+                  시간 모킹
+                </span>
+              )}
+            </div>
+            {isMockTimeMinimized ? (
+              <ChevronDown size={14} className="text-gray-400" />
+            ) : (
+              <ChevronUp size={14} className="text-gray-400 ml-2" />
+            )}
+          </div>
+          
+          {!isMockTimeMinimized && (
+            <div className="px-3 pb-3 border-t border-white/5">
+              <div className="grid grid-cols-1 gap-1.5 w-32 mt-2">
+                {[
+                  { name: "현재 시간", value: null },
+                  { name: "점심 피크", value: 12.5 },
+                  { name: "저녁 피크", value: 18.5 }
+                ].map((timeOption) => {
+                  const isCurrent = mockHour === timeOption.value;
+                  return (
+                    <button
+                      key={timeOption.name}
+                      onClick={() => {
+                        setMockHour(timeOption.value);
+                        showToast(`가상 시간이 '${timeOption.name}'(으)로 설정되었습니다.`);
+                      }}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                        isCurrent
+                          ? 'bg-purple-600 text-white border border-purple-400 shadow-md shadow-purple-500/25'
+                          : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {timeOption.name}
                     </button>
                   );
                 })}

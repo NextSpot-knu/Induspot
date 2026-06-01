@@ -20,6 +20,7 @@ interface RecommendationCardProps {
   facility?: any;
   rank?: number;
   totalCandidates?: number;
+  mockHour?: number | null;
 }
 
 export function RecommendationCard({
@@ -39,6 +40,7 @@ export function RecommendationCard({
   facility,
   rank,
   totalCandidates,
+  mockHour,
 }: RecommendationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -54,12 +56,18 @@ export function RecommendationCard({
   }, [title]);
 
   useEffect(() => {
+    if (mockHour !== undefined && mockHour !== null) {
+      const d = new Date();
+      d.setHours(Math.floor(mockHour), (mockHour % 1) * 60, 0, 0);
+      setCurrentTime(d);
+      return;
+    }
     setCurrentTime(new Date());
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [mockHour]);
   
   // Meeting room mock state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
