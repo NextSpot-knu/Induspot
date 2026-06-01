@@ -837,7 +837,8 @@ export default function MainPage() {
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-black flex flex-col">
+    <div className="relative w-full h-screen overflow-hidden mesh-gradient-dark flex flex-col">
+      <div className="bg-grainy"></div>
       {/* Kakao Map API Script */}
       {appKey && (
         <Script
@@ -888,14 +889,14 @@ export default function MainPage() {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
                 }}
-                className={`flex items-center px-4 py-2 rounded-full border backdrop-blur-md whitespace-nowrap transition-all ${
+                className={`flex items-center px-4 py-2 rounded-full transition-all fractal-glass ${
                   isActive 
-                    ? 'bg-blue-600/30 border-blue-400 text-white' 
-                    : 'bg-[#131a28]/80 border-white/10 text-gray-400 hover:bg-white/10'
+                    ? 'bg-blue-600/30 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] text-shadow-sm' 
+                    : 'border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon size={16} className={`mr-2 ${isActive ? 'text-blue-300' : 'text-gray-400'}`} />
-                <span className="text-sm font-medium">{filter.id}</span>
+                <Icon size={16} className={`mr-2 drop-shadow-md ${isActive ? 'text-blue-300' : 'text-gray-400'}`} />
+                <span className={`text-sm font-medium ${isActive ? 'text-shadow-sm' : ''}`}>{filter.id}</span>
               </button>
             );
           })}
@@ -1075,7 +1076,7 @@ export default function MainPage() {
       )}
 
       {/* Bottom Navigation Bar */}
-      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
+      <div className="absolute bottom-0 w-full z-30 fractal-glass border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
         {[
           { id: 'Home', icon: Home, label: 'Home' },
           { id: 'Saved', icon: Bookmark, label: 'Saved' },

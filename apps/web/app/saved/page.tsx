@@ -122,9 +122,9 @@ export default function SavedPage() {
   };
 
   return (
-    <div className="relative w-full h-[100dvh] bg-[url('/bg.png')] bg-cover bg-center flex flex-col overflow-hidden">
-      {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-[#0b101e]/70 z-0"></div>
+    <div className="relative w-full h-[100dvh] mesh-gradient-dark flex flex-col overflow-hidden">
+      {/* Noise Texture */}
+      <div className="bg-grainy"></div>
 
       {/* Header */}
       <header className="flex justify-between items-center p-5 border-b border-white/10 z-10 relative">
@@ -180,10 +180,10 @@ export default function SavedPage() {
               <button
                 key={bookmark.id}
                 onClick={() => setSelectedBookmark(bookmark)}
-                className={`group flex flex-col p-4 rounded-2xl border backdrop-blur-md transition-all text-left relative overflow-hidden ${
+                className={`group flex flex-col p-4 rounded-2xl transition-all text-left relative overflow-hidden fractal-glass ${
                   selectedBookmark?.id === bookmark.id
-                    ? 'bg-blue-600/20 border-blue-500'
-                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    ? 'bg-blue-600/30 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
+                    : 'border-white/10 hover:bg-white/10'
                 }`}
               >
                 {/* 랭크 표시 뱃지 */}
@@ -319,7 +319,7 @@ export default function SavedPage() {
       <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
       {/* Bottom Navigation Bar */}
-      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
+      <div className="absolute bottom-0 w-full z-30 fractal-glass border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
         {[
           { id: 'Home', icon: Home, label: 'Home' },
           { id: 'Saved', icon: Bookmark, label: 'Saved' },
