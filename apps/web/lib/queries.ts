@@ -231,6 +231,7 @@ export async function fetchHeatmapData(): Promise<HeatmapCell[]> {
       .select("congestion_level, timestamp, facility:facilities(name)")
       .gte("timestamp", today.start)
       .lte("timestamp", today.end)
+      .order("timestamp", { ascending: true })
       .range(fromLogs, fromLogs + limit - 1);
     if (error) {
       console.error("Error fetching logs for heatmap:", error);
