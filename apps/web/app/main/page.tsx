@@ -305,9 +305,9 @@ export default function MainPage() {
             transform-origin: 30px 30px;
           }
         </style>
-        <circle class="pulse-circle" cx="30" cy="30" r="16" fill="#3b82f6" fill-opacity="0.6"/>
+        <circle class="pulse-circle" cx="30" cy="30" r="16" fill="#facc15" fill-opacity="0.7"/>
         <circle cx="30" cy="30" r="10" fill="#ffffff" filter="url(#shadow)"/>
-        <circle cx="30" cy="30" r="7" fill="#2563eb"/>
+        <circle cx="30" cy="30" r="7" fill="#eab308"/>
       </svg>
     `;
     const userImage = new kakao.maps.MarkerImage(
