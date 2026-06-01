@@ -1124,7 +1124,7 @@ export default function MainPage() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-[350px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
+        <div className="fixed bottom-[350px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-max max-w-[90vw] animate-toast">
           <div className="bg-black/85 backdrop-blur-md text-white text-xs sm:text-sm px-5 py-3 rounded-full shadow-lg text-center font-medium break-keep">
             {toastMessage}
           </div>
