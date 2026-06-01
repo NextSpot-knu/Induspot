@@ -19,7 +19,7 @@ export function SimulatePeakButton() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage('점심 피크타임 모의 발생 완료! 대시보드를 새로고침합니다.');
+        setMessage('24시간 모의 데이터 생성 완료! 대시보드를 새로고침합니다.');
         // Refresh page data to fetch the newly generated logs
         router.refresh();
         setTimeout(() => setMessage(null), 4000);
@@ -46,10 +46,10 @@ export function SimulatePeakButton() {
       <button
         onClick={handleSimulate}
         disabled={isSimulating}
-        className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm cursor-pointer"
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg shadow-sm transition-colors text-sm cursor-pointer"
       >
         <Play size={16} fill="currentColor" />
-        {isSimulating ? '모의 데이터 생성 중...' : '점심 피크타임 모의 발생'}
+        {isSimulating ? '모의 데이터 생성 중...' : '24시간 데이터 모의 발생'}
       </button>
     </div>
   );
