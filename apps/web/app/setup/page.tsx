@@ -20,11 +20,7 @@ export default function SetupPage() {
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      try {
-        localStorage.setItem('induspot_user_prefs', JSON.stringify(preferences));
-      } catch (e) {
-        // localStorage 사용 불가(프라이빗 모드/용량 초과 등) — 데모 흐름은 유지
-      }
+      console.log('User Preferences:', preferences);
       router.push('/main');
     }
   };

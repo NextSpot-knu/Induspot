@@ -144,10 +144,9 @@ export default function InfrastructurePage() {
 
       const formatted = (data || []).map(log => {
         const date = new Date(log.timestamp);
-        // 한국 시간대(KST) 시간 포맷팅: HH:MM (UTC + 9시간 보정 후 getUTC* 사용)
-        const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
-        const hours = String(kstDate.getUTCHours()).padStart(2, '0');
-        const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
+        // 한국 시간대(KST) 시간 포맷팅: HH:MM
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
         return {
           time: `${hours}:${minutes}`,
           demand: Math.round(log.congestion_level * 100)

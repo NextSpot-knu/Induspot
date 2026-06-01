@@ -17,7 +17,6 @@ declare global {
 }
 
 const getMarkerSvg = (type: string, level: number, features: any = {}) => {
-  // 혼잡도 색상 정본 스킴(lib/utils.ts와 동일, 4단계): 한산=Blue / 여유=Green / 보통=Yellow / 혼잡=Orange
   let color = "#3b82f6"; // blue (한산)
   if (level >= 0.75) {
     color = "#f97316"; // orange (혼잡)
@@ -432,7 +431,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     const handleSwitchToSimulation = () => {
       setIsSimulation(true);
       setMapLoaded(true);
-      setUserLocation({ lat: 36.1198, lng: 128.3471 });
+      setUserLocation({ lat: 37.3200, lng: 126.8120 });
       setMapError(false);
     };
 
@@ -484,7 +483,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
           {/* Technical Info Label */}
           <div className="absolute bottom-6 left-6 text-[9px] text-slate-500 font-mono space-y-0.5 z-10 pointer-events-none">
             <div>SYSTEM: SIMULATED SMART INDUSTRIAL PARK DIGITAL TWIN</div>
-            <div>COORDINATES IN USE: GUMI COMPLEX SEED CLUSTER</div>
+            <div>COORDINATES IN USE: ANYANG COMPLEX SEED CLUSTER</div>
             <div>KAKAOMAPS: BYPASSED (SIMULATOR MODE ACTIVE)</div>
           </div>
 
@@ -508,6 +507,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
             const markerSvg = getMarkerSvg(f.type, f.congestionLevel, f.features);
             const isPrivateParking = f.type === "parking" && (f.features?.is_private === true || f.features?.parking_type === "사내");
             const translateClass = isPrivateParking ? "-translate-x-1/2 -translate-y-1/2" : "-translate-x-1/2 -translate-y-[85%]";
+            const imgClass = isPrivateParking ? "w-9 h-9" : "w-9 h-115"; // h-11.5 equivalent for viewBox aspect ratio
 
             return (
               <button
@@ -676,29 +676,6 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
                         className="text-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-300 px-2 py-0.5 rounded-md font-semibold"
                       >
                         {key}: {val}
-                      </span>
-                    );
-                  }
-                  // 숫자형 feature(예: average_price) 표기
-                  if (typeof val === "number" && key !== "average_processing_time") {
-                    return (
-                      <span
-                        key={key}
-                        className="text-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-300 px-2 py-0.5 rounded-md font-semibold"
-                      >
-                        {key}: {val}
-                      </span>
-                    );
-                  }
-                  // 중첩 객체형 feature(휴게실 amenity: massageChairs/sleepCapsules/playstation {inUse,total})
-                  if (val && typeof val === "object" && "inUse" in (val as any) && "total" in (val as any)) {
-                    const a = val as { inUse: number; total: number };
-                    return (
-                      <span
-                        key={key}
-                        className="text-[10px] bg-sky-500/10 border border-sky-500/20 text-sky-300 px-2 py-0.5 rounded-md font-semibold"
-                      >
-                        ✓ {key}: {a.inUse}/{a.total}
                       </span>
                     );
                   }

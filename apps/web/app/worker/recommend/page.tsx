@@ -226,14 +226,14 @@ function RecommendContent() {
     }
   }, [paramLat, paramLng]);
 
-  // Fallback Mock Seed Data for Resilient Local Demos (Gumi National Industrial Complex)
+  // Fallback Mock Seed Data for Resilient Local Demos (Ansan Complex)
   const MOCK_SEED_FACILITIES = [
     {
       id: "f1000000-0000-0000-0000-000000000001",
       name: "푸드스퀘어 한식관",
       type: "cafeteria",
-      latitude: 36.1198,
-      longitude: 128.3471,
+      latitude: 37.3185,
+      longitude: 126.8115,
       capacity: 150,
       operating_hours: { weekday: "11:00-20:00", weekend: "11:00-14:00" },
       features: { has_vegetarian: true, average_price: 7500, average_processing_time: 20 },
@@ -243,8 +243,8 @@ function RecommendContent() {
       id: "f1000000-0000-0000-0000-000000000002",
       name: "Indu 뷔페 식당",
       type: "cafeteria",
-      latitude: 36.1205,
-      longitude: 128.3464,
+      latitude: 37.3202,
+      longitude: 126.8141,
       capacity: 200,
       operating_hours: { weekday: "11:30-19:00", weekend: "closed" },
       features: { buffet_style: true, average_price: 8000, average_processing_time: 20 },
@@ -254,8 +254,8 @@ function RecommendContent() {
       id: "f1000000-0000-0000-0000-000000000003",
       name: "단지내 중식당 화성",
       type: "cafeteria",
-      latitude: 36.1212,
-      longitude: 128.3485,
+      latitude: 37.3215,
+      longitude: 126.8098,
       capacity: 80,
       operating_hours: { weekday: "11:00-21:00", weekend: "11:00-15:00" },
       features: { has_delivery: true, average_price: 9000, average_processing_time: 20 },
@@ -265,8 +265,8 @@ function RecommendContent() {
       id: "f1000000-0000-0000-0000-000000000004",
       name: "밀스밀 간편식 코너",
       type: "cafeteria",
-      latitude: 36.1180,
-      longitude: 128.3455,
+      latitude: 37.3171,
+      longitude: 126.8152,
       capacity: 50,
       operating_hours: { weekday: "08:00-22:00", weekend: "09:00-18:00" },
       features: { sandwich_bar: true, average_price: 5500, average_processing_time: 15 },
@@ -276,8 +276,8 @@ function RecommendContent() {
       id: "f1000000-0000-0000-0000-000000000005",
       name: "산단 남부 한식뷔페",
       type: "cafeteria",
-      latitude: 36.1172,
-      longitude: 128.3470,
+      latitude: 37.3230,
+      longitude: 126.8120,
       capacity: 180,
       operating_hours: { weekday: "11:00-18:30", weekend: "closed" },
       features: { buffet_style: true, average_price: 7000, average_processing_time: 20 },
@@ -287,8 +287,8 @@ function RecommendContent() {
       id: "f2000000-0000-0000-0000-000000000001",
       name: "중앙 주차타워 A동",
       type: "parking",
-      latitude: 36.1203,
-      longitude: 128.3477,
+      latitude: 37.3195,
+      longitude: 126.8130,
       capacity: 400,
       operating_hours: { "24_7": true },
       features: { has_ev_charger: true, indoor: true, average_processing_time: 5 },
@@ -298,8 +298,8 @@ function RecommendContent() {
       id: "f2000000-0000-0000-0000-000000000002",
       name: "지상 남부 주차장",
       type: "parking",
-      latitude: 36.1189,
-      longitude: 128.3463,
+      latitude: 37.3242,
+      longitude: 126.8105,
       capacity: 250,
       operating_hours: { "24_7": true },
       features: { has_ev_charger: false, indoor: false, average_processing_time: 5 },
@@ -309,8 +309,8 @@ function RecommendContent() {
       id: "f2000000-0000-0000-0000-000000000003",
       name: "서부 복합주차장 B",
       type: "parking",
-      latitude: 36.1178,
-      longitude: 128.3488,
+      latitude: 37.3160,
+      longitude: 126.8085,
       capacity: 300,
       operating_hours: { "24_7": true },
       features: { has_ev_charger: true, indoor: true, average_processing_time: 5 },
@@ -320,8 +320,8 @@ function RecommendContent() {
       id: "f3000000-0000-0000-0000-000000000001",
       name: "본관 1층 컨퍼런스룸 101",
       type: "meeting_room",
-      latitude: 36.1193,
-      longitude: 128.3466,
+      latitude: 37.3190,
+      longitude: 126.8125,
       capacity: 30,
       operating_hours: { weekday: "09:00-18:00", weekend: "closed" },
       features: { has_beam_projector: true, has_video_conf: true, average_processing_time: 10 },
@@ -331,8 +331,8 @@ function RecommendContent() {
       id: "f3000000-0000-0000-0000-000000000002",
       name: "혁신센터 스마트회의실 B",
       type: "meeting_room",
-      latitude: 36.1207,
-      longitude: 128.3473,
+      latitude: 37.3208,
+      longitude: 126.8155,
       capacity: 12,
       operating_hours: { weekday: "08:00-20:00", weekend: "09:00-18:00" },
       features: { has_beam_projector: true, whiteboard: true, average_processing_time: 10 },
@@ -342,8 +342,8 @@ function RecommendContent() {
       id: "f4000000-0000-0000-0000-000000000001",
       name: "북부 직원 휴게라운지 D-1",
       type: "rest_area",
-      latitude: 36.1191,
-      longitude: 128.3478,
+      latitude: 37.3250,
+      longitude: 126.8145,
       capacity: 10,
       operating_hours: { "24_7": true },
       features: { massageChairs: { inUse: 3, total: 3 }, sleepCapsules: { inUse: 2, total: 2 }, playstation: { inUse: 1, total: 1 }, average_processing_time: 10 },
@@ -353,8 +353,8 @@ function RecommendContent() {
       id: "f4000000-0000-0000-0000-000000000002",
       name: "남부 직원 휴게라운지 E-2",
       type: "rest_area",
-      latitude: 36.1220,
-      longitude: 128.3490,
+      latitude: 37.3150,
+      longitude: 126.8110,
       capacity: 6,
       operating_hours: { "24_7": true },
       features: { massageChairs: { inUse: 0, total: 3 }, sleepCapsules: { inUse: 0, total: 2 }, playstation: { inUse: 0, total: 1 }, average_processing_time: 10 },
@@ -479,11 +479,10 @@ function RecommendContent() {
               latitude: f.latitude,
               longitude: f.longitude,
               capacity: f.capacity,
-              currentCount: Math.round(f.capacity * (f.congestion_logs?.[0]?.congestion_level ?? 0)),
               operatingHours: f.operating_hours,
               features: f.features
             },
-            tttvScore: 0.85 - (i * 0.1),
+            tttvScore: 85 - (i * 10),
             breakdown: {
               preference: 0.9 - (i * 0.15),
               waitTime: 5 + (i * 3),
@@ -502,9 +501,7 @@ function RecommendContent() {
     }
 
     checkHistoryAndFetch();
-    // originalFacility 객체 전체를 의존성에 넣으면 비동기로 null→객체가 채워질 때 재실행되어
-    // getRecommendations 가 중복 호출(추천 이력 중복 INSERT)된다. 폴백에서 쓰는 type 원시값만 의존한다.
-  }, [userId, facilityId, lat, lng, originalFacility?.type]);
+  }, [userId, facilityId, lat, lng, originalFacility]);
 
   // 추천 API 실패 시 데모용 목업 추천 생성 (회복탄력성)
   const buildMockRecommendations = (): RecommendationResponse[] => {
@@ -519,11 +516,10 @@ function RecommendContent() {
         latitude: f.latitude,
         longitude: f.longitude,
         capacity: f.capacity,
-        currentCount: Math.round(f.capacity * (f.congestion_logs?.[0]?.congestion_level ?? 0)),
         operatingHours: f.operating_hours,
         features: f.features,
       },
-      tttvScore: 0.85 - i * 0.1,
+      tttvScore: 85 - i * 10,
       breakdown: { preference: 0.9 - i * 0.15, waitTime: 5 + i * 3, travelTime: 2.5 + i, incentive: 0.2 },
       distanceM: 120 + i * 35,
       rank: i + 1,
@@ -569,17 +565,6 @@ function RecommendContent() {
     }
     setIsListening(false);
   };
-
-  // 언마운트 시 음성 인식 세션 정리(인식 중 다른 화면으로 이동해도 마이크/리스너가 남지 않도록)
-  useEffect(() => {
-    return () => {
-      try {
-        recognitionRef.current?.stop();
-      } catch {
-        /* noop */
-      }
-    };
-  }, []);
 
   // 자연어 → Gemini 파싱 → 선호 벡터/카테고리 반영 (서버가 저장까지 수행)
   const handleNlAnalyze = async () => {
@@ -642,7 +627,7 @@ function RecommendContent() {
   // Handle Onboarding Preferences Submission
   const handleOnboardingSubmit = async () => {
     if (selectedOnboardingCats.length < 3) {
-      setToast("선호하는 인프라 종류를 3개 이상 선택해 주세요!");
+      alert("선호하는 인프라 종류를 3개 이상 선택해 주세요!");
       return;
     }
     if (!userId || !facilityId) return;
@@ -684,11 +669,10 @@ function RecommendContent() {
             latitude: f.latitude,
             longitude: f.longitude,
             capacity: f.capacity,
-            currentCount: Math.round(f.capacity * (f.congestion_logs?.[0]?.congestion_level ?? 0)),
             operatingHours: f.operating_hours,
             features: f.features
           },
-          tttvScore: 0.85 - (i * 0.1),
+          tttvScore: 85 - (i * 10),
           breakdown: {
             preference: 0.9 - (i * 0.15),
             waitTime: 5 + (i * 3),
@@ -734,16 +718,9 @@ function RecommendContent() {
         if (newWindow) newWindow.location.href = destUrl;
         else window.location.href = destUrl;
       } else {
-        const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY;
-        if (!restApiKey) {
-          // 키 미설정 시 transcoord 호출을 건너뛰고 좌표 기반 길안내 URL로 바로 이동(키를 소스에 박지 않음)
-          const destUrl = `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(rec.facility.name)}&sY=${lat}&sX=${lng}&eY=${rec.facility.latitude}&eX=${rec.facility.longitude}`;
-          if (newWindow) newWindow.location.href = destUrl;
-          else window.location.href = destUrl;
-          return;
-        }
+        const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "8b9591c379e8cc301162469a713c4f4d";
         const headers = { 'Authorization': `KakaoAK ${restApiKey}` };
-
+        
         const urlStart = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${lng}&y=${lat}&input_coord=WGS84&output_coord=WCONGNAMUL`;
         const urlEnd = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${rec.facility.longitude}&y=${rec.facility.latitude}&input_coord=WGS84&output_coord=WCONGNAMUL`;
 
@@ -861,43 +838,23 @@ function RecommendContent() {
               <div className="h-4 bg-white/10 w-2/3 rounded-md" />
               <div className="h-3 bg-white/10 w-1/2 rounded-md" />
             </div>
-          ) : originalFacility ? (() => {
-            // 실제 혼잡도 기반 분기(하드코딩 '혼잡' 제거). 0.7↑ 혼잡 / 0.3↑ 보통 / 그 외 여유.
-            // Tailwind v4 는 동적 보간 클래스를 생성하지 않으므로 전체 클래스명을 정적으로 분기한다.
-            const level = originalFacility.congestionLevel;
-            const isBusy = level >= 0.7;
-            const isModerate = level >= 0.3 && !isBusy;
-            const statusPhrase = isBusy ? "혼잡합니다" : isModerate ? "다소 붐빕니다" : "여유로운 편입니다";
-            // 혼잡도 색상 정본 스킴(lib/utils.ts·main·RecommendationCard와 동일): 여유=Blue / 보통=Green / 혼잡=Red
-            const cardCls = isBusy
-              ? "border-rose-500/20 bg-rose-500/5 shadow-[0_4px_24px_rgba(239,68,68,0.05)]"
-              : isModerate
-              ? "border-emerald-500/20 bg-emerald-500/5 shadow-[0_4px_24px_rgba(16,185,129,0.05)]"
-              : "border-blue-500/20 bg-blue-500/5 shadow-[0_4px_24px_rgba(59,130,246,0.05)]";
-            const glowCls = isBusy ? "bg-rose-500/10" : isModerate ? "bg-emerald-500/10" : "bg-blue-500/10";
-            const dotCls = isBusy ? "bg-rose-500" : isModerate ? "bg-emerald-500" : "bg-blue-500";
-            const textCls = isBusy ? "text-rose-400" : isModerate ? "text-emerald-400" : "text-blue-400";
-            const badge = isBusy ? "우회 추천" : isModerate ? "대안 비교" : "여유 확인";
-            return (
-            <div className={`glass-panel p-5 rounded-2xl border ${cardCls} relative overflow-hidden`}>
-              <div className={`absolute top-0 right-0 w-24 h-24 ${glowCls} rounded-full blur-2xl pointer-events-none`} />
+          ) : originalFacility ? (
+            <div className="glass-panel p-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 shadow-[0_4px_24px_rgba(239,68,68,0.05)] relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${dotCls} animate-pulse`} />
-                <span className={`text-[10px] ${textCls} font-bold uppercase tracking-wider`}>{badge}</span>
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">우회 필요</span>
               </div>
               <h2 className="text-base md:text-lg font-bold text-slate-100 mt-2">
-                지금 <span className={textCls}>{originalFacility.name}</span>은{" "}
-                <span className={textCls}>{statusPhrase}</span>
+                지금 <span className="text-rose-400">{originalFacility.name}</span>은{" "}
+                <span className="text-rose-400">혼잡</span>합니다.
               </h2>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                현재 예상 대기 시간은 약 <span className={`font-semibold ${textCls}`}>{originalWaitTime}분</span>입니다.
-                {isBusy
-                  ? " 아래의 최적화된 TTTV 대안 시설을 권장합니다."
-                  : " 그래도 TTTV가 더 빠르고 나은 대안을 찾았는지 아래에서 비교해 보세요."}
+                현재 대기 시간은 약 <span className="font-semibold text-rose-400">{originalWaitTime}분</span>으로
+                예상됩니다. 아래의 최적화된 TTTV 대안 시설을 권장합니다.
               </p>
             </div>
-            );
-          })() : (
+          ) : (
             <div className="glass-panel p-5 rounded-2xl border border-white/5 text-center text-xs text-slate-400">
               시설 정보를 불러오지 못했습니다.
             </div>
@@ -924,9 +881,7 @@ function RecommendContent() {
           ) : recommendations.length > 0 ? (
             recommendations.map((rec) => {
               const waitTime = rec.breakdown?.waitTime?.toFixed(1) || "--";
-              // 백엔드 산출 도보분(breakdown.travelTime)을 우선 사용해 카드 표시와 TTTV/사유 문구를 일치시킨다.
-              // 없을 때만 직선거리 추정(80m/min)으로 폴백.
-              const travelTime = (rec.breakdown?.travelTime ?? rec.distanceM / 80).toFixed(1);
+              const travelTime = (rec.distanceM / 80).toFixed(1); // 80m/min (approx. 4.8 km/h)
               const preferencePct = Math.round((rec.breakdown?.preference || 0) * 100);
 
               return (
@@ -952,7 +907,7 @@ function RecommendContent() {
                     <div className="text-right">
                       <span className="text-[10px] text-slate-400 block">TTTV 지수</span>
                       <span className="text-sm font-extrabold text-purple-400">
-                        {Math.round((rec.tttvScore || 0) * 100)}점
+                        {Math.round(rec.tttvScore <= 1.0 ? rec.tttvScore * 100 : rec.tttvScore)}점
                       </span>
                     </div>
                   </div>
@@ -1051,8 +1006,7 @@ function RecommendContent() {
               <span className="text-xl">🎯</span>
               <h3 className="text-lg font-extrabold text-slate-100">맞춤형 추천 온보딩</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                InduSpot AI의 최적화된 TTTV 대안 경로 매칭을 제공받기 위해, 평소에 자주 방문하시는 시설 종류를{" "}
-                <span className="font-bold text-sky-300">3개 이상</span> 선택해 주세요.
+                InduSpot AI의 최적화된 TTTV 대안 경로 매칭을 제공받기 위해, 평소에 자주 방문하시는 시설 종류를 **3개 이상** 선택해 주세요.
               </p>
             </div>
 

@@ -261,7 +261,7 @@ export default function DashboardPage() {
             <button className="relative text-slate-500 hover:text-slate-700">
               <Bell size={24} />
               {kpi.anomalyCount > 0 && (
-                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+                <span className="absolute 2 top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
               )}
             </button>
             <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700">

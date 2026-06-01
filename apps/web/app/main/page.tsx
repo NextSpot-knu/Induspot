@@ -116,20 +116,17 @@ export default function MainPage() {
         const companyLat = 36.109031;
         const companyLng = 128.388471;
         
-        // 새로고침마다 값이 흔들리지 않도록 인덱스 시드 기반 의사난수 사용(Math.random 제거)
-        const seededRand = (n: number) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
-
         const dummyLoungesSub = Array.from({length: 5}).map((_, i) => ({
            id: `dummy-lounge-${i}`,
            name: `사내 휴게실 ${i+1}`,
            type: 'rest_area',
            capacity: 10,
-           congestionLevel: seededRand(i + 1),
-           currentCount: Math.floor(seededRand(i + 1) * 10),
+           congestionLevel: Math.random(),
+           currentCount: Math.floor(Math.random() * 10),
            features: {
-             massageChairs: { total: 3, inUse: Math.floor(seededRand(i + 11) * 4) },
-             sleepCapsules: { total: 2, inUse: Math.floor(seededRand(i + 21) * 3) },
-             playstation: { total: 1, inUse: Math.floor(seededRand(i + 31) * 2) }
+             massageChairs: { total: 3, inUse: Math.floor(Math.random() * 4) },
+             sleepCapsules: { total: 2, inUse: Math.floor(Math.random() * 3) },
+             playstation: { total: 1, inUse: Math.floor(Math.random() * 2) }
            }
         }));
 
@@ -149,10 +146,10 @@ export default function MainPage() {
            name: `사내 회의실 ${i+1}호`,
            type: 'meeting_room',
            capacity: 8,
-           congestionLevel: seededRand(i + 41),
-           currentCount: Math.floor(seededRand(i + 41) * 8),
+           congestionLevel: Math.random(),
+           currentCount: Math.floor(Math.random() * 8),
            features: {
-             remainingMinutes: Math.floor(seededRand(i + 51) * 60)
+             remainingMinutes: Math.floor(Math.random() * 60)
            }
         }));
 
@@ -171,24 +168,17 @@ export default function MainPage() {
            id: `dummy-meeting-out-${i}`,
            name: `외부 공유오피스 회의실 ${['A','B'][i]}`,
            type: 'meeting_room',
-           latitude: companyLat + (i === 0 ? 0.006 : -0.006) + (seededRand(i + 61) * 0.001),
-           longitude: companyLng - 0.02 + (seededRand(i + 71) * 0.005),
+           latitude: companyLat + (Math.random() > 0.5 ? 0.006 : -0.006) + (Math.random() * 0.001),
+           longitude: companyLng - 0.02 + (Math.random() * 0.005),
            capacity: 12,
-           congestionLevel: seededRand(i + 81),
-           currentCount: Math.floor(seededRand(i + 81) * 12),
+           congestionLevel: Math.random(),
+           currentCount: Math.floor(Math.random() * 12),
            features: {
-             remainingMinutes: Math.floor(seededRand(i + 91) * 60)
+             remainingMinutes: Math.floor(Math.random() * 60)
            }
         }));
 
-        // 실데이터에 해당 타입이 있으면 더미를 합치지 않는다(실시간 추천/지도 오염 방지).
-        const hasRealRest = mapped.some((m: any) => m.type === 'rest_area');
-        const hasRealMeeting = mapped.some((m: any) => m.type === 'meeting_room');
-        const finalFacilities = [
-          ...mapped,
-          ...(hasRealRest ? [] : [dummyLoungeGroup]),
-          ...(hasRealMeeting ? [] : [dummyMeetingGroup, ...dummyMeetingsOutside]),
-        ];
+        const finalFacilities = [...mapped, dummyLoungeGroup, dummyMeetingGroup, ...dummyMeetingsOutside];
         setFacilities(finalFacilities);
       } catch (err) {
         console.error("Error loading facilities:", err);
@@ -432,9 +422,8 @@ export default function MainPage() {
     const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, fLat, fLng);
     const expectedTravel = distanceM / 66.67;
 
-    // 4. TTTV Score — 백엔드 score.py 스펙과 동일 매핑 (선호 0.45 : 시간비용 0.25 : 분산인센티브 0.30)
-    //    값 집합은 동일하되 w2(시간비용)/w3(분산)을 백엔드와 일치시켜 프런트 미리보기 랭킹의 드리프트 제거.
-    const w1 = 0.45, w2 = 0.25, w3 = 0.30;
+    // 4. TTTV Score (황금비 0.45 : 0.30 : 0.25) 에 Min-Max 정규화 적용
+    const w1 = 0.45, w2 = 0.30, w3 = 0.25;
     const timeCost = Math.min(1.0, (expectedWait + expectedTravel) / 60.0);
     const incentive = Math.max(0, 0.7 - (facility.congestionLevel ?? 0));
     const score = (w1 * preferenceMatching) - (w2 * timeCost) + (w3 * incentive);
@@ -522,15 +511,9 @@ export default function MainPage() {
       // PC 환경: 카카오맵 웹 스킴에서 자동 길찾기(자동차 기준)를 위해 WGS84 -> WCONGNAMUL 변환 API 호출
       const newWindow = window.open('', '_blank'); // 팝업 차단 방지를 위해 미리 띄움
       
-      const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY;
-      if (!restApiKey) {
-        // 키 미설정 시 transcoord 호출을 건너뛰고 좌표 기반 길안내 URL로 바로 이동(키를 소스에 박지 않음)
-        const destUrl = `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(fac.name)}&sY=${userLocation.lat}&sX=${userLocation.lng}&eY=${fac.latitude}&eX=${fac.longitude}`;
-        if (newWindow) newWindow.location.href = destUrl;
-        return;
-      }
+      const restApiKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "8b9591c379e8cc301162469a713c4f4d";
       const headers = { 'Authorization': `KakaoAK ${restApiKey}` };
-
+      
       const urlStart = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${userLocation.lng}&y=${userLocation.lat}&input_coord=WGS84&output_coord=WCONGNAMUL`;
       const urlEnd = `https://dapi.kakao.com/v2/local/geo/transcoord.json?x=${fac.longitude}&y=${fac.latitude}&input_coord=WGS84&output_coord=WCONGNAMUL`;
 
@@ -617,13 +600,7 @@ export default function MainPage() {
           category: fac.type === 'cafeteria' ? '식당' : fac.type === 'parking' ? '주차장' : fac.type === 'meeting_room' ? '회의실' : '휴게실',
           trafficStatus: fac.congestionLevel >= 0.75 ? 'orange' : fac.congestionLevel >= 0.50 ? 'yellow' : fac.congestionLevel >= 0.25 ? 'green' : 'blue',
           waitTime: `${tttv?.expectedWait || 0}분`,
-          tttv: tttv,
-          // 길찾기/주차 표시를 위해 좌표·타입·수용현황을 함께 저장(좌표 없는 더미는 undefined → saved 가 키워드검색 폴백)
-          latitude: fac.latitude,
-          longitude: fac.longitude,
-          type: fac.type,
-          capacity: fac.capacity,
-          currentCount: fac.currentCount,
+          tttv: tttv
         });
         localStorage.setItem('induspot_saved_facilities', JSON.stringify(bookmarks));
       }

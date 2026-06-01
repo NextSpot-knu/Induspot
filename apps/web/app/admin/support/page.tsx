@@ -102,7 +102,7 @@ export default function SupportPage() {
       setTickets(updatedTickets);
       setSelectedTicket({ ...selectedTicket, status: 'resolved' });
       setReplyText('');
-      alert('문의가 처리 완료(RESOLVED)로 표시되었습니다.');
+      alert('답변이 전송되었으며, 티켓 상태가 완료로 변경되었습니다.');
     } catch (err) {
       console.error('Failed to reply and resolve ticket:', err);
       alert('답변 처리에 실패했습니다. 다시 시도해주세요.');
@@ -228,7 +228,7 @@ export default function SupportPage() {
 
                 {/* Reply Section */}
                 <div className="bg-white p-6 rounded-b-2xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-                  <h3 className="font-bold text-slate-800 mb-4">처리 완료로 표시</h3>
+                  <h3 className="font-bold text-slate-800 mb-4">답변 작성</h3>
                   
                   {selectedTicket.status === 'resolved' ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-300">
@@ -245,14 +245,14 @@ export default function SupportPage() {
                       ></textarea>
                       <div className="flex justify-between items-center">
                         <div className="text-sm text-slate-500">
-                          처리 완료로 표시하면 상태가 <span className="font-bold text-emerald-600">RESOLVED</span>로 변경됩니다.
+                          답변을 전송하면 자동으로 상태가 <span className="font-bold text-emerald-600">RESOLVED</span>로 변경됩니다.
                         </div>
                         <button 
                           onClick={handleReply}
                           disabled={!replyText.trim()}
                           className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-sm"
                         >
-                          <Send size={18} /> 처리 완료로 표시
+                          <Send size={18} /> Send Reply
                         </button>
                       </div>
                     </>

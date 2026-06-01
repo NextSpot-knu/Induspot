@@ -66,8 +66,9 @@ export async function GET(request: Request) {
           log.current_count,
           log.congestion_level,
           capacity,
-          `"${(log.source ?? '').replace(/"/g, '""')}"`
+          `"${log.source.replace(/"/g, '""')}"`
         ];
+        csvRows.join(",");
         csvRows.push(row.join(","));
       }
     }

@@ -156,7 +156,7 @@ export default function TTTVSimulator() {
                                 <div className="grid grid-cols-8 gap-1 h-3 mt-2">
                                     {userVector.map((v, i) => (
                                         <div key={i} className="bg-slate-800 rounded overflow-hidden h-full relative" title={`Dim ${i+1}: ${v.toFixed(4)}`}>
-                                            <div className="bg-sky-500 absolute bottom-0 left-0 right-0" style={{ height: `${Math.max(0, Math.min(100, v * 100))}%` }} />
+                                            <div className="bg-sky-500 absolute bottom-0 left-0 right-0" style={{ height: `${Math.max(0, Math.min(100, (v + 1) * 50))}%` }} />
                                         </div>
                                     ))}
                                 </div>

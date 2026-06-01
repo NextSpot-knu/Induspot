@@ -23,7 +23,7 @@ export default function UserSupportForm() {
           const name = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '사용자';
           setUserName(name);
         } else {
-          setUserId(null);
+          setUserId("a2222222-2222-2222-2222-222222222222");
           setUserName("임시 사용자");
         }
       } catch (err) {

@@ -13,9 +13,6 @@ interface BookmarkData {
   waitTime: string;
   latitude?: number;
   longitude?: number;
-  type?: string;
-  capacity?: number;
-  currentCount?: number;
   tttv?: any;
 }
 
@@ -153,16 +150,16 @@ export default function SavedPage() {
               <div className="w-16 h-16 rounded-full bg-gradient-to-b from-[#3b4766] to-[#25304a] border border-white/10 flex items-center justify-center mb-6 shadow-inner">
                 <Star className="text-blue-200 fill-blue-200/50" size={32} />
               </div>
-              <h2 className="text-xl font-bold text-white mb-3">아직 저장된 장소가 없어요</h2>
+              <h2 className="text-xl font-bold text-white mb-3">No saved locations yet</h2>
               <p className="text-gray-400 text-sm leading-relaxed mb-8 px-2">
-                공단 곳곳에서 저장한 장소가 여기에 모여요.
+                Locations you pin across the industrial complex will securely appear here.
               </p>
-              <button
+              <button 
                 onClick={() => router.push('/main')}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white text-sm font-semibold transition-all"
               >
                 <Compass size={18} className="text-gray-300" />
-                <span>지도 둘러보기</span>
+                <span>Browse Map</span>
               </button>
             </div>
           </div>
@@ -170,7 +167,7 @@ export default function SavedPage() {
           // List State
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-center px-1 mb-2">
-              <h2 className="text-lg font-bold text-white">저장한 스팟</h2>
+              <h2 className="text-lg font-bold text-white">Saved Spots</h2>
               <button 
                 onClick={handleClearAll}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
@@ -295,11 +292,11 @@ export default function SavedPage() {
             expectedWait={selectedBookmark.tttv?.expectedWait ?? parseInt(selectedBookmark.waitTime) ?? 0}
             expectedTravel={selectedBookmark.tttv?.expectedTravel ?? 0}
             timeToService={selectedBookmark.tttv?.timeToService ?? parseInt(selectedBookmark.waitTime) ?? 0}
-            facilityType={selectedBookmark.type || (selectedBookmark.category === '식당' ? 'cafeteria' : selectedBookmark.category === '주차장' ? 'parking' : selectedBookmark.category === '휴게실' ? 'rest_area' : 'meeting_room')}
+            facilityType={selectedBookmark.category === '식당' ? 'cafeteria' : selectedBookmark.category === '휴게실' ? 'loading_dock' : 'meeting_room'}
             facility={{
               congestionLevel: selectedBookmark.trafficStatus === 'orange' ? 0.85 : selectedBookmark.trafficStatus === 'yellow' ? 0.6 : selectedBookmark.trafficStatus === 'green' ? 0.4 : 0.1,
-              capacity: selectedBookmark.capacity ?? 100,
-              currentCount: selectedBookmark.currentCount ?? (selectedBookmark.trafficStatus === 'orange' ? 85 : selectedBookmark.trafficStatus === 'yellow' ? 60 : selectedBookmark.trafficStatus === 'green' ? 40 : 10),
+              capacity: 100,
+              currentCount: selectedBookmark.trafficStatus === 'orange' ? 85 : selectedBookmark.trafficStatus === 'yellow' ? 60 : selectedBookmark.trafficStatus === 'green' ? 40 : 10,
             }}
             onAccept={() => {
               const destUrl = selectedBookmark.latitude && selectedBookmark.longitude
@@ -351,7 +348,7 @@ export default function SavedPage() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-[110px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
+        <div className="fixed bottom-[350px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-sm px-4 animate-toast">
           <div className="bg-black/85 backdrop-blur-md text-white text-xs sm:text-sm px-5 py-3 rounded-full shadow-lg text-center font-medium break-keep">
             {toastMessage}
           </div>
