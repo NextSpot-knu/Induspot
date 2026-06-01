@@ -5,8 +5,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { apiClient } from '@/lib/api-client';
 
 export default function TTTVSimulator() {
-    // 슬라이더 및 입력 필드 동기화 상태 (기본 황금비: 45 : 25 : 30)
-    const [weights, setWeights] = useState({ pref: 45, time: 25, inc: 30 });
+    // 슬라이더 및 입력 필드 동기화 상태 (기본 황금비: 45 : 30 : 25)
+    const [weights, setWeights] = useState({ pref: 45, time: 30, inc: 25 });
     const [userVector, setUserVector] = useState<number[] | null>(null);
 
     useEffect(() => {
@@ -51,7 +51,7 @@ export default function TTTVSimulator() {
             const totalW = newWeights.pref + newWeights.time + newWeights.inc;
 
             // 총합이 0이 되는 것을 방지 (모두 0을 입력했을 경우 기본값 복귀)
-            if (totalW === 0) return { pref: 45, time: 25, inc: 30 };
+            if (totalW === 0) return { pref: 45, time: 30, inc: 25 };
 
             // 입력한 값은 고정하고, 나머지 두 값의 비율을 유지하며 총합 100으로 정규화
             const otherKeys = (Object.keys(newWeights) as Array<'pref' | 'time' | 'inc'>).filter(k => k !== key);
