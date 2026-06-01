@@ -17,11 +17,11 @@ declare global {
 
 // Marker SVG Generator
 const getMarkerSvg = (type: string, level: number, features?: any) => {
-  let color = "#10b981"; // green (여유)
+  let color = "#3b82f6"; // blue (여유)
   if (level >= 0.7) {
     color = "#ef4444"; // red (혼잡)
   } else if (level >= 0.3) {
-    color = "#f59e0b"; // yellow (보통)
+    color = "#10b981"; // green (보통)
   }
 
   let emoji = "📍";
