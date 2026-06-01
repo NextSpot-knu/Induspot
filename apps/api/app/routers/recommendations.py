@@ -10,7 +10,7 @@ from pydantic import BaseModel
 # (ingest/preferences 라우터가 동일 사유로 supabase_admin 을 쓴다.) 따라서 service_role 클라이언트로
 # 통일하고, 신뢰 경계는 아래 get_recommendations/submit_feedback 의 소유권 가드로 강제한다.
 from app.core.supabase import supabase_admin as supabase_client, get_current_user
-from app.services.pinecone_service import pinecone_service
+from app.services.preference_vector_service import preference_vector_service
 from app.services.reason_service import generate_reason
 from app.services.tttv.score import calculate_tttv_score
 from app.services.tttv.travel import calculate_haversine_distance, WALKING_SPEED_M_PER_MIN
@@ -137,10 +137,10 @@ async def get_recommendations(
 
     # 사용자 선호 벡터는 요청당 1개뿐이므로 후보마다 Pinecone 를 재조회하지 않도록 여기서 1회만 조회한다.
     # (없으면 Cold Start 벡터 생성 후 1회 업서트)
-    user_vector = await pinecone_service.get_user_vector(req.user_id)
+    user_vector = await preference_vector_service.get_user_vector(req.user_id)
     if not user_vector:
         user_vector = get_category_average_vector(user_info.get("preferred_categories", []))
-        await pinecone_service.upsert_user_vector(req.user_id, user_vector)
+        await preference_vector_service.upsert_user_vector(req.user_id, user_vector)
 
     # 3. 각 후보군에 대해 TTTV 스코어를 병렬 연산
     #    (후보 수만큼 직렬 await 하던 것을 asyncio.gather 로 동시 실행 → 후보가 많아도 지연이 누적되지 않음)
@@ -229,6 +229,110 @@ async def get_recommendations(
     return response_items
 
 
+# --- 타입별 추천(메인 지도 브라우즈): 원본 없이 특정 종류를 선호/혼잡/거리로 랭킹 + 사유 ---
+# /recommendations 가 '혼잡한 원본의 대안'(반경 150m)을 주는 것과 달리, 여기선 원본이 없으므로
+# 혼잡 분산 기준선(_BROWSE_BASELINE_CONGESTION)을 원본 혼잡도로 삼아 incentive 를 산출한다.
+# (클라 lib/recommender.ts 미러와 동일 기준선)
+_BROWSE_BASELINE_CONGESTION = 0.7
+
+
+class RecommendByTypeRequest(BaseModel):
+    user_id: str
+    facility_type: str
+    user_lat: float
+    user_lng: float
+    exclude_ids: list[str] = []
+    limit: int = 5
+
+
+@router.post("/recommendations/by-type", response_model=list[RecommendItem])
+async def recommend_by_type(
+    req: RecommendByTypeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    logger.info("recommend_by_type_request", user_id=req.user_id, facility_type=req.facility_type)
+
+    # 소유권 가드(IDOR 방지): 본문 user_id 는 토큰 주체와 일치해야 한다.
+    if req.user_id != current_user["id"]:
+        raise HTTPException(status_code=403, detail="요청한 user_id가 인증된 사용자와 일치하지 않습니다.")
+
+    user_info, all_facilities = await asyncio.gather(
+        fetch_user(req.user_id), fetch_all_facilities()
+    )
+
+    exclude = set(req.exclude_ids or [])
+    candidates = [
+        f for f in all_facilities
+        if f.get("type") == req.facility_type and f["id"] not in exclude
+    ]
+    if not candidates:
+        return []
+
+    # 선호 벡터 1회 조회(없으면 Cold Start 생성 후 업서트) — get_recommendations 와 동일 패턴
+    user_vector = await preference_vector_service.get_user_vector(req.user_id)
+    if not user_vector:
+        user_vector = get_category_average_vector(user_info.get("preferred_categories", []))
+        await preference_vector_service.upsert_user_vector(req.user_id, user_vector)
+
+    async def _score(f: dict) -> dict:
+        cong = await fetch_latest_congestion(f["id"])
+        dist = calculate_haversine_distance(req.user_lat, req.user_lng, f["latitude"], f["longitude"])
+        f2 = {**f, "current_count": round(f.get("capacity", 0) * cong)}
+        res = await calculate_tttv_score(
+            user_id=req.user_id,
+            preferred_categories=user_info.get("preferred_categories", []),
+            original_facility_type=req.facility_type,
+            original_congestion_level=_BROWSE_BASELINE_CONGESTION,
+            candidate_facility=f2,
+            candidate_congestion_level=cong,
+            user_lat=req.user_lat,
+            user_lng=req.user_lng,
+            user_vector=user_vector,
+        )
+        return {
+            "facility": f2,
+            "tttv_score": res.score,
+            "breakdown": res.breakdown,
+            "distance_m": dist,
+            "candidate_congestion": cong,
+        }
+
+    scored = list(await asyncio.gather(*[_score(f) for f in candidates]))
+    scored.sort(key=lambda x: x["tttv_score"], reverse=True)
+    top = scored[: max(1, req.limit)]
+
+    async def _reason_for(item: dict) -> str:
+        bd = item["breakdown"]
+        return await generate_reason({
+            "original_facility_name": None,
+            "recommended_facility_name": item["facility"].get("name"),
+            "original_congestion": _BROWSE_BASELINE_CONGESTION,
+            "candidate_congestion": item["candidate_congestion"],
+            "travel_time": bd.get("travel_time"),
+            "predicted_wait": bd.get("wait_time"),
+            "preference": bd.get("preference"),
+            "incentive": bd.get("incentive"),
+        })
+
+    reasons = await asyncio.gather(*[_reason_for(item) for item in top])
+
+    total = len(scored)
+    # 브라우즈 랭킹은 DB(recommendations)에 남기지 않는다(합성 recommendation_id 사용).
+    return [
+        RecommendItem(
+            recommendation_id=f"bytype-{item['facility']['id']}",
+            facility=item["facility"],
+            tttv_score=item["tttv_score"],
+            breakdown=item["breakdown"],
+            distance_m=item["distance_m"],
+            reason=reasons[idx],
+            rank=idx + 1,
+            total_candidates=total,
+        )
+        for idx, item in enumerate(top)
+    ]
+
+
 @router.post("/feedback")
 async def submit_feedback(
     req: FeedbackRequest,
@@ -279,7 +383,7 @@ async def submit_feedback(
     facility_vector = CATEGORY_VECTORS.get(facility_type, [0.0] * 8)
     
     # 피드백 학습 반영
-    await pinecone_service.adjust_user_vector_on_feedback(
+    await preference_vector_service.adjust_user_vector_on_feedback(
         user_id=user_id,
         facility_vector=facility_vector,
         action=req.action
@@ -302,10 +406,10 @@ async def get_my_vector(
     """
     user_id = current_user["id"]
     try:
-        vec = await pinecone_service.get_user_vector(user_id)
+        vec = await preference_vector_service.get_user_vector(user_id)
         if vec is None:
             # 기본값 반환 (정규화된 균등 벡터)
-            vec = pinecone_service._normalize_vector([1.0] * 8)
+            vec = preference_vector_service._normalize_vector([1.0] * 8)
         return UserVectorResponse(user_id=user_id, vector=vec)
     except Exception as e:
         logger.error("get_my_vector_failed", user_id=user_id, error=str(e))

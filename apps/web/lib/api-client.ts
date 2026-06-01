@@ -57,7 +57,11 @@ async function request(path: string, options: RequestOptions = {}) {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (token) {
+    // 로컬/직접 호출에서는 Authorization 을 읽는다. API Gateway 경유(프로덕션)에서는 게이트웨이가
+    // Authorization 을 백엔드 인증용 OIDC 로 덮어쓰므로, Supabase JWT 를 X-Supabase-Authorization
+    // 로도 실어 보낸다(백엔드 get_current_user 가 X-(Forwarded|Supabase)-Authorization 을 우선 확인).
     headers.set("Authorization", `Bearer ${token}`);
+    headers.set("X-Supabase-Authorization", `Bearer ${token}`);
   }
 
   // query parameter 처리
@@ -161,6 +165,33 @@ export async function submitFeedback(
   return apiClient.post("/api/v1/feedback", {
     recommendationId,
     action
+  });
+}
+
+/**
+ * 타입별(식당/주차장/회의실/휴게실) 추천 랭킹 — 메인 지도 브라우즈용.
+ * 백엔드가 사용자 선호 벡터·실시간 혼잡·거리로 TTTV 점수를 매기고 상위 N개에 Gemini 사유를 붙여 반환.
+ * (/recommendations 가 '혼잡한 원본의 대안'을 주는 것과 달리, 원본 없이 타입 전체를 랭킹한다.)
+ */
+export async function recommendByType(
+  facilityType: string,
+  userLocation: { lat: number; lng: number },
+  excludeIds: string[] = [],
+  limit = 5
+): Promise<RecommendationResponse[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  let userId = session?.user?.id;
+  if (!userId) {
+    console.warn("인증 세션이 없습니다. 데모용 모의 사용자 ID(IT-WORKER-01)를 사용합니다.");
+    userId = "a2222222-2222-2222-2222-222222222222";
+  }
+  return apiClient.post("/api/v1/recommendations/by-type", {
+    userId,
+    facilityType,
+    userLat: userLocation.lat,
+    userLng: userLocation.lng,
+    excludeIds,
+    limit
   });
 }
 

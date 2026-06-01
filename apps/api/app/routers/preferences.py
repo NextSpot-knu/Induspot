@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 # 자기 자신의 users 행 갱신이지만 RLS 영향 없이 안정 동작하도록 service_role 클라이언트를 사용
 from app.core.supabase import supabase_admin, get_current_user
-from app.services.pinecone_service import pinecone_service
+from app.services.preference_vector_service import preference_vector_service
 from app.services.preference_nlp_service import parse_preference
 
 logger = structlog.get_logger()
@@ -37,7 +37,7 @@ class ParsePreferenceResponse(BaseModel):
     attributes: list[str]
     summary: str            # 근로자에게 보여줄 'AI가 이렇게 이해했어요' 문장
     is_fallback: bool       # Gemini 미사용/실패로 키워드 규칙을 썼는지
-    vector_updated: bool    # Pinecone 선호 벡터 반영 성공 여부
+    vector_updated: bool    # Firestore 선호 벡터 반영 성공 여부
     categories_saved: bool  # users.preferred_categories 저장 성공 여부
 
 
@@ -49,12 +49,12 @@ async def parse_and_apply_preference(
     user_id = current_user["id"]
     parsed = await parse_preference(req.text)
 
-    # 1) Pinecone 선호 벡터 반영 (추천 점수에 즉시 사용됨)
+    # 1) Firestore 선호 벡터 반영 (추천 점수에 즉시 사용됨)
     vector_updated = False
     try:
-        await pinecone_service.upsert_user_vector(user_id, parsed["vector"])
-        # upsert_user_vector 는 index 미설정 시 조용히 no-op → 성공 여부를 index 유무로 판단
-        vector_updated = pinecone_service.index is not None
+        await preference_vector_service.upsert_user_vector(user_id, parsed["vector"])
+        # upsert_user_vector 는 저장소 미가용 시 조용히 no-op → 성공 여부를 available 로 판단
+        vector_updated = preference_vector_service.available
     except Exception as e:
         logger.warning("preference_vector_upsert_failed", user_id=user_id, error=str(e))
 

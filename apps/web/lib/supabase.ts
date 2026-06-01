@@ -1,17 +1,11 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-let adminClient: SupabaseClient | null = null;
 let publicClient: SupabaseClient | null = null;
 
-// Server-side admin client (bypasses RLS)
-export function createAdminClient() {
-  if (!adminClient) {
-    const url = process.env.SUPABASE_URL || "https://your-supabase-project.supabase.co";
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "your-supabase-service-role-key";
-    adminClient = createClient(url, key);
-  }
-  return adminClient;
-}
+// 정적 export(브라우저 전용) 앱이라 service_role 클라이언트는 두지 않는다.
+// (NEXT_PUBLIC 이 아닌 SUPABASE_SERVICE_ROLE_KEY 는 브라우저에서 어차피 undefined 이고,
+//  service_role 키가 클라이언트 번들에 들어가면 치명적 유출이다.) 관리 작업은 인증된 세션 + RLS,
+//  또는 백엔드(FastAPI 의 service_role) 경유로 처리한다.
 
 // Client-side public client (respects RLS)
 export function createPublicClient() {

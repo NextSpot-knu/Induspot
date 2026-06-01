@@ -77,3 +77,30 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"유효하지 않은 JWT 토큰입니다: {str(e)}",
         )
+
+
+def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """관리자 전용 가드(이중 방어의 서버 측).
+
+    주의: Supabase JWT 의 `role` 클레임은 PostgREST 역할('authenticated'/'anon')이라
+    앱 권한이 아니다. 따라서 service_role 클라이언트로 users.role 을 재조회해 'admin' 인지
+    검증한다(RLS 우회 = 신뢰 경로). 프런트의 클라이언트 가드(admin/layout.tsx)와 합쳐 이중 방어.
+    """
+    role = None
+    try:
+        res = (
+            supabase_admin.table("users")
+            .select("role")
+            .eq("id", current_user["id"])
+            .single()
+            .execute()
+        )
+        role = (res.data or {}).get("role")
+    except Exception:
+        role = None
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요합니다.",
+        )
+    return current_user

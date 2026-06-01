@@ -47,7 +47,7 @@ async def test_haversine_distance():
 
 
 @pytest.mark.asyncio
-@patch("app.services.tttv.preference.pinecone_service")
+@patch("app.services.tttv.preference.preference_vector_service")
 async def test_calculate_tttv_score(mock_pinecone):
     # 4. TTTV 종합 추천 점수 계산 테스트
     # Pinecone 조회 시 모의 8차원 정규 벡터 반환 모킹

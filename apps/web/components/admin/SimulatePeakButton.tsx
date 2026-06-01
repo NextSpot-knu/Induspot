@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
 
 export function SimulatePeakButton() {
   const router = useRouter();
@@ -13,23 +14,14 @@ export function SimulatePeakButton() {
     setIsSimulating(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/admin/simulate-peak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage('24시간 모의 데이터 생성 완료! 대시보드를 새로고침합니다.');
-        // Refresh page data to fetch the newly generated logs
-        router.refresh();
-        setTimeout(() => setMessage(null), 4000);
-      } else {
-        setMessage(`시뮬레이션 실패: ${data.detail || '알 수 없는 오류'}`);
-        setTimeout(() => setMessage(null), 5000);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage('네트워크 오류가 발생했습니다.');
+      // 정적 export 에서는 Next 라우트(/api/admin/simulate-peak)가 없으므로 백엔드(FastAPI)를 직접 호출.
+      // apiClient 가 Supabase JWT 를 자동 첨부하고, 백엔드는 require_admin 으로 role 을 재검증한다.
+      await apiClient.post('/api/v1/admin/simulate-peak');
+      setMessage('24시간 모의 데이터 생성 완료! 대시보드를 새로고침합니다.');
+      router.refresh();
+      setTimeout(() => setMessage(null), 4000);
+    } catch (err: any) {
+      setMessage(`시뮬레이션 실패: ${err?.message || '알 수 없는 오류'}`);
       setTimeout(() => setMessage(null), 5000);
     } finally {
       setIsSimulating(false);

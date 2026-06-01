@@ -49,9 +49,10 @@ class Settings(BaseSettings):
     # push 요청 OIDC 토큰의 기대 audience (보통 Cloud Run /ingest/pubsub URL). 비어 있으면 audience 미검증.
     PUBSUB_PUSH_AUDIENCE: str = ""
 
-    # Pinecone Settings
-    PINECONE_API_KEY: str = ""
-    PINECONE_INDEX_NAME: str = "induspot-poi-index"
+    # --- Firestore (사용자 선호 벡터 저장소; Pinecone 대체) ---
+    # 8차원 선호 벡터를 user_id 로 저장/조회(KV). ADC 인증, 기본 DB 사용.
+    FIRESTORE_DATABASE: str = "(default)"
+    FIRESTORE_COLLECTION: str = "user_preference_vectors"
 
     # Kakao Mobility Directions API (도보/차량 실거리·실시간 이동시간).
     # 비어 있으면 Haversine 직선거리 도보 환산으로 폴백(기본). 키가 있으면 실경로 호출.
@@ -102,9 +103,7 @@ def load_gcp_secrets():
             "SUPABASE_ANON_KEY",
             "SUPABASE_SERVICE_ROLE_KEY",
             "JWT_SECRET",
-            "GCS_BUCKET_NAME",
-            "PINECONE_API_KEY",
-            "PINECONE_INDEX_NAME"
+            "GCS_BUCKET_NAME"
         ]
         
         print(f"Attempting to load secrets from GCP Secret Manager in project: {project_id}...")

@@ -24,7 +24,7 @@ jobs:
       - name: Build Next.js Static Site
         run: npm run web:build
         env:
-          NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-api-7k46d5q.uc.gateway.dev"
+          NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-9t4vof78.uc.gateway.dev"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           # 정적 export 빌드에 Kakao 지도 JS 키가 주입되지 않아 배포 사이트에서 지도가 안 뜨던 문제 해결.

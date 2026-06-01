@@ -1,24 +1,24 @@
 swagger: "2.0"
 info:
   title: "InduSpot API Gateway"
-  description: "GCP API Gateway configuration for InduSpot backend services."
-  version: "1.0.0"
+  description: >
+    GCP API Gateway 설정. 브라우저(Firebase 정적 호스팅) → API Gateway → Cloud Run(induspot-api).
+    인증 정책: Cloud Run(induspot-api)은 비공개(IAM)로 유지하고, 게이트웨이가 api-config 의
+    backend-auth 서비스계정 OIDC 토큰으로 백엔드를 호출한다. 게이트웨이가 Authorization 을
+    OIDC 로 덮어쓰므로, 클라이언트의 Supabase JWT 는 별도 헤더 X-Supabase-Authorization 로
+    전달하며 FastAPI get_current_user 가 이를 우선 읽어 인증/인가를 수행한다(앱 레벨).
+  version: "1.1.0"
 schemes:
   - "https"
 produces:
   - "application/json"
+consumes:
+  - "application/json"
 
-# API Gateway의 인증 정의 (예: Firebase Auth 또는 Supabase/Custom JWT)
-# 실제 배포 시 Firebase 인증 또는 Auth0, Custom OIDC 연동 시 활성화합니다.
-securityDefinitions:
-  firebase:
-    authorizationUrl: ""
-    flow: "implicit"
-    type: "oauth2"
-    # x-google-issuer 및 x-google-jwks_uri를 통해 토큰 서명 검증을 API Gateway 단에서 처리 가능
-    x-google-issuer: "https://securetoken.google.com/knudc-henryseo711"
-    x-google-jwks_uri: "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-    x-google-audiences: "knudc-henryseo711"
+# 모든 경로의 백엔드는 induspot-api(asia-northeast3). address 에 전체 경로를 적어 CONSTANT_ADDRESS 로 전달.
+# 게이트웨이는 api-config 의 backend-auth-service-account OIDC 로 비공개 Cloud Run 을 호출한다.
+# 클라이언트 Supabase JWT 는 X-Supabase-Authorization 헤더로 전달(백엔드 get_current_user 가 우선 확인).
+# CORS: 프리플라이트(OPTIONS)도 백엔드로 포워딩해 FastAPI CORSMiddleware 가 응답하게 한다.
 
 paths:
   /health:
@@ -26,59 +26,138 @@ paths:
       summary: "Health Check"
       operationId: "healthCheck"
       x-google-backend:
-        address: "https://induspot-api-768699236852.us-central1.run.app/health"
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/health"
       responses:
-        200:
-          description: "Success"
-
-  /api/v1/auth-test:
-    get:
-      summary: "Auth Test"
-      operationId: "authTest"
-      security:
-        - firebase: []
-      x-google-backend:
-        address: "https://induspot-api-768699236852.us-central1.run.app/api/v1/auth-test"
-      responses:
-        200:
-          description: "Success"
+        200: { description: "Success" }
 
   /api/v1/recommendations:
     post:
-      summary: "Get recommendations"
+      summary: "Get recommendations (TTTV)"
       operationId: "getRecommendations"
       x-google-backend:
-        address: "https://induspot-api-768699236852.us-central1.run.app/api/v1/recommendations"
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/recommendations"
       responses:
-        200:
-          description: "Success"
-
-  /api/v1/recommendations/tttv:
-    get:
-      summary: "Get TTTV recommendation demo"
-      operationId: "getTttvRecommendation"
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "recommendationsOptions"
       x-google-backend:
-        address: "https://induspot-api-768699236852.us-central1.run.app/api/v1/recommendations/tttv"
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/recommendations"
       responses:
-        200:
-          description: "Success"
+        204: { description: "No Content" }
 
-  /predict/congestion:
+  /api/v1/recommendations/by-type:
+    post:
+      summary: "Rank facilities of a type (main map browse)"
+      operationId: "recommendByType"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/recommendations/by-type"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "recommendByTypeOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/recommendations/by-type"
+      responses:
+        204: { description: "No Content" }
+
+  /api/v1/feedback:
+    post:
+      summary: "Submit recommendation feedback"
+      operationId: "submitFeedback"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/feedback"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "feedbackOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/feedback"
+      responses:
+        204: { description: "No Content" }
+
+  /api/v1/preferences/parse:
+    post:
+      summary: "Parse natural-language preference (Gemini)"
+      operationId: "parsePreference"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/preferences/parse"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "preferencesParseOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/preferences/parse"
+      responses:
+        204: { description: "No Content" }
+
+  /api/v1/users/me/vector:
     get:
-      summary: "Get congestion prediction"
+      summary: "Get current user's 8-dim preference vector"
+      operationId: "getMyVector"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/users/me/vector"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "myVectorOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/users/me/vector"
+      responses:
+        204: { description: "No Content" }
+
+  /api/v1/infrastructures:
+    get:
+      summary: "List facilities with latest congestion"
+      operationId: "getInfrastructures"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/infrastructures"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "infrastructuresOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/infrastructures"
+      responses:
+        204: { description: "No Content" }
+
+  /api/v1/admin/simulate-peak:
+    post:
+      summary: "Demo: generate peak congestion logs (admin)"
+      operationId: "simulatePeak"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/admin/simulate-peak"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "simulatePeakOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/admin/simulate-peak"
+      responses:
+        204: { description: "No Content" }
+
+  /predict:
+    post:
+      summary: "Single congestion prediction"
       operationId: "predictCongestion"
       x-google-backend:
-        address: "https://induspot-api-768699236852.us-central1.run.app/predict/congestion"
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/predict"
       responses:
-        200:
-          description: "Success"
-
-  /ingest/pubsub:
-    post:
-      summary: "Pub/Sub push ingest endpoint"
-      operationId: "ingestPubsub"
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "predictOptions"
       x-google-backend:
-        address: "https://induspot-api-768699236852.us-central1.run.app/ingest/pubsub"
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/predict"
       responses:
-        200:
-          description: "Success"
+        204: { description: "No Content" }
+
+# 주의: /ingest/pubsub 는 의도적으로 게이트웨이에 노출하지 않는다.
+# Pub/Sub push 구독이 Cloud Run 으로 직접(OIDC 인증) 전달하는 서버→서버 경로이므로
+# 브라우저용 게이트웨이를 거칠 필요가 없고, 거치면 OIDC 검증 흐름이 흐트러진다.

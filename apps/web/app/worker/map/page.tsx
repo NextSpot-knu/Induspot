@@ -1,5 +1,5 @@
 import React from "react";
-import { createAdminClient } from "@/lib/supabase";
+import { createPublicClient } from "@/lib/supabase";
 import CongestionMap from "@/components/map/CongestionMap";
 
 export const revalidate = 0;
@@ -154,7 +154,7 @@ const MOCK_SEED_FACILITIES = [
 ];
 
 export default async function WorkerMapPage() {
-  const supabase = createAdminClient();
+  const supabase = createPublicClient();
   let facilitiesData: any[] = [];
   let latestLogsMap: Record<string, any> = {};
 

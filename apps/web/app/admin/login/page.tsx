@@ -2,10 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, ShieldCheck, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Lock, ShieldCheck, Loader2, Eye, EyeOff, Mail } from 'lucide-react';
+import { createPublicClient } from '@/lib/supabase';
+
+// 정적 export 환경에서는 Next 미들웨어(proxy.ts)·서버 라우트(/api/admin/login)가 동작하지 않는다.
+// 따라서 관리자 인증도 워커 앱과 동일하게 Supabase Auth(이메일/비밀번호)를 쓰고,
+// users.role==='admin' 인지 확인해 통과시킨다. (가드는 admin/layout.tsx 가 담당)
+const supabase = createPublicClient();
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,8 +25,8 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) {
-      setError('비밀번호를 입력해주세요.');
+    if (!email || !password) {
+      setError('이메일과 비밀번호를 입력해주세요.');
       return;
     }
 
@@ -27,26 +34,35 @@ export default function AdminLoginPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password }),
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // 성공 시 대시보드로 이동
-        router.push('/admin/dashboard');
-        router.refresh();
-      } else {
-        setError(data.message || '비밀번호가 일치하지 않습니다.');
+      if (signInError || !data.session) {
+        setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+        setIsLoading(false);
+        return;
       }
+
+      // 관리자 권한 확인: RLS(select_users) 가 본인 행 조회를 허용하므로 안전.
+      const { data: profile, error: roleError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', data.session.user.id)
+        .maybeSingle();
+
+      if (roleError || !profile || profile.role !== 'admin') {
+        await supabase.auth.signOut();
+        setError('관리자 권한이 없는 계정입니다.');
+        setIsLoading(false);
+        return;
+      }
+
+      // 성공: 대시보드로 이동(세션은 supabase-js 가 보관, admin/layout 가드가 재검증)
+      router.replace('/admin/dashboard');
     } catch (err) {
-      setError('서버와 통신 중 오류가 발생했습니다.');
-    } finally {
+      setError('로그인 처리 중 오류가 발생했습니다.');
       setIsLoading(false);
     }
   };
@@ -84,10 +100,39 @@ export default function AdminLoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
             <div>
-              <label 
-                htmlFor="password" 
+              <label
+                htmlFor="email"
+                className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2"
+              >
+                이메일
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Mail size={18} />
+                </span>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  disabled={isLoading}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@company.com"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 transition-all text-sm disabled:opacity-50"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="password"
                 className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2"
               >
                 비밀번호
@@ -100,13 +145,13 @@ export default function AdminLoginPage() {
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   required
                   disabled={isLoading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="관리자 비밀번호 입력"
                   className="w-full pl-10 pr-10 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 transition-all text-sm disabled:opacity-50"
-                  autoFocus
                 />
                 <button
                   type="button"
