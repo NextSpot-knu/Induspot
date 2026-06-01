@@ -8,27 +8,69 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 
 export function DashboardCharts({ distribution }: { distribution: any[] }) {
   // distribution = [ { date: string, beforeCongestion: number, afterCongestion: number, alternativeUsage: number } ]
+  const [viewMode, setViewMode] = useState<'local' | 'looker'>('local');
   
+  // Looker Studio 보고서 공유 URL (기본 템플릿/데모)
+  const lookerStudioUrl = "https://lookerstudio.google.com/embed/reporting/3253f16c-63b1-432a-b6fe-5f3e800614ba/page/d1234";
+
   // recharts tooltip formatter to show percentage
   const formatPercent = (value: any) => `${(Number(value) * 100).toFixed(1)}%`;
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-4">
-      <h3 className="text-lg font-bold text-slate-800 mb-6">최근 30일 수요 분산 효과 분석</h3>
-      <div className="h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={distribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-            <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} domain={[0, 1]} tickFormatter={(val) => `${Math.round(val * 100)}%`} />
-            <Tooltip formatter={formatPercent} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-            <Line name="원본 시설(도입 전)" type="monotone" dataKey="beforeCongestion" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} />
-            <Line name="원본 시설(도입 후)" type="monotone" dataKey="afterCongestion" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
-            <Line name="대안 시설 활용률" type="monotone" dataKey="alternativeUsage" stroke="#10b981" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
-          </LineChart>
-        </ResponsiveContainer>
+    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-4 flex flex-col gap-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-bold text-slate-800">최근 30일 수요 분산 효과 분석</h3>
+        
+        {/* 시각화 모드 토글 (GCP 6계층 마이그레이션) */}
+        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+          <button
+            onClick={() => setViewMode('local')}
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              viewMode === 'local'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            차트 뷰
+          </button>
+          <button
+            onClick={() => setViewMode('looker')}
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              viewMode === 'looker'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+            }`}
+          >
+            Looker Studio 뷰
+          </button>
+        </div>
       </div>
+
+      {viewMode === 'local' ? (
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={distribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} domain={[0, 1]} tickFormatter={(val) => `${Math.round(val * 100)}%`} />
+              <Tooltip formatter={formatPercent} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+              <Line name="원본 시설(도입 전)" type="monotone" dataKey="beforeCongestion" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+              <Line name="원본 시설(도입 후)" type="monotone" dataKey="afterCongestion" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
+              <Line name="대안 시설 활용률" type="monotone" dataKey="alternativeUsage" stroke="#10b981" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="h-[300px] w-full border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+          <iframe
+            src={lookerStudioUrl}
+            className="w-full h-full border-0"
+            allowFullScreen
+            sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+          ></iframe>
+        </div>
+      )}
     </div>
   );
 }

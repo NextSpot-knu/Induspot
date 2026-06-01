@@ -1,0 +1,84 @@
+swagger: "2.0"
+info:
+  title: "InduSpot API Gateway"
+  description: "GCP API Gateway configuration for InduSpot backend services."
+  version: "1.0.0"
+schemes:
+  - "https"
+produces:
+  - "application/json"
+
+# API Gateway의 인증 정의 (예: Firebase Auth 또는 Supabase/Custom JWT)
+# 실제 배포 시 Firebase 인증 또는 Auth0, Custom OIDC 연동 시 활성화합니다.
+securityDefinitions:
+  firebase:
+    authorizationUrl: ""
+    flow: "implicit"
+    type: "oauth2"
+    # x-google-issuer 및 x-google-jwks_uri를 통해 토큰 서명 검증을 API Gateway 단에서 처리 가능
+    x-google-issuer: "https://securetoken.google.com/knudc-henryseo711"
+    x-google-jwks_uri: "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+    x-google-audiences: "knudc-henryseo711"
+
+paths:
+  /health:
+    get:
+      summary: "Health Check"
+      operationId: "healthCheck"
+      x-google-backend:
+        address: "https://induspot-api-768699236852.us-central1.run.app/health"
+      responses:
+        200:
+          description: "Success"
+
+  /api/v1/auth-test:
+    get:
+      summary: "Auth Test"
+      operationId: "authTest"
+      security:
+        - firebase: []
+      x-google-backend:
+        address: "https://induspot-api-768699236852.us-central1.run.app/api/v1/auth-test"
+      responses:
+        200:
+          description: "Success"
+
+  /api/v1/recommendations:
+    post:
+      summary: "Get recommendations"
+      operationId: "getRecommendations"
+      x-google-backend:
+        address: "https://induspot-api-768699236852.us-central1.run.app/api/v1/recommendations"
+      responses:
+        200:
+          description: "Success"
+
+  /api/v1/recommendations/tttv:
+    get:
+      summary: "Get TTTV recommendation demo"
+      operationId: "getTttvRecommendation"
+      x-google-backend:
+        address: "https://induspot-api-768699236852.us-central1.run.app/api/v1/recommendations/tttv"
+      responses:
+        200:
+          description: "Success"
+
+  /predict/congestion:
+    get:
+      summary: "Get congestion prediction"
+      operationId: "predictCongestion"
+      x-google-backend:
+        address: "https://induspot-api-768699236852.us-central1.run.app/predict/congestion"
+      responses:
+        200:
+          description: "Success"
+
+  /ingest/pubsub:
+    post:
+      summary: "Pub/Sub push ingest endpoint"
+      operationId: "ingestPubsub"
+      x-google-backend:
+        address: "https://induspot-api-768699236852.us-central1.run.app/ingest/pubsub"
+      responses:
+        200:
+          description: "Success"
