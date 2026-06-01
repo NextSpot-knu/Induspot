@@ -4,19 +4,16 @@ export const getMarkerSvg = (
   features?: any,
   selected: boolean = false
 ) => {
-  // 평소엔 연한 색, 선택 시 진한 색으로 구분 (파랑 한산 / 초록 여유 / 노랑 보통 / 빨강 혼잡)
-  // 지도에 다크 invert 필터가 걸려 있어 'SVG가 진할수록 화면에선 밝게' 보인다.
-  // 평소 = 진한 600계열(화면에서 또렷·밝게), 선택 시 = 한 단계 더 진한 700계열(화면에서 더 밝게).
-  // 마커는 지도 다크 필터를 우회(타일에만 필터 적용)하므로 본래의 선명한 색으로 표시된다.
-  // 평소 = 선명한 500계열, 선택 = 한 단계 더 밝은 400계열(다크 배경에서 더 또렷).
+  // 마커는 지도 다크 필터를 우회(타일에만 적용)하므로 본래의 색으로 표시된다.
+  // 평소 = 600계열, 선택 = 한 단계 밝은 500계열.
   const p =
     level >= 0.75
-      ? { base: "#ef4444", sel: "#f87171" } // 혼잡 (red)
+      ? { base: "#dc2626", sel: "#ef4444" } // 혼잡 (red)
       : level >= 0.5
-      ? { base: "#f59e0b", sel: "#fbbf24" } // 보통 (yellow)
+      ? { base: "#d97706", sel: "#f59e0b" } // 보통 (yellow)
       : level >= 0.25
-      ? { base: "#10b981", sel: "#34d399" } // 여유 (green)
-      : { base: "#3b82f6", sel: "#60a5fa" }; // 한산 (blue)
+      ? { base: "#059669", sel: "#10b981" } // 여유 (green)
+      : { base: "#2563eb", sel: "#3b82f6" }; // 한산 (blue)
   const color = selected ? p.sel : p.base;
 
   let emoji = "📍";
@@ -29,23 +26,30 @@ export const getMarkerSvg = (
     type === "parking" && features && (features.is_private === true || features.is_public === false);
   if (isPrivateParking) emoji = "🏢";
 
+  // 로고(이모지)를 흰색 실루엣으로 만드는 필터 (RGB→흰색, 알파 유지)
+  const whiteFilter =
+    '<filter id="w"><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter>';
+
   if (isPrivateParking) {
+    // 흰 테두리 없음 + 까만 원 + 흰 로고
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-        <rect x="4" y="4" width="32" height="32" rx="11" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-        <circle cx="20" cy="20" r="13" fill="#ffffff"/>
-        <text x="20" y="24.5" font-size="13" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
+        <defs>${whiteFilter}</defs>
+        <rect x="2" y="2" width="36" height="36" rx="11" fill="${color}"/>
+        <circle cx="20" cy="20" r="11.5" fill="#000000"/>
+        <text x="20" y="24.5" font-size="13" text-anchor="middle" filter="url(#w)" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
       </svg>
     `;
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
   }
 
-  // 얇은 흰 테두리 + 넓은 흰 원(색 띠를 더 얇게) + 그림자 없음(플랫·클린)
+  // 흰 테두리 없음 + 까만 원 + 흰 로고
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
-      <path fill="${color}" stroke="#ffffff" stroke-width="1" d="M18 0C8.1 0 0 8.1 0 18c0 13.5 16.5 26.5 17.1 27.1a1.2 1.2 0 0 0 1.8 0c.6-.6 17.1-13.6 17.1-27.1C36 8.1 27.9 0 18 0z"/>
-      <circle cx="18" cy="18" r="13" fill="#ffffff"/>
-      <text x="18" y="22.6" font-size="13" text-anchor="middle" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
+      <defs>${whiteFilter}</defs>
+      <path fill="${color}" d="M18 0C8.1 0 0 8.1 0 18c0 13.5 16.5 26.5 17.1 27.1a1.2 1.2 0 0 0 1.8 0c.6-.6 17.1-13.6 17.1-27.1C36 8.1 27.9 0 18 0z"/>
+      <circle cx="18" cy="18" r="11" fill="#000000"/>
+      <text x="18" y="22.6" font-size="13" text-anchor="middle" filter="url(#w)" font-family="Segoe UI Symbol, Apple Color Emoji, sans-serif">${emoji}</text>
     </svg>
   `;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
