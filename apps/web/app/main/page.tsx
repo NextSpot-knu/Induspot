@@ -142,6 +142,14 @@ export default function MainPage() {
 
         const mapped = facilitiesData.map((f: any) => {
           const latestLog = latestLogsMap[f.id];
+          let baseCongestion = latestLog ? latestLog.congestion_level : 0.0;
+          if (!latestLog) {
+            let hash = 0;
+            const str = f.id;
+            for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i);
+            baseCongestion = Math.abs(hash % 100) / 100;
+          }
+
           return {
             id: f.id,
             name: f.name,
@@ -150,8 +158,9 @@ export default function MainPage() {
             longitude: f.longitude,
             capacity: f.capacity,
             features: f.features,
-            congestionLevel: latestLog ? latestLog.congestion_level : 0.0,
-            currentCount: latestLog ? latestLog.current_count : 0,
+            baseCongestion: baseCongestion,
+            congestionLevel: baseCongestion,
+            currentCount: latestLog ? latestLog.current_count : Math.floor(baseCongestion * (f.capacity || 100)),
             lastUpdated: latestLog ? latestLog.timestamp : new Date().toISOString(),
           };
         });
@@ -231,6 +240,27 @@ export default function MainPage() {
 
     loadFacilities();
   }, []);
+
+  // Apply mock hour congestion scaling
+  useEffect(() => {
+    if (facilities.length === 0) return;
+    
+    setFacilities(prev => prev.map(f => {
+      let currentCongestion = f.baseCongestion !== undefined ? f.baseCongestion : f.congestionLevel;
+      if (mockHour !== null) {
+        if (mockHour === 12.5) { // 점심 피크
+          if (f.type === 'cafeteria') currentCongestion = Math.min(1.0, currentCongestion * 1.5 + 0.4);
+          else if (f.type === 'parking') currentCongestion = Math.min(1.0, currentCongestion * 1.2 + 0.2);
+          else currentCongestion = Math.min(1.0, currentCongestion * 1.1 + 0.1);
+        } else if (mockHour === 18.5) { // 저녁 피크
+          if (f.type === 'parking') currentCongestion = Math.min(1.0, currentCongestion * 1.5 + 0.4);
+          else if (f.type === 'loading_dock') currentCongestion = Math.min(1.0, currentCongestion * 1.3 + 0.3);
+          else currentCongestion = Math.min(1.0, currentCongestion * 1.1 + 0.1);
+        }
+      }
+      return { ...f, congestionLevel: currentCongestion };
+    }));
+  }, [mockHour]);
 
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
