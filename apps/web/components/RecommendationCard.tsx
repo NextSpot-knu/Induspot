@@ -195,7 +195,7 @@ export function RecommendationCard({
 
   return (
     <div 
-      className={`w-full bg-[#0b101e] border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
+      className={`w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
       style={{
         transform: `translateY(${translateY}px)`,
         transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s, gap 0.3s',
@@ -259,16 +259,16 @@ export function RecommendationCard({
           {/* Status Pills */}
           {!isExpanded && facility && facility.congestionLevel !== undefined && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border bg-black/40 ${
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                 facility.congestionLevel >= 0.7 
-                  ? 'border-rose-500/20 text-rose-400'
+                  ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
                   : facility.congestionLevel >= 0.3
-                  ? 'border-emerald-500/20 text-emerald-400'
-                  : 'border-blue-500/20 text-blue-400'
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
               }`}>
                 혼잡도: {facility.congestionLevel >= 0.7 ? '혼잡' : facility.congestionLevel >= 0.3 ? '보통' : '여유'}
               </span>
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-black/40 border border-white/10 text-slate-300">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/5 border border-white/10 text-slate-300">
                 잔여: {Math.max(0, (facility.capacity || 0) - (facility.currentCount || 0))}자리 (총 {facility.capacity})
               </span>
             </div>
@@ -323,7 +323,7 @@ export function RecommendationCard({
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 {/* Time Cost Column */}
-                <div className="flex-1 bg-black/40 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
+                <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-2 opacity-20">
                     <Clock size={24} className="text-blue-300" />
                   </div>
@@ -340,7 +340,7 @@ export function RecommendationCard({
                 </div>
 
                 {/* Preference Column */}
-                <div className="w-[110px] bg-black/40 border border-white/10 rounded-2xl p-3 flex flex-col justify-center items-center text-center">
+                <div className="w-[110px] bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col justify-center items-center text-center">
                   <span className="text-slate-400 text-[10px] font-semibold mb-1">취향 일치율</span>
                   <div className="flex items-baseline gap-0.5 mb-1">
                     <span className="text-xl font-black text-sky-400">{preferencePercent}</span>
@@ -356,7 +356,7 @@ export function RecommendationCard({
 
               {/* Timeline UI */}
               {currentTime && arrivalTime && serviceTime && (
-                <div className="bg-black/40 border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-3">
+                <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-3">
                   <div className="flex items-start justify-between relative mt-1">
                     {/* Connecting Line */}
                     <div className="absolute top-[3px] left-4 right-4 h-[2px] bg-white/10 z-0" />

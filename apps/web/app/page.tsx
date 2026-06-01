@@ -25,17 +25,25 @@ export default function LoadingPage() {
   }, [router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] relative overflow-hidden bg-[#0d1222]">
-      {/* 
-        사용자가 첨부한 원본 이미지를 띄우는 영역입니다. 
-        public 폴더에 'splash.png' 이름으로 이미지를 넣으시면 바로 전체 화면으로 렌더링됩니다.
-      */}
-      <img 
-        src="/splash.png" 
-        alt="Splash Screen" 
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ zIndex: 0 }}
-      />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[url('/bg.png')] bg-cover bg-center relative overflow-hidden">
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-[#0b101e]/70 z-0"></div>
+
+      {/* Background decoration for glassmorphism feel later */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
+
+      <div
+        className={`z-10 flex flex-col items-center text-center transition-opacity duration-1000 ${
+          isVisible ? 'opacity-100 animate-fade-in' : 'opacity-0'
+        }`}
+      >
+        <h1 className="text-5xl font-bold tracking-tight text-white mb-4">
+          InduSpot
+        </h1>
+        <p className="text-lg text-gray-300 font-medium">
+          기다림 없는 스마트한 공단 생활
+        </p>
+      </div>
     </div>
   );
 }

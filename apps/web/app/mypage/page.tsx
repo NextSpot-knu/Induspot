@@ -252,7 +252,7 @@ export default function MyPage() {
       </main>
 
       {/* Bottom Navigation Bar */}
-      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e] border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
+      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
         {[
           { id: 'Home', icon: Home, label: 'Home' },
           { id: 'Saved', icon: Bookmark, label: 'Saved' },

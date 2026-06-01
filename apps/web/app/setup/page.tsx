@@ -38,9 +38,9 @@ export default function SetupPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen mesh-gradient-dark text-white relative overflow-hidden">
-      {/* Noise Texture */}
-      <div className="bg-grainy"></div>
+    <div className="flex flex-col min-h-screen bg-[url('/bg.png')] bg-cover bg-center text-white relative overflow-hidden">
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-[#0b101e]/70 z-0"></div>
 
       {/* Background Glow */}
       <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
@@ -86,14 +86,14 @@ export default function SetupPage() {
                   <button
                     key={option.id}
                     onClick={() => setPreference('food', option.label)}
-                    className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-all fractal-glass ${
+                    className={`flex flex-col items-center justify-center p-6 rounded-2xl border backdrop-blur-md transition-all ${
                       isSelected 
-                        ? 'bg-blue-600/30 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)] text-white text-shadow-sm' 
-                        : 'border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+                        ? 'bg-blue-600/20 border-blue-500 text-white' 
+                        : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
                     }`}
                   >
-                    <Icon size={32} className="mb-3 drop-shadow-md" />
-                    <span className="font-semibold text-shadow-sm">{option.label}</span>
+                    <Icon size={32} className="mb-3" />
+                    <span className="font-semibold">{option.label}</span>
                   </button>
                 );
               })}
@@ -119,13 +119,13 @@ export default function SetupPage() {
                   <button
                     key={option.id}
                     onClick={() => setPreference('parking', option.label)}
-                    className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-all fractal-glass ${
+                    className={`flex flex-col items-center justify-center p-6 rounded-2xl border backdrop-blur-md transition-all ${
                       isSelected 
-                        ? 'bg-blue-600/30 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)] text-white text-shadow-sm' 
-                        : 'border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+                        ? 'bg-blue-600/20 border-blue-500 text-white' 
+                        : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
                     }`}
                   >
-                    <Icon size={32} className={`mb-3 drop-shadow-md ${isSelected ? 'text-cyan-400' : ''}`} />
+                    <Icon size={32} className={`mb-3 ${isSelected ? 'text-cyan-400' : ''}`} />
                     <span className="font-semibold text-lg">{option.label}</span>
                     <span className="text-xs opacity-60 mt-1">{option.sub}</span>
                   </button>
@@ -151,14 +151,14 @@ export default function SetupPage() {
                   <button
                     key={option.id}
                     onClick={() => setPreference('shift', option.label)}
-                    className={`flex items-center p-6 rounded-2xl transition-all fractal-glass ${
+                    className={`flex items-center p-6 rounded-2xl border backdrop-blur-md transition-all ${
                       isSelected 
-                        ? 'bg-blue-600/30 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)] text-white text-shadow-sm' 
-                        : 'border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+                        ? 'bg-blue-600/20 border-blue-500 text-white' 
+                        : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
                     }`}
                   >
-                    <div className="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 mr-4 shadow-inner">
-                      <Icon size={24} className={isSelected ? 'text-yellow-400 drop-shadow-md' : 'drop-shadow-md'} />
+                    <div className="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 mr-4">
+                      <Icon size={24} className={isSelected ? 'text-yellow-400' : ''} />
                     </div>
                     <div className="text-left flex-1">
                       <div className="font-semibold text-lg">{option.label}</div>
