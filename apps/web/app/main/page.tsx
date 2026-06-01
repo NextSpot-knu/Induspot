@@ -763,19 +763,23 @@ export default function MainPage() {
     scoredFacilities.sort(compareFacilities);
     const displayFacilities = scoredFacilities.slice(0, 100);
 
-    // 마커 크기 반응형: 좁은 화면(모바일)은 작게, 넓은 화면은 크게. 핀 비율(≈36:46)은 유지.
+    // 마커 크기: 평소엔 작게, 선택 시엔 확대(뒤쪽 펄스/이펙트 없이 크기만 키움). 화면 폭에 따라 반응형.
     const isNarrow = typeof window !== 'undefined' && window.innerWidth < 640;
-    const mW = isNarrow ? 42 : 50;
-    const mH = isNarrow ? 54 : 64;
+    const baseW = isNarrow ? 34 : 40;
+    const baseH = isNarrow ? 44 : 51;
+    const selW = isNarrow ? 48 : 58;
+    const selH = isNarrow ? 62 : 74;
 
     const newMarkers = displayFacilities.map((f) => {
       // 사내 주차장은 정사각형 마커 → 정사각 크기 + 중앙 앵커(가로세로 비율 유지). 그 외 핀은 바닥(끝) 앵커.
       const isPriv = f.type === 'parking' && f.features && (f.features.is_private === true || f.features.is_public === false);
-      const isSel = !!selectedFacility && f.id === selectedFacility.id; // 선택 시 진한 색으로 렌더
+      const isSel = !!selectedFacility && f.id === selectedFacility.id; // 선택 시 진한 색 + 확대
+      const w = isSel ? selW : baseW;
+      const h = isSel ? selH : baseH;
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel, f.features, isSel),
-        isPriv ? new kakao.maps.Size(mW, mW) : new kakao.maps.Size(mW, mH),
-        { offset: isPriv ? new kakao.maps.Point(mW / 2, mW / 2) : new kakao.maps.Point(mW / 2, mH) }
+        isPriv ? new kakao.maps.Size(w, w) : new kakao.maps.Size(w, h),
+        { offset: isPriv ? new kakao.maps.Point(w / 2, w / 2) : new kakao.maps.Point(w / 2, h) }
       );
 
       const marker = new kakao.maps.Marker({

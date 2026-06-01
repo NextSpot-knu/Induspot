@@ -9,12 +9,12 @@ export const getMarkerSvg = (
   // 평소 = 진한 600계열(화면에서 또렷·밝게), 선택 시 = 한 단계 더 진한 700계열(화면에서 더 밝게).
   const p =
     level >= 0.75
-      ? { base: "#e11d48", sel: "#be123c" } // 혼잡 (red)
+      ? { base: "#e11d48", sel: "#9f1239" } // 혼잡 (red): 평소 600 / 선택 800
       : level >= 0.5
-      ? { base: "#d97706", sel: "#b45309" } // 보통 (yellow)
+      ? { base: "#d97706", sel: "#92400e" } // 보통 (yellow)
       : level >= 0.25
-      ? { base: "#059669", sel: "#047857" } // 여유 (green)
-      : { base: "#2563eb", sel: "#1d4ed8" }; // 한산 (blue)
+      ? { base: "#059669", sel: "#065f46" } // 여유 (green)
+      : { base: "#2563eb", sel: "#1e40af" }; // 한산 (blue)
   const color = selected ? p.sel : p.base;
 
   let emoji = "📍";
