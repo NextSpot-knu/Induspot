@@ -668,11 +668,16 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
-  // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
+  // Initialize map if Kakao Maps script is already loaded
   useEffect(() => {
-    if (typeof window !== "undefined" && window.kakao && window.kakao.maps) {
-      initMap();
-    }
+    const initInterval = setInterval(() => {
+      if (typeof window !== "undefined" && window.kakao && window.kakao.maps && mapContainerRef.current) {
+        clearInterval(initInterval);
+        initMap();
+      }
+    }, 200);
+
+    return () => clearInterval(initInterval);
   }, []);
 
   // Initialize Kakao Map
@@ -737,7 +742,12 @@ export default function MainPage() {
 
     const filtered = facilities.filter(f => f.type === targetType);
 
-    const newMarkers = filtered.map((f) => {
+    // Optimize: Cap markers to top 100 highest TTTV score to prevent browser UI freezing
+    const scoredFacilities = filtered.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+    scoredFacilities.sort(compareFacilities);
+    const displayFacilities = scoredFacilities.slice(0, 100);
+
+    const newMarkers = displayFacilities.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel, f.features),
         new kakao.maps.Size(18, 23),
@@ -823,14 +833,6 @@ export default function MainPage() {
   return (
     <div className="relative w-full h-screen overflow-hidden mesh-gradient-dark flex flex-col">
       <div className="bg-grainy"></div>
-      {/* Kakao Map API Script */}
-      {appKey && (
-        <Script
-          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`}
-          strategy="afterInteractive"
-          onLoad={initMap}
-        />
-      )}
 
       {/* Map Container */}
       <div 
@@ -1060,7 +1062,7 @@ export default function MainPage() {
       )}
 
       {/* Bottom Navigation Bar */}
-      <div className="absolute bottom-0 w-full z-30 fractal-glass border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
+      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e] border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
         {[
           { id: 'Home', icon: Home, label: 'Home' },
           { id: 'Saved', icon: Bookmark, label: 'Saved' },

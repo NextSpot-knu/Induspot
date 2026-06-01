@@ -195,7 +195,7 @@ export function RecommendationCard({
 
   return (
     <div 
-      className={`w-full fractal-glass border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
+      className={`w-full bg-[#0b101e] border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
       style={{
         transform: `translateY(${translateY}px)`,
         transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s, gap 0.3s',

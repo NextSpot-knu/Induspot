@@ -319,7 +319,7 @@ export default function SavedPage() {
       <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
       {/* Bottom Navigation Bar */}
-      <div className="absolute bottom-0 w-full z-30 fractal-glass border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
+      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e] border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
         {[
           { id: 'Home', icon: Home, label: 'Home' },
           { id: 'Saved', icon: Bookmark, label: 'Saved' },
