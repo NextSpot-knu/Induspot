@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.supabase import get_current_user
 from app.core.logging import setup_logging
-from app.routers import recommendations, infrastructures, predict, ingest
+from app.routers import recommendations, infrastructures, predict, ingest, preferences
 
 
 # 로깅 설정 초기화
@@ -41,6 +41,7 @@ app.include_router(recommendations.router)
 app.include_router(infrastructures.router)
 app.include_router(predict.router, prefix="/predict")
 app.include_router(ingest.router)  # WP4: POST /ingest/pubsub
+app.include_router(preferences.router)  # 자연어 선호 → Gemini 파싱 → 추천 반영
 
 # 1. Health Check Endpoint
 @app.get("/")
@@ -72,10 +73,10 @@ def get_tttv_recommendation(
     # 여기선 데모 목업 데이터를 반환
     return {
         "requested_infra_id": infra_id,
-        "recommended_infra_id": "south-dock-a",
-        "recommended_infra_name": "남부 하역장 A구역",
+        "recommended_infra_id": "south-lounge-a",
+        "recommended_infra_name": "남부 직원 휴게라운지 A",
         "original_estimated_wait_time": 45,  # 분
         "recommended_estimated_wait_time": 10,  # 분
         "travel_time_saved": 35,  # 분
-        "reason": "현재 B구역에 대기 트럭이 8대 집중되어 있습니다. A구역으로 3분간 우회 시 즉시 하역이 가능하여 총 35분을 절약할 수 있습니다."
+        "reason": "현재 중앙 휴게라운지에 이용객이 몰려 있습니다. 남부 휴게라운지로 3분간 이동 시 즉시 이용이 가능하여 총 35분을 절약할 수 있습니다."
     }

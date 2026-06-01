@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Building2, Search, Bell, Utensils, ParkingCircle, Filter, 
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle, Users, Clock, Activity, Truck 
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle, Users, Clock, Activity, Coffee
 } from 'lucide-react';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -13,7 +13,7 @@ import { createPublicClient } from '@/lib/supabase';
 interface Infrastructure {
   id: string;
   name: string;
-  type: '식당' | '주차장' | '회의실' | '하역장';
+  type: '식당' | '주차장' | '회의실' | '휴게실';
   status: 'green' | 'yellow' | 'red';
   capacity: string;
   expectedDemand: string;
@@ -68,11 +68,12 @@ export default function InfrastructurePage() {
           const currentCount = latestLog ? latestLog.current_count : 0;
 
           // 타입 매핑
-          const typeMap: Record<string, '식당' | '주차장' | '회의실' | '하역장'> = {
+          const typeMap: Record<string, '식당' | '주차장' | '회의실' | '휴게실'> = {
             cafeteria: '식당',
             parking: '주차장',
             meeting_room: '회의실',
-            loading_dock: '하역장'
+            rest_area: '휴게실',
+            loading_dock: '휴게실'  // 레거시 호환
           };
           const mappedType = typeMap[f.type] || '회의실';
 
@@ -207,7 +208,7 @@ export default function InfrastructurePage() {
       case '식당': return <Utensils size={18} />;
       case '주차장': return <ParkingCircle size={18} />;
       case '회의실': return <Building2 size={18} />;
-      case '하역장': return <Truck size={18} />;
+      case '휴게실': return <Coffee size={18} />;
       default: return <Building2 size={18} />;
     }
   };
@@ -251,7 +252,7 @@ export default function InfrastructurePage() {
           <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col h-full">
             <div className="p-4 border-b border-slate-200">
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                {['식당', '주차장', '회의실', '하역장'].map(filter => (
+                {['식당', '주차장', '회의실', '휴게실'].map(filter => (
                   <button
                     key={filter}
                     onClick={() => {

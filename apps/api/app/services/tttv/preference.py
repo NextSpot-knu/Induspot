@@ -2,12 +2,14 @@
 import math
 from app.services.pinecone_service import pinecone_service
 
-# 8차원 카테고리 벡터 매핑 테이블
+# 8차원 카테고리 벡터 매핑 테이블 (canonical 4타입: 식당/주차장/회의실/휴게공간)
 CATEGORY_VECTORS = {
     "cafeteria": [1.0, 0.0, 0.0, 0.0, 0.2, 0.1, 0.0, 0.0],
     "parking": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.1],
     "meeting_room": [0.0, 0.0, 1.0, 0.0, 0.1, 0.0, 0.0, 0.2],
-    "loading_dock": [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0]
+    "rest_area": [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0],
+    # 레거시 호환: 기존 loading_dock 데이터도 동일 벡터로 취급
+    "loading_dock": [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0],
 }
 
 def get_category_average_vector(preferred_categories: list[str]) -> list[float]:

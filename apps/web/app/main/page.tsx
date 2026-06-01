@@ -28,7 +28,7 @@ const getMarkerSvg = (type: string, level: number, features?: any) => {
   if (type === "cafeteria") emoji = "🍴";
   else if (type === "parking") emoji = "🚗";
   else if (type === "meeting_room") emoji = "🤝";
-  else if (type === "loading_dock") emoji = "🚚";
+  else if (type === "rest_area" || type === "loading_dock") emoji = "🛋️";
 
   const isPrivateParking = type === "parking" && features && (features.is_private === true || features.is_public === false);
 
@@ -160,7 +160,7 @@ export default function MainPage() {
         const dummyLoungesSub = Array.from({length: 5}).map((_, i) => ({
            id: `dummy-lounge-${i}`,
            name: `사내 휴게실 ${i+1}`,
-           type: 'loading_dock',
+           type: 'rest_area',
            capacity: 10,
            congestionLevel: Math.random(),
            currentCount: Math.floor(Math.random() * 10),
@@ -174,7 +174,7 @@ export default function MainPage() {
         const dummyLoungeGroup = {
            id: `dummy-lounge-group`,
            name: `사내 휴게실 모음`,
-           type: 'loading_dock',
+           type: 'rest_area',
            latitude: companyLat,
            longitude: companyLng,
            congestionLevel: dummyLoungesSub.reduce((acc, curr) => acc + curr.congestionLevel, 0) / 5,
@@ -350,7 +350,7 @@ export default function MainPage() {
     cafeteria: [1.0, 0.0, 0.0, 0.0, 0.2, 0.1, 0.0, 0.0],
     parking: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.1],
     meeting_room: [0.0, 0.0, 1.0, 0.0, 0.1, 0.0, 0.0, 0.2],
-    loading_dock: [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0]
+    rest_area: [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0]
   };
 
   const calculateHaversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -407,7 +407,7 @@ export default function MainPage() {
       cafeteria: 20,
       parking: 5,
       meeting_room: 10,
-      loading_dock: 30
+      rest_area: 10
     };
     const avgProcessTime = facility.features?.average_processing_time ?? defaultTimes[facility.type] ?? 15;
     const hour = new Date().getHours();
@@ -460,7 +460,7 @@ export default function MainPage() {
         '식당': 'cafeteria',
         '주차장': 'parking',
         '회의실': 'meeting_room',
-        '휴게실': 'loading_dock'
+        '휴게실': 'rest_area'
       };
       const targetType = filterMap[activeFilter];
 
@@ -549,7 +549,7 @@ export default function MainPage() {
 
     // ★ Compute next facility BEFORE state update to avoid async race condition
     const filterMap: Record<string, string> = {
-      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'loading_dock'
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
     };
     const targetType = filterMap[activeFilter];
     // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
@@ -613,7 +613,7 @@ export default function MainPage() {
 
     // ★ Compute next facility BEFORE state update to avoid async race condition
     const filterMap: Record<string, string> = {
-      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'loading_dock'
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
     };
     const targetType = filterMap[activeFilter];
     // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
@@ -715,7 +715,7 @@ export default function MainPage() {
       '식당': 'cafeteria',
       '주차장': 'parking',
       '회의실': 'meeting_room',
-      '휴게실': 'loading_dock'
+      '휴게실': 'rest_area'
     };
     const targetType = filterMap[activeFilter];
 

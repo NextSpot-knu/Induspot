@@ -5,7 +5,8 @@ DEFAULT_PROCESSING_TIMES = {
     "cafeteria": 20,
     "parking": 5,
     "meeting_room": 10,
-    "loading_dock": 30
+    "rest_area": 10,      # 휴게 공간: 좌석/시설 이용 대기
+    "loading_dock": 30,   # 레거시 호환
 }
 
 async def calculate_predicted_wait_time(
