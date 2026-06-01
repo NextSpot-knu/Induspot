@@ -727,6 +727,14 @@ export default function MainPage() {
           sessionStorage.setItem('induspot_map_center_lng', center.getLng().toString());
           sessionStorage.setItem('induspot_map_level', lvl.toString());
         });
+
+        // 빈 지도(마커 외) 클릭 시 열린 그룹 팝업 닫기 — 일반 지도앱 UX
+        window.kakao.maps.event.addListener(map, 'click', () => {
+          if (activeOverlayRef.current) {
+            activeOverlayRef.current.setMap(null);
+            activeOverlayRef.current = null;
+          }
+        });
       });
     }
   };
@@ -762,10 +770,12 @@ export default function MainPage() {
     const mH = isNarrow ? 54 : 64;
 
     const newMarkers = displayFacilities.map((f) => {
+      // 사내 주차장은 정사각형 마커 → 정사각 크기 + 중앙 앵커(가로세로 비율 유지). 그 외 핀은 바닥(끝) 앵커.
+      const isPriv = f.type === 'parking' && f.features && (f.features.is_private === true || f.features.is_public === false);
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel, f.features),
-        new kakao.maps.Size(mW, mH),
-        { offset: new kakao.maps.Point(mW / 2, mH) }
+        isPriv ? new kakao.maps.Size(mW, mW) : new kakao.maps.Size(mW, mH),
+        { offset: isPriv ? new kakao.maps.Point(mW / 2, mW / 2) : new kakao.maps.Point(mW / 2, mH) }
       );
 
       const marker = new kakao.maps.Marker({
@@ -784,11 +794,25 @@ export default function MainPage() {
 
         if (f.isGroup) {
           const content = document.createElement('div');
-          content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[180px] max-w-[280px] max-h-[260px] overflow-y-auto pointer-events-auto';
-          
+          content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[180px] max-w-[280px] max-h-[260px] overflow-y-auto no-scrollbar pointer-events-auto';
+
           const titleEl = document.createElement('div');
-          titleEl.className = 'text-[10px] text-blue-400 font-bold px-2 py-1 mb-1 border-b border-white/10 uppercase tracking-wider';
-          titleEl.innerText = f.name;
+          titleEl.className = 'flex items-center justify-between gap-2 px-2 py-1 mb-1 border-b border-white/10';
+          const titleText = document.createElement('span');
+          titleText.className = 'text-[10px] text-blue-400 font-bold uppercase tracking-wider';
+          titleText.innerText = f.name;
+          const closeBtn = document.createElement('button');
+          closeBtn.className = 'shrink-0 text-slate-400 hover:text-white text-sm leading-none cursor-pointer';
+          closeBtn.innerHTML = '&#10005;';
+          closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (activeOverlayRef.current) {
+              activeOverlayRef.current.setMap(null);
+              activeOverlayRef.current = null;
+            }
+          };
+          titleEl.appendChild(titleText);
+          titleEl.appendChild(closeBtn);
           content.appendChild(titleEl);
 
           f.subFacilities.forEach((sub: any) => {
@@ -842,11 +866,13 @@ export default function MainPage() {
     if (!selectedFacility || typeof selectedFacility.latitude !== 'number' || typeof selectedFacility.longitude !== 'number') return;
 
     const isNarrow = window.innerWidth < 640;
+    // 사내 주차장은 정사각 마커 → 정사각 비율·중앙 기준, 그 외 핀은 세로형·머리(원) 기준
+    const isPriv = selectedFacility.type === 'parking' && selectedFacility.features && (selectedFacility.features.is_private === true || selectedFacility.features.is_public === false);
     const w = isNarrow ? 58 : 70;
-    const h = isNarrow ? 74 : 90;
-    const ring = Math.round(w * 0.74);
+    const h = isPriv ? w : (isNarrow ? 74 : 90);
+    const ring = Math.round(w * (isPriv ? 0.82 : 0.74));
     const rs = Math.round(ring * 0.58);
-    const headTop = Math.round(h * 0.39); // 핀 머리(원) 중심 높이
+    const headTop = isPriv ? Math.round(h / 2) : Math.round(h * 0.39); // 정사각=중앙, 핀=머리
     const half = Math.round(ring / 2);
     const halfS = Math.round(rs / 2);
 
@@ -858,14 +884,14 @@ export default function MainPage() {
         <span class="animate-ping" style="display:block;width:100%;height:100%;border-radius:9999px;background:rgba(59,130,246,0.38);"></span>
       </span>
       <span style="position:absolute;left:50%;top:${headTop}px;width:${rs}px;height:${rs}px;margin-left:-${halfS}px;margin-top:-${halfS}px;border-radius:9999px;border:2px solid rgba(96,165,250,0.95);box-sizing:border-box;"></span>
-      <img class="marker-pop" src="${getMarkerSvg(selectedFacility.type, selectedFacility.congestionLevel, selectedFacility.features)}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:block;" />
+      <img class="marker-pop" src="${getMarkerSvg(selectedFacility.type, selectedFacility.congestionLevel, selectedFacility.features)}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:block;transform-origin:${isPriv ? '50% 50%' : '50% 100%'};" />
     `;
 
     const overlay = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(selectedFacility.latitude, selectedFacility.longitude),
       content: el,
       xAnchor: 0.5,
-      yAnchor: 1,
+      yAnchor: isPriv ? 0.5 : 1,
       zIndex: 200,
     });
     overlay.setMap(mapInstanceRef.current);
