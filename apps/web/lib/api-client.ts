@@ -43,7 +43,7 @@ export function keysToSnake(o: any): any {
   return o;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_URL || "/api/proxy";
+const BASE_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || process.env.NEXT_PUBLIC_FASTAPI_URL || "/api/proxy";
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;

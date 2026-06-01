@@ -6,6 +6,8 @@ import {
   fetchAnomalyAlerts
 } from "@/lib/queries";
 
+export const dynamic = "force-static";
+
 /**
  * GET /api/admin/dashboard
  * Response: { kpi, heatmap, distribution, anomalies }
