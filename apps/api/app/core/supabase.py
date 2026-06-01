@@ -9,6 +9,11 @@ from app.core.config import settings
 # 1. Supabase Python Client 초기화 (BFF 및 백엔드 직접 DB 조회/CUD용)
 supabase_client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
 
+# 1-1. 서버→서버 신뢰 경로용 클라이언트(WP4 Pub/Sub 적재 등).
+#      service_role 키가 있으면 RLS 를 우회해 congestion_logs 에 insert 할 수 있다.
+#      (없으면 anon 으로 폴백 — 기존 동작과 동일.)
+supabase_admin: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+
 # 2. HTTP Bearer 인증 체계 정의 (프록시 상황에서 누락 에러 방지를 위해 auto_error=False 설정)
 security = HTTPBearer(auto_error=False)
 
