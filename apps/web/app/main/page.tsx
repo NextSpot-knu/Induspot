@@ -296,9 +296,12 @@ export default function MainPage() {
         }
       </style>
       <div style="position: relative; width: 100px; height: 100px; pointer-events: none;">
-        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,224,0.7) 30%, rgba(255,255,161,0.3) 70%, rgba(255,255,161,0) 100%); animation: pulse-user-marker 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
-        <div style="position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; margin-top: -12px; margin-left: -12px; background: #ffffff; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.6);"></div>
-        <div style="position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin-top: -8px; margin-left: -8px; background: #ffffa1; border-radius: 50%;"></div>
+        <!-- Glow (Dark colors become bright after invert/hue-rotate) -->
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(0,0,0,0.9) 0%, rgba(30,30,0,0.7) 30%, rgba(60,60,0,0.3) 70%, rgba(60,60,0,0) 100%); animation: pulse-user-marker 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
+        <!-- Border: Black becomes White/Light Gray -->
+        <div style="position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; margin-top: -12px; margin-left: -12px; background: #000000; border-radius: 50%; box-shadow: 0 2px 8px rgba(255,255,255,0.4);"></div>
+        <!-- Core: Very dark yellow becomes bright pale yellow -->
+        <div style="position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin-top: -8px; margin-left: -8px; background: #333300; border-radius: 50%;"></div>
       </div>
     `;
 
