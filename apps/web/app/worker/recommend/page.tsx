@@ -13,6 +13,13 @@ declare global {
   }
 }
 
+// 데모 회복탄력성: 백엔드/Gemini 사유가 없을 때(목업·폴백)도 추천 사유가 비지 않도록
+// 보여줄 결정적 한국어 사유를 생성한다. 백엔드 reason_service._build_template 와 어투를 맞춰 일관성 유지.
+function buildMockReason(name: string, waitMin: number, distanceM: number): string {
+  const walk = Math.max(1, Math.round(distanceM / 80)); // 80m/min ≈ 4.8km/h
+  return `${name} 추천: 도보 ${walk}분, 예상 대기 ${Math.round(waitMin)}분 수준으로 지금 가장 여유로워요.`;
+}
+
 // MiniMap Component for Kakao Maps inside alternative cards
 interface MiniMapProps {
   latitude: number;
@@ -154,9 +161,14 @@ function RecommendContent() {
   const [nlSummary, setNlSummary] = useState<string | null>(null);
   const [nlApplied, setNlApplied] = useState(false);
   const recognitionRef = useRef<any>(null);
+  // 빠른 더블클릭으로 인한 중복 피드백 전송 방지 — 리렌더 전에도 동기적으로 차단되는 가드
+  const votedRef = useRef<Set<string>>(new Set());
 
   // Toast message state
   const [toast, setToast] = useState<string | null>(null);
+
+  // 추천별 만족도 피드백(👍/👎) 기록 — 중복 전송 방지 + 버튼 선택 상태 표시
+  const [feedbackVotes, setFeedbackVotes] = useState<Record<string, "up" | "down">>({});
 
   // Coordinates used for recommendations
   const [lat, setLat] = useState<number>(36.1198);
@@ -490,6 +502,7 @@ function RecommendContent() {
               incentive: 0.2
             },
             distanceM: 120 + (i * 35),
+            reason: buildMockReason(f.name, 5 + (i * 3), 120 + (i * 35)),
             rank: i + 1,
             totalCandidates: filteredMock.length
           }));
@@ -522,6 +535,7 @@ function RecommendContent() {
       tttvScore: 85 - i * 10,
       breakdown: { preference: 0.9 - i * 0.15, waitTime: 5 + i * 3, travelTime: 2.5 + i, incentive: 0.2 },
       distanceM: 120 + i * 35,
+      reason: buildMockReason(f.name, 5 + i * 3, 120 + i * 35),
       rank: i + 1,
       totalCandidates: filteredMock.length,
     }));
@@ -680,6 +694,7 @@ function RecommendContent() {
             incentive: 0.2
           },
           distanceM: 120 + (i * 35),
+          reason: buildMockReason(f.name, 5 + (i * 3), 120 + (i * 35)),
           rank: i + 1,
           totalCandidates: filteredMock.length
         }));
@@ -759,6 +774,27 @@ function RecommendContent() {
       } else {
         window.location.href = destUrl;
       }
+    }
+  };
+
+  // 추천 카드별 만족도 피드백(👍/👎). 백엔드 액션에 매핑: 👍=accepted(선호벡터 +10%), 👎=rejected(-5%).
+  // 만족도 신호일 뿐 실제 경로 이동('여기로 갈래요')과는 별개다. 목업 추천(mock- 접두)은 DB 기록이 없어
+  // 서버 호출을 건너뛰고 UI 상태/토스트만 갱신해 데모가 끊기지 않게 한다.
+  const handleSatisfactionFeedback = async (rec: RecommendationResponse, vote: "up" | "down") => {
+    // 동기 가드(ref): 상태 반영(리렌더) 전 빠른 연타도 차단. feedbackVotes 가드/버튼 숨김은 보조.
+    if (votedRef.current.has(rec.recommendationId) || feedbackVotes[rec.recommendationId]) return;
+    votedRef.current.add(rec.recommendationId);
+    setFeedbackVotes((prev) => ({ ...prev, [rec.recommendationId]: vote }));
+    setToast(
+      vote === "up"
+        ? "좋아요! 이런 추천을 더 보여드릴게요 🎯"
+        : "알려줘서 고마워요. 다음 추천에 반영할게요 🙏"
+    );
+    if (rec.recommendationId.startsWith("mock-")) return; // 데모 폴백 추천은 서버에 기록 없음
+    try {
+      await submitFeedback(rec.recommendationId, vote === "up" ? "accepted" : "rejected");
+    } catch (err) {
+      console.warn("만족도 피드백 전송 실패(데모 동작에는 영향 없음):", err);
     }
   };
 
@@ -955,6 +991,33 @@ function RecommendContent() {
                       <span className="text-slate-500 block text-[9px] uppercase">예상 도보</span>
                       <span className="font-bold text-emerald-400">{travelTime}분 ({Math.round(rec.distanceM)}m)</span>
                     </div>
+                  </div>
+
+                  {/* 만족도 피드백 (👍/👎) — 선호 벡터를 보정해 다음 추천에 반영 */}
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                    <span className="text-[10px] text-slate-500">이 추천이 도움이 됐나요?</span>
+                    {feedbackVotes[rec.recommendationId] ? (
+                      <span className="text-[10px] font-semibold text-sky-300">
+                        {feedbackVotes[rec.recommendationId] === "up" ? "👍 반영했어요" : "👎 반영했어요"}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleSatisfactionFeedback(rec, "up")}
+                          aria-label="이 추천이 도움이 됐어요"
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border bg-white/5 border-white/10 text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300 transition-all active:scale-95"
+                        >
+                          👍 좋아요
+                        </button>
+                        <button
+                          onClick={() => handleSatisfactionFeedback(rec, "down")}
+                          aria-label="이 추천은 별로예요"
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border bg-white/5 border-white/10 text-slate-300 hover:border-rose-400/40 hover:text-rose-300 transition-all active:scale-95"
+                        >
+                          👎 별로예요
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* CTA button */}
