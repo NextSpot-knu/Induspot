@@ -1,0 +1,3 @@
+# Dataflow 파이프라인 전용 의존성(백엔드 런타임과 분리 — Cloud Run 이미지엔 불필요).
+# pip install -r dataflow/requirements.txt 후 DirectRunner/DataflowRunner 로 실행.
+apache-beam[gcp]>=2.55.0
