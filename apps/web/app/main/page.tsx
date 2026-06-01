@@ -289,15 +289,31 @@ export default function MainPage() {
     }
 
     const userSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
-        <circle cx="15" cy="15" r="12" fill="%233b82f6" fill-opacity="0.25" stroke="%233b82f6" stroke-width="2"/>
-        <circle cx="15" cy="15" r="6" fill="%233b82f6" stroke="%23ffffff" stroke-width="2"/>
+      <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+        <defs>
+          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.4"/>
+          </filter>
+        </defs>
+        <style>
+          @keyframes pulse {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+          }
+          .pulse-circle {
+            animation: pulse 2s infinite ease-out;
+            transform-origin: 30px 30px;
+          }
+        </style>
+        <circle class="pulse-circle" cx="30" cy="30" r="16" fill="#3b82f6" fill-opacity="0.6"/>
+        <circle cx="30" cy="30" r="10" fill="#ffffff" filter="url(#shadow)"/>
+        <circle cx="30" cy="30" r="7" fill="#2563eb"/>
       </svg>
     `;
     const userImage = new kakao.maps.MarkerImage(
       `data:image/svg+xml;charset=utf-8,${encodeURIComponent(userSvg.trim())}`,
-      new kakao.maps.Size(30, 30),
-      { offset: new kakao.maps.Point(15, 15) }
+      new kakao.maps.Size(60, 60),
+      { offset: new kakao.maps.Point(30, 30) }
     );
 
     const userMarker = new kakao.maps.Marker({
