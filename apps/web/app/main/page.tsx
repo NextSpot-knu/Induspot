@@ -668,16 +668,11 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
-  // Initialize map if Kakao Maps script is already loaded
+  // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
   useEffect(() => {
-    const initInterval = setInterval(() => {
-      if (typeof window !== "undefined" && window.kakao && window.kakao.maps && mapContainerRef.current) {
-        clearInterval(initInterval);
-        initMap();
-      }
-    }, 200);
-
-    return () => clearInterval(initInterval);
+    if (typeof window !== "undefined" && window.kakao && window.kakao.maps) {
+      initMap();
+    }
   }, []);
 
   // Initialize Kakao Map
@@ -832,6 +827,14 @@ export default function MainPage() {
 
   return (
     <div className="relative w-full h-screen overflow-hidden flex flex-col">
+      {/* Kakao Map API Script */}
+      {appKey && (
+        <Script
+          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services,clusterer`}
+          strategy="afterInteractive"
+          onLoad={initMap}
+        />
+      )}
 
       {/* Map Container */}
       <div 
