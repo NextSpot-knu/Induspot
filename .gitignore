@@ -14,11 +14,18 @@
 /coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
+apps/web/out/
+apps/web/.next/
+
+# firebase
+.firebase/
+.firebase/*
 
 # production
 /build
+build/
 
 # misc
 .DS_Store
