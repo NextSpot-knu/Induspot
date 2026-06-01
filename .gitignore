@@ -18,6 +18,8 @@
 out/
 apps/web/out/
 apps/web/.next/
+apps/web/api_backup/
+api_backup/
 
 # firebase
 .firebase/
