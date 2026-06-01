@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
-import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, Coffee, Sparkles } from 'lucide-react';
+import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, Coffee, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { createPublicClient } from '@/lib/supabase';
 
@@ -67,6 +67,7 @@ export default function MainPage() {
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isCardHidden, setIsCardHidden] = useState(false);
+  const [isMockLocationMinimized, setIsMockLocationMinimized] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -914,44 +915,64 @@ export default function MainPage() {
 
       {/* Test Mock Locations Sidebar (Right Side) */}
       <div className="absolute right-4 top-[170px] z-20 flex flex-col gap-2 pointer-events-auto">
-        <div className="bg-[#111622]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-lg flex flex-col gap-2">
-          <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider text-center">
-            📍 테스트 위치 모킹
-          </span>
-          <div className="grid grid-cols-2 gap-1.5 w-32">
-            {[
-              { id: 1, lat: 36.1220, lng: 128.3760 },
-              { id: 2, lat: 36.1193, lng: 128.3646 },
-              { id: 3, lat: 36.1100, lng: 128.3650 },
-              { id: 4, lat: 36.0920, lng: 128.3460 },
-              { id: 5, lat: 36.0857, lng: 128.3664 },
-              { id: 6, lat: 36.1080, lng: 128.3814 }
-            ].map((loc) => {
-              const isCurrent = Math.abs(userLocation.lat - loc.lat) < 0.0001 && Math.abs(userLocation.lng - loc.lng) < 0.0001;
-              return (
-                <button
-                  key={loc.id}
-                  onClick={() => {
-                    setUserLocation({ lat: loc.lat, lng: loc.lng });
-                    if (mapInstanceRef.current) {
-                      mapInstanceRef.current.setCenter(new window.kakao.maps.LatLng(loc.lat, loc.lng));
-                    }
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.removeItem('induspot_selected_facility_id');
-                    }
-                    showToast(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
-                  }}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
-                    isCurrent
-                      ? 'bg-blue-600 text-white border border-blue-400 shadow-md shadow-blue-500/25'
-                      : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
-                  }`}
-                >
-                  {loc.id}번
-                </button>
-              );
-            })}
+        <div className="bg-[#111622]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg flex flex-col overflow-hidden transition-all duration-300">
+          <div 
+            className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors"
+            onClick={() => setIsMockLocationMinimized(!isMockLocationMinimized)}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-cyan-400">📍</span>
+              {!isMockLocationMinimized && (
+                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
+                  모킹
+                </span>
+              )}
+            </div>
+            {isMockLocationMinimized ? (
+              <ChevronDown size={14} className="text-gray-400" />
+            ) : (
+              <ChevronUp size={14} className="text-gray-400 ml-2" />
+            )}
           </div>
+          
+          {!isMockLocationMinimized && (
+            <div className="px-3 pb-3 border-t border-white/5">
+              <div className="grid grid-cols-2 gap-1.5 w-32 mt-2">
+                {[
+                  { id: 1, lat: 36.1220, lng: 128.3760 },
+                  { id: 2, lat: 36.1193, lng: 128.3646 },
+                  { id: 3, lat: 36.1100, lng: 128.3650 },
+                  { id: 4, lat: 36.0920, lng: 128.3460 },
+                  { id: 5, lat: 36.0857, lng: 128.3664 },
+                  { id: 6, lat: 36.1080, lng: 128.3814 }
+                ].map((loc) => {
+                  const isCurrent = Math.abs(userLocation.lat - loc.lat) < 0.0001 && Math.abs(userLocation.lng - loc.lng) < 0.0001;
+                  return (
+                    <button
+                      key={loc.id}
+                      onClick={() => {
+                        setUserLocation({ lat: loc.lat, lng: loc.lng });
+                        if (mapInstanceRef.current) {
+                          mapInstanceRef.current.setCenter(new window.kakao.maps.LatLng(loc.lat, loc.lng));
+                        }
+                        if (typeof window !== 'undefined') {
+                          sessionStorage.removeItem('induspot_selected_facility_id');
+                        }
+                        showToast(`사용자 위치가 가상 ${loc.id}번 지점으로 설정되었습니다.`);
+                      }}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                        isCurrent
+                          ? 'bg-blue-600 text-white border border-blue-400 shadow-md shadow-blue-500/25'
+                          : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {loc.id}번
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
