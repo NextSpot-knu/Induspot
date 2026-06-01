@@ -517,9 +517,14 @@ export default function MainPage() {
       const targetType = filterMap[activeFilter];
 
       // Candidates: active filter type, not rejected, not saved/put-off
-      const candidates = facilities.filter(
+      let candidates = facilities.filter(
         f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id)
       );
+
+      // If all candidates are exhausted (e.g. during heavy testing), loop back to all available
+      if (candidates.length === 0) {
+        candidates = facilities.filter(f => f.type === targetType);
+      }
 
       if (candidates.length > 0) {
         const scored = candidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
@@ -607,9 +612,15 @@ export default function MainPage() {
     // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
     const nextSavedIds = new Set(savedIds);
     nextSavedIds.add(fac.id);
-    const nextCandidates = facilities.filter(f =>
+    let nextCandidates = facilities.filter(f =>
       f.type === targetType && !rejectedIds.has(f.id) && !nextSavedIds.has(f.id)
     );
+    
+    // Loop back if all exhausted
+    if (nextCandidates.length === 0) {
+      nextCandidates = facilities.filter(f => f.type === targetType);
+    }
+
     if (nextCandidates.length > 0) {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
       nextScored.sort(compareFacilities);
@@ -671,9 +682,15 @@ export default function MainPage() {
     // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
     const nextRejectedIds = new Set(rejectedIds);
     nextRejectedIds.add(fac.id);
-    const nextCandidates = facilities.filter(f =>
+    let nextCandidates = facilities.filter(f =>
       f.type === targetType && !nextRejectedIds.has(f.id) && !savedIds.has(f.id)
     );
+    
+    // Loop back if all exhausted
+    if (nextCandidates.length === 0) {
+      nextCandidates = facilities.filter(f => f.type === targetType);
+    }
+
     if (nextCandidates.length > 0) {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
       nextScored.sort(compareFacilities);
