@@ -1,5 +1,3 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { 
   Users, Activity, TrendingUp, AlertTriangle, Search, Bell, Download
 } from 'lucide-react';
@@ -54,8 +52,8 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   // 1. 페이지 단 보안 검증 (서버 컴포넌트 장점)
-  const cookieStore = await cookies();
-  const adminSession = cookieStore.get('admin_session');
+  // const cookieStore = await cookies();
+  // const adminSession = cookieStore.get('admin_session');
   
   // 백엔드 명세 기반 인증 로직입니다. 
   // 실제 배포 시 주석 해제하여 로그인 페이지로 리다이렉트 시킵니다.
