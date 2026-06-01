@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import asyncio
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 from app.services.tttv.preference import calculate_preference_similarity
 from app.services.tttv.wait_time import calculate_predicted_wait_time
@@ -22,7 +23,8 @@ async def calculate_tttv_score(
     candidate_facility: dict,      # id, type, latitude, longitude, capacity, features 등 포함
     candidate_congestion_level: float,
     user_lat: float,
-    user_lng: float
+    user_lng: float,
+    user_vector: list[float] | None = None,  # 호출측에서 1회 조회해 넘기면 후보마다 Pinecone 재조회 안 함
 ) -> TTTVScoreResult:
     """
     사용자 정보, 원본 시설 혼잡 정보, 후보 대안 시설 정보 및 사용자 현재 위치를 입력받아
@@ -33,7 +35,8 @@ async def calculate_tttv_score(
         user_id=user_id,
         facility_type=candidate_facility["type"],
         preferred_categories=preferred_categories,
-        facility_features=candidate_facility.get("features")
+        facility_features=candidate_facility.get("features"),
+        user_vector=user_vector,
     )
 
     # --- 시간비용 계산 수정 전후 명시 ---
@@ -62,13 +65,18 @@ async def calculate_tttv_score(
     )
 
     # 3. 도착 예상 시점 혼잡도 예측
-    arrival_dt = datetime.now() + timedelta(minutes=travel_time_min)
+    # 모델은 UTC 시각 기준으로 학습됨(train.py: fromisoformat(+00:00).hour). Cloud Run 런타임도 UTC라
+    # 정합하나, 로컬/다른 타임존 호스트에서 datetime.now()가 흔들리지 않도록 명시적으로 UTC를 사용한다.
+    arrival_dt = datetime.now(timezone.utc) + timedelta(minutes=travel_time_min)
     arrival_hour = arrival_dt.hour
     arrival_dow = arrival_dt.weekday()
-    predicted_congestion = predict_congestion(
-        facility_type=candidate_facility["type"],
-        hour=arrival_hour,
-        day_of_week=arrival_dow
+    # predict_congestion 은 동기 함수이며 내부에서 Vertex Endpoint 를 블로킹 호출(최대 VERTEX_TIMEOUT_SECONDS)한다.
+    # async 컨텍스트의 이벤트 루프를 막지 않도록 워커 스레드로 오프로드한다.
+    predicted_congestion = await asyncio.to_thread(
+        predict_congestion,
+        candidate_facility["type"],
+        arrival_hour,
+        arrival_dow,
     )
 
     # 4. 예측 혼잡도를 적용한 대기 시간 계산
