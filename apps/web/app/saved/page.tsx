@@ -14,6 +14,7 @@ interface BookmarkData {
   latitude?: number;
   longitude?: number;
   tttv?: any;
+  reason?: string; // 저장 시점의 추천 사유(백엔드 Gemini 또는 미러)
 }
 
 export default function SavedPage() {
@@ -283,9 +284,10 @@ export default function SavedPage() {
       {/* Selected Item Detail Bottom Sheet (RecommendationCard) */}
       {selectedBookmark && (
         <div className="absolute bottom-[90px] w-full z-20 px-4 animate-slide-up">
-          <RecommendationCard 
+          <RecommendationCard
             title={selectedBookmark.name}
             matchPercentage={100}
+            reason={selectedBookmark.reason}
             description={`현재 혼잡도: ${selectedBookmark.trafficStatus === 'orange' ? '혼잡' : selectedBookmark.trafficStatus === 'yellow' ? '보통' : selectedBookmark.trafficStatus === 'green' ? '여유' : '한산'}. 예상 대기 시간: ${selectedBookmark.waitTime}.`}
             tttvScore={selectedBookmark.tttv?.score}
             preferencePercent={selectedBookmark.tttv?.preferencePercent}

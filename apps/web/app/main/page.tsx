@@ -7,6 +7,8 @@ import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, 
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { createPublicClient } from '@/lib/supabase';
 import { getMarkerSvg } from '@/lib/utils';
+import { scoreFacility, compareTttv, rankFacilities, recToTttv, buildReason } from '@/lib/recommender';
+import { recommendByType } from '@/lib/api-client';
 
 const supabase = createPublicClient();
 
@@ -345,150 +347,89 @@ export default function MainPage() {
     }
   }, []);
 
-  const CATEGORY_VECTORS: Record<string, number[]> = {
-    cafeteria: [1.0, 0.0, 0.0, 0.0, 0.2, 0.1, 0.0, 0.0],
-    parking: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.1],
-    meeting_room: [0.0, 0.0, 1.0, 0.0, 0.1, 0.0, 0.0, 0.2],
-    rest_area: [0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0, 0.0]
-  };
+  // 추천 점수·정렬·사유 로직은 lib/recommender(백엔드 TTTV 미러)로 분리.
+  // CATEGORY_VECTORS·점수 계산·거리(haversine)는 모듈에 있고, 아래는 호출부 유지를 위한 얇은 위임 래퍼다.
+  const calculateTTTV = (facility: any) =>
+    scoreFacility(facility, { userLocation, preferredCategories, mockHour });
 
-  const calculateHaversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  const compareFacilities = compareTttv;
 
-  const calculateTTTV = (facility: any) => {
-    if (!facility) return { score: 0, preferencePercent: 0, expectedWait: 0, expectedTravel: 0, timeToService: 0 };
-    
-    // 1. Cosine similarity
-    const userVec = [0, 0, 0, 0, 0, 0, 0, 0];
-    let count = 0;
-    const cats = preferredCategories.length > 0 ? preferredCategories : Object.keys(CATEGORY_VECTORS);
-    cats.forEach(c => {
-      if (CATEGORY_VECTORS[c]) {
-        for (let i = 0; i < 8; i++) {
-          userVec[i] += CATEGORY_VECTORS[c][i];
-        }
-        count++;
-      }
-    });
-    const normalizedUserVec = count > 0 ? userVec.map(v => v / count) : [1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8), 1/Math.sqrt(8)];
-    let userNorm = Math.sqrt(normalizedUserVec.reduce((sum, v) => sum + v*v, 0));
-    const userVecFinal = normalizedUserVec.map(v => userNorm > 0 ? v / userNorm : v);
-
-    let facVec = [...(CATEGORY_VECTORS[facility.type] || [0,0,0,0,0,0,0,0])];
-    if (facility.features) {
-      if (facility.features.has_ev_charger && facility.type === 'parking') {
-        facVec[6] += 0.3;
-      }
-      if (facility.features.has_vegetarian && facility.type === 'cafeteria') {
-        facVec[4] += 0.2;
-      }
-    }
-    let facNorm = Math.sqrt(facVec.reduce((sum, v) => sum + v*v, 0));
-    const facVecFinal = facVec.map(v => facNorm > 0 ? v / facNorm : v);
-
-    let preferenceMatching = 0;
-    for (let i = 0; i < 8; i++) {
-      preferenceMatching += userVecFinal[i] * facVecFinal[i];
-    }
-    preferenceMatching = Math.max(0, Math.min(1, preferenceMatching));
-
-    // 2. Expected Wait
-    const defaultTimes: Record<string, number> = {
-      cafeteria: 20,
-      parking: 5,
-      meeting_room: 10,
-      rest_area: 10
-    };
-    const avgProcessTime = facility.features?.average_processing_time ?? defaultTimes[facility.type] ?? 15;
-    const hour = mockHour !== null ? mockHour : new Date().getHours();
-    let timeMultiplier = 1.0;
-    if (hour >= 12 && hour < 14) timeMultiplier = 1.3;
-    else if (hour === 7 || hour === 15) timeMultiplier = 1.2;
-
-    const expectedWait = (facility.congestionLevel ?? 0) * avgProcessTime * timeMultiplier;
-
-    // 3. Expected Travel
-    const fLat = typeof facility.latitude === 'number' ? facility.latitude : userLocation.lat;
-    const fLng = typeof facility.longitude === 'number' ? facility.longitude : userLocation.lng;
-    const distanceM = calculateHaversineDistance(userLocation.lat, userLocation.lng, fLat, fLng);
-    const expectedTravel = distanceM / 66.67;
-
-    // 4. TTTV Score (황금비 0.45 : 0.30 : 0.25) 에 Min-Max 정규화 적용
-    const w1 = 0.45, w2 = 0.30, w3 = 0.25;
-    const timeCost = Math.min(1.0, (expectedWait + expectedTravel) / 60.0);
-    const incentive = Math.max(0, 0.7 - (facility.congestionLevel ?? 0));
-    const score = (w1 * preferenceMatching) - (w2 * timeCost) + (w3 * incentive);
-    
-    // 시간비용 감산 패널티로 인한 점수 하향 왜곡 방지를 위해 Min-Max 정규화 적용
-    const normalized = (score + w2) / (w1 + w2 + w3);
-    const finalScore = Math.max(0, Math.min(1, normalized));
-
-    return {
-      score: isNaN(finalScore) ? 0 : Math.round(finalScore * 100),
-      preferencePercent: isNaN(preferenceMatching) ? 0 : Math.round(preferenceMatching * 100),
-      expectedWait: isNaN(expectedWait) ? 0 : Math.round(expectedWait * 10) / 10,
-      expectedTravel: isNaN(expectedTravel) ? 0 : Math.round(expectedTravel * 10) / 10,
-      timeToService: isNaN(expectedWait + expectedTravel) ? 0 : Math.round((expectedWait + expectedTravel) * 10) / 10
-    };
-  };
-
-  const compareFacilities = (a: any, b: any) => {
-    if (b.tttv.score !== a.tttv.score) return b.tttv.score - a.tttv.score; // 1. 높은 점수
-    if (a.tttv.timeToService !== b.tttv.timeToService) return a.tttv.timeToService - b.tttv.timeToService; // 2. 짧은 총 소요시간
-    if (b.tttv.preferencePercent !== a.tttv.preferencePercent) return b.tttv.preferencePercent - a.tttv.preferencePercent; // 3. 높은 선호도
-    if (a.tttv.expectedTravel !== b.tttv.expectedTravel) return a.tttv.expectedTravel - b.tttv.expectedTravel; // 4. 짧은 이동시간
-    return (a.name || '').localeCompare(b.name || '', 'ko-KR'); // 5. 이름 가나다순
-  };
-
-  // Synchronize AI recommendations: always show the #1 scored candidate for the active filter.
-  // Runs whenever facilities, filter, rejected/saved sets, location, or preferences change.
+  // AI 추천 동기화: 실 DB 시설은 백엔드(/recommendations/by-type) 랭킹 + Gemini 사유,
+  // 합성 그룹·시간대 시뮬(mockHour) 등 데모는 lib/recommender 미러(사유 포함)로 처리해 합친 뒤 #1을 표시.
+  // (백엔드는 합성 시설/mockHour 를 모르므로 데모는 분리해 클라 미러로 점수를 매긴다.)
   useEffect(() => {
-    try {
-      if (facilities.length === 0) return;
+    if (facilities.length === 0) return;
 
-      const filterMap: Record<string, string> = {
-        '식당': 'cafeteria',
-        '주차장': 'parking',
-        '회의실': 'meeting_room',
-        '휴게실': 'rest_area'
-      };
-      const targetType = filterMap[activeFilter];
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria',
+      '주차장': 'parking',
+      '회의실': 'meeting_room',
+      '휴게실': 'rest_area'
+    };
+    const targetType = filterMap[activeFilter];
 
-      // Candidates: active filter type, not rejected, not saved/put-off
-      let candidates = facilities.filter(
-        f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id)
-      );
-
-      // If all candidates are exhausted (e.g. during heavy testing), loop back to all available
-      if (candidates.length === 0) {
-        candidates = facilities.filter(f => f.type === targetType);
-      }
-
-      if (candidates.length > 0) {
-        const scored = candidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
-        scored.sort(compareFacilities);
-        // Always show #1 automatically – guarantees card opens on page load and after any action
-        setSelectedFacility(scored[0]);
-        setIsCardHidden(false);
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(scored[0].latitude, scored[0].longitude));
-        }
-      } else {
-        setSelectedFacility(null);
-      }
-    } catch (err) {
-      console.error("Error in recommendation synchronization effect:", err);
+    let candidates = facilities.filter(
+      f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id)
+    );
+    if (candidates.length === 0) {
+      candidates = facilities.filter(f => f.type === targetType);
     }
-  }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories]);
+    if (candidates.length === 0) {
+      setSelectedFacility(null);
+      return;
+    }
+
+    const isDemo = (f: any) => f.isGroup || String(f.id).startsWith('dummy-');
+    const realCands = candidates.filter(f => !isDemo(f));
+    const demoCands = candidates.filter(isDemo);
+    const liveMode = mockHour === null; // 시간대 시뮬이 켜지면 데모(목업) 모드로 일관 처리
+    const scoreOpts = { userLocation, preferredCategories, mockHour };
+
+    let cancelled = false;
+    (async () => {
+      try {
+        let realRanked: any[] = [];
+        if (liveMode && realCands.length > 0) {
+          try {
+            const recs = await recommendByType(targetType, userLocation, [...rejectedIds, ...savedIds]);
+            const byId = new Map(realCands.map(f => [f.id, f]));
+            realRanked = recs
+              .filter(r => byId.has(r.facility.id))
+              .map(r => {
+                const base = byId.get(r.facility.id);
+                const tttv = recToTttv(r);
+                return { ...base, tttv, reason: r.reason || buildReason(base, tttv) };
+              });
+          } catch (e) {
+            console.warn("by-type 추천 실패 → 목업 미러로 폴백:", e);
+            realRanked = [];
+          }
+        }
+        // 백엔드 미가용/데모 모드: 실 후보도 클라 미러로 랭킹(동일 가중치 + 사유)
+        if (realRanked.length === 0 && realCands.length > 0) {
+          realRanked = rankFacilities(realCands, scoreOpts);
+        }
+        // 합성/데모 시설은 항상 클라 미러로 점수·사유 부여
+        const demoRanked = rankFacilities(demoCands, scoreOpts);
+
+        const all = [...realRanked, ...demoRanked].sort(compareTttv);
+        if (cancelled) return;
+        if (all.length === 0) {
+          setSelectedFacility(null);
+          return;
+        }
+        setSelectedFacility(all[0]);
+        setIsCardHidden(false);
+        if (mapInstanceRef.current && typeof all[0].latitude === 'number') {
+          mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(all[0].latitude, all[0].longitude));
+        }
+      } catch (err) {
+        console.error("Error in recommendation synchronization effect:", err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories, mockHour]);
 
   // Action Button Handlers
   const handleAccept = (fac: any) => {
@@ -592,7 +533,7 @@ export default function MainPage() {
       const existing = localStorage.getItem('induspot_saved_facilities');
       const bookmarks = existing ? JSON.parse(existing) : [];
       
-      const tttv = calculateTTTV(fac);
+      const tttv = fac.tttv || calculateTTTV(fac);
       if (!bookmarks.some((b: any) => b.id === fac.id)) {
         bookmarks.push({
           id: fac.id,
@@ -600,7 +541,8 @@ export default function MainPage() {
           category: fac.type === 'cafeteria' ? '식당' : fac.type === 'parking' ? '주차장' : fac.type === 'meeting_room' ? '회의실' : '휴게실',
           trafficStatus: fac.congestionLevel >= 0.75 ? 'orange' : fac.congestionLevel >= 0.50 ? 'yellow' : fac.congestionLevel >= 0.25 ? 'green' : 'blue',
           waitTime: `${tttv?.expectedWait || 0}분`,
-          tttv: tttv
+          tttv: tttv,
+          reason: fac.reason || buildReason(fac, tttv)
         });
         localStorage.setItem('induspot_saved_facilities', JSON.stringify(bookmarks));
       }
@@ -931,10 +873,13 @@ export default function MainPage() {
           const totalCandidates = activeScored.length;
 
           const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
+          // 사유: 자동 추천된 실 시설은 백엔드 Gemini 사유, 마커 직접 클릭/데모는 미러 사유로 폴백
+          const reason = selectedFacility.reason || buildReason(selectedFacility, tttv);
           return (
             <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
-              <RecommendationCard 
+              <RecommendationCard
                 title={selectedFacility.name}
+                reason={reason}
                 description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
                 onAccept={() => handleAccept(selectedFacility)}
                 onReject={() => handleReject(selectedFacility)}
