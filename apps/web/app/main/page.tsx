@@ -755,11 +755,16 @@ export default function MainPage() {
     scoredFacilities.sort(compareFacilities);
     const displayFacilities = scoredFacilities.slice(0, 100);
 
+    // 마커 크기 반응형: 좁은 화면(모바일)은 작게, 넓은 화면은 크게. 핀 비율(≈36:46)은 유지.
+    const isNarrow = typeof window !== 'undefined' && window.innerWidth < 640;
+    const mW = isNarrow ? 22 : 26;
+    const mH = isNarrow ? 28 : 33;
+
     const newMarkers = displayFacilities.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel, f.features),
-        new kakao.maps.Size(18, 23),
-        { offset: new kakao.maps.Point(9, 23) }
+        new kakao.maps.Size(mW, mH),
+        { offset: new kakao.maps.Point(mW / 2, mH) }
       );
 
       const marker = new kakao.maps.Marker({
@@ -882,14 +887,14 @@ export default function MainPage() {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
                 }}
-                className={`flex items-center px-4 py-2 rounded-full transition-all fractal-glass ${
-                  isActive 
-                    ? 'bg-blue-600/30 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] text-shadow-sm' 
+                className={`flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1.5 transition-all fractal-glass sm:px-4 sm:py-2 ${
+                  isActive
+                    ? 'bg-blue-600/30 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] text-shadow-sm'
                     : 'border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon size={16} className={`mr-2 drop-shadow-md ${isActive ? 'text-blue-300' : 'text-gray-400'}`} />
-                <span className={`text-sm font-medium ${isActive ? 'text-shadow-sm' : ''}`}>{filter.id}</span>
+                <Icon size={15} className={`mr-1.5 drop-shadow-md sm:mr-2 ${isActive ? 'text-blue-300' : 'text-gray-400'}`} />
+                <span className={`text-[13px] font-medium sm:text-sm ${isActive ? 'text-shadow-sm' : ''}`}>{filter.id}</span>
               </button>
             );
           })}
