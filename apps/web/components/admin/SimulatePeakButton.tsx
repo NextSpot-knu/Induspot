@@ -13,7 +13,7 @@ export function SimulatePeakButton() {
     setIsSimulating(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/proxy/api/v1/admin/simulate-peak', {
+      const res = await fetch('/api/admin/simulate-peak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
