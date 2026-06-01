@@ -289,31 +289,36 @@ export default function MainPage() {
     }
 
     const userSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+      <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
         <defs>
           <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.4"/>
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
           </filter>
+          <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffff00" stop-opacity="1"/>
+            <stop offset="50%" stop-color="#fde047" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#eab308" stop-opacity="0"/>
+          </radialGradient>
         </defs>
         <style>
           @keyframes pulse {
-            0% { transform: scale(0.5); opacity: 0.8; }
-            100% { transform: scale(1.5); opacity: 0; }
+            0% { transform: scale(0.3); opacity: 1; }
+            100% { transform: scale(2.0); opacity: 0; }
           }
           .pulse-circle {
-            animation: pulse 2s infinite ease-out;
-            transform-origin: 30px 30px;
+            animation: pulse 2s infinite cubic-bezier(0.2, 0, 0.2, 1);
+            transform-origin: 40px 40px;
           }
         </style>
-        <circle class="pulse-circle" cx="30" cy="30" r="16" fill="#facc15" fill-opacity="0.7"/>
-        <circle cx="30" cy="30" r="10" fill="#ffffff" filter="url(#shadow)"/>
-        <circle cx="30" cy="30" r="7" fill="#eab308"/>
+        <circle class="pulse-circle" cx="40" cy="40" r="20" fill="url(#glow)"/>
+        <circle cx="40" cy="40" r="11" fill="#ffffff" filter="url(#shadow)"/>
+        <circle cx="40" cy="40" r="8" fill="#facc15"/>
       </svg>
     `;
     const userImage = new kakao.maps.MarkerImage(
       `data:image/svg+xml;charset=utf-8,${encodeURIComponent(userSvg.trim())}`,
-      new kakao.maps.Size(60, 60),
-      { offset: new kakao.maps.Point(30, 30) }
+      new kakao.maps.Size(80, 80),
+      { offset: new kakao.maps.Point(40, 40) }
     );
 
     const userMarker = new kakao.maps.Marker({
