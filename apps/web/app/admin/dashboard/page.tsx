@@ -9,7 +9,9 @@ import { DashboardCharts, DashboardHeatmap } from '@/components/admin/DashboardC
 import { FacilityTable } from '@/components/admin/FacilityTable';
 import { SimulatePeakButton } from '@/components/admin/SimulatePeakButton';
 
-import { fetchFacilities } from '@/lib/queries';
+import { createPublicClient } from '@/lib/supabase';
+
+const supabase = createPublicClient();
 
 // KST 시간대 보정 헬퍼
 function getKstHours() {
@@ -176,10 +178,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
-      // 1단계: 실시간 시설 목록을 DB로부터 안전하게 로드 시도
+      // 1단계: 실시간 시설 목록을 DB로부터 안전하게 로드 시도 (publicClient 사용 - 클라이언트 컴포넌트)
       let databaseFacilities: any[] = [];
       try {
-        databaseFacilities = await fetchFacilities();
+        let from = 0;
+        const limit = 1000;
+        while (true) {
+          const { data, error } = await supabase
+            .from('facilities')
+            .select('id, name, type, capacity')
+            .order('name', { ascending: true })
+            .range(from, from + limit - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          databaseFacilities = [...databaseFacilities, ...data];
+          if (data.length < limit) break;
+          from += limit;
+        }
       } catch (dbErr) {
         console.warn("DB Facility fetch failed, using fallback list:", dbErr);
       }

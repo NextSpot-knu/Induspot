@@ -56,42 +56,26 @@ export default function MainPage() {
   useEffect(() => {
     async function loadFacilities() {
       try {
-        // Fetch all facilities using pagination
-        let facilitiesData: any[] = [];
-        let fromFac = 0;
-        const limit = 1000;
-        while (true) {
-          const { data, error } = await supabase
-            .from("facilities")
-            .select("id, name, type, latitude, longitude, capacity, operating_hours, features")
-            .range(fromFac, fromFac + limit - 1);
-          if (error) {
-            console.warn("Failed to load facilities:", error);
-            return;
-          }
-          if (!data || data.length === 0) break;
-          facilitiesData = [...facilitiesData, ...data];
-          if (data.length < limit) break;
-          fromFac += limit;
+        // Fetch facilities (limit 2000)
+        const { data: facilitiesData, error: facError } = await supabase
+          .from("facilities")
+          .select("id, name, type, latitude, longitude, capacity, operating_hours, features")
+          .limit(2000);
+
+        if (facError) {
+          console.warn("Failed to load facilities:", facError);
+          return;
         }
 
-        // Fetch all logs using pagination
-        let logs: any[] = [];
-        let fromLogs = 0;
-        while (true) {
-          const { data, error } = await supabase
-            .from("congestion_logs")
-            .select("facility_id, congestion_level, current_count, timestamp")
-            .order("timestamp", { ascending: false })
-            .range(fromLogs, fromLogs + limit - 1);
-          if (error) {
-            console.warn("Failed to load congestion logs:", error);
-            break;
-          }
-          if (!data || data.length === 0) break;
-          logs = [...logs, ...data];
-          if (data.length < limit) break;
-          fromLogs += limit;
+        // Fetch only recent logs (limit 3000) to get the latest per facility
+        const { data: logs, error: logsError } = await supabase
+          .from("congestion_logs")
+          .select("facility_id, congestion_level, current_count, timestamp")
+          .order("timestamp", { ascending: false })
+          .limit(3000);
+
+        if (logsError) {
+          console.warn("Failed to load congestion logs:", logsError);
         }
 
         const latestLogsMap: Record<string, any> = {};
@@ -631,7 +615,7 @@ export default function MainPage() {
           id: fac.id,
           name: fac.name,
           category: fac.type === 'cafeteria' ? '식당' : fac.type === 'parking' ? '주차장' : fac.type === 'meeting_room' ? '회의실' : '휴게실',
-          trafficStatus: fac.congestionLevel >= 0.7 ? 'red' : fac.congestionLevel >= 0.3 ? 'yellow' : 'green',
+          trafficStatus: fac.congestionLevel >= 0.75 ? 'orange' : fac.congestionLevel >= 0.50 ? 'yellow' : fac.congestionLevel >= 0.25 ? 'green' : 'blue',
           waitTime: `${tttv?.expectedWait || 0}분`,
           tttv: tttv,
           // 길찾기/주차 표시를 위해 좌표·타입·수용현황을 함께 저장(좌표 없는 더미는 undefined → saved 가 키워드검색 폴백)
@@ -707,15 +691,11 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
-  // Initialize map if Kakao Maps script is already loaded (e.g. after navigating back from MyPage)
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.kakao && window.kakao.maps) {
-      initMap();
-    }
-  }, []);
+  // initMap is now triggered by the Next.js Script's onReady
 
   // Initialize Kakao Map
   const initMap = () => {
+    if (mapInstanceRef.current) return;
     if (window.kakao && window.kakao.maps && mapContainerRef.current) {
       window.kakao.maps.load(() => {
         let centerLat = 36.1198;
@@ -776,7 +756,12 @@ export default function MainPage() {
 
     const filtered = facilities.filter(f => f.type === targetType);
 
-    const newMarkers = filtered.map((f) => {
+    // Optimize: Cap markers to top 100 highest TTTV score to prevent browser UI freezing
+    const scoredFacilities = filtered.map(f => ({ ...f, tttv: calculateTTTV(f) }));
+    scoredFacilities.sort(compareFacilities);
+    const displayFacilities = scoredFacilities.slice(0, 100);
+
+    const newMarkers = displayFacilities.map((f) => {
       const markerImage = new kakao.maps.MarkerImage(
         getMarkerSvg(f.type, f.congestionLevel, f.features),
         new kakao.maps.Size(18, 23),
@@ -860,13 +845,13 @@ export default function MainPage() {
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-black flex flex-col">
+    <div className="relative w-full h-screen overflow-hidden flex flex-col">
       {/* Kakao Map API Script */}
       {appKey && (
         <Script
-          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`}
+          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services,clusterer`}
           strategy="afterInteractive"
-          onLoad={initMap}
+          onReady={initMap}
         />
       )}
 
@@ -911,14 +896,14 @@ export default function MainPage() {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
                 }}
-                className={`flex items-center px-4 py-2 rounded-full border backdrop-blur-md whitespace-nowrap transition-all ${
+                className={`flex items-center px-4 py-2 rounded-full transition-all fractal-glass ${
                   isActive 
-                    ? 'bg-blue-600/30 border-blue-400 text-white' 
-                    : 'bg-[#131a28]/80 border-white/10 text-gray-400 hover:bg-white/10'
+                    ? 'bg-blue-600/30 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] text-shadow-sm' 
+                    : 'border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon size={16} className={`mr-2 ${isActive ? 'text-blue-300' : 'text-gray-400'}`} />
-                <span className="text-sm font-medium">{filter.id}</span>
+                <Icon size={16} className={`mr-2 drop-shadow-md ${isActive ? 'text-blue-300' : 'text-gray-400'}`} />
+                <span className={`text-sm font-medium ${isActive ? 'text-shadow-sm' : ''}`}>{filter.id}</span>
               </button>
             );
           })}

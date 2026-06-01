@@ -9,7 +9,7 @@ interface BookmarkData {
   id: string;
   name: string;
   category: string;
-  trafficStatus: 'red' | 'yellow' | 'green';
+  trafficStatus: 'orange' | 'yellow' | 'green' | 'blue';
   waitTime: string;
   latitude?: number;
   longitude?: number;
@@ -114,11 +114,12 @@ export default function SavedPage() {
     }
   };
 
-  const renderTrafficIndicator = (status: 'red' | 'yellow' | 'green') => {
+  const renderTrafficIndicator = (status: 'orange' | 'yellow' | 'green' | 'blue') => {
     const colors = {
-      red: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]',
+      orange: 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]',
       yellow: 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)]',
-      green: 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]'
+      green: 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]',
+      blue: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]'
     };
     return <div className={`w-3 h-3 rounded-full ${colors[status]}`} />;
   };
@@ -288,7 +289,7 @@ export default function SavedPage() {
           <RecommendationCard 
             title={selectedBookmark.name}
             matchPercentage={100}
-            description={`현재 혼잡도: ${selectedBookmark.trafficStatus === 'red' ? '혼잡' : selectedBookmark.trafficStatus === 'yellow' ? '보통' : '여유'}. 예상 대기 시간: ${selectedBookmark.waitTime}.`}
+            description={`현재 혼잡도: ${selectedBookmark.trafficStatus === 'orange' ? '혼잡' : selectedBookmark.trafficStatus === 'yellow' ? '보통' : selectedBookmark.trafficStatus === 'green' ? '여유' : '한산'}. 예상 대기 시간: ${selectedBookmark.waitTime}.`}
             tttvScore={selectedBookmark.tttv?.score}
             preferencePercent={selectedBookmark.tttv?.preferencePercent}
             expectedWait={selectedBookmark.tttv?.expectedWait ?? parseInt(selectedBookmark.waitTime) ?? 0}
@@ -296,9 +297,9 @@ export default function SavedPage() {
             timeToService={selectedBookmark.tttv?.timeToService ?? parseInt(selectedBookmark.waitTime) ?? 0}
             facilityType={selectedBookmark.type || (selectedBookmark.category === '식당' ? 'cafeteria' : selectedBookmark.category === '주차장' ? 'parking' : selectedBookmark.category === '휴게실' ? 'rest_area' : 'meeting_room')}
             facility={{
-              congestionLevel: selectedBookmark.trafficStatus === 'red' ? 0.8 : selectedBookmark.trafficStatus === 'yellow' ? 0.5 : 0.1,
+              congestionLevel: selectedBookmark.trafficStatus === 'orange' ? 0.85 : selectedBookmark.trafficStatus === 'yellow' ? 0.6 : selectedBookmark.trafficStatus === 'green' ? 0.4 : 0.1,
               capacity: selectedBookmark.capacity ?? 100,
-              currentCount: selectedBookmark.currentCount ?? (selectedBookmark.trafficStatus === 'red' ? 80 : selectedBookmark.trafficStatus === 'yellow' ? 50 : 10),
+              currentCount: selectedBookmark.currentCount ?? (selectedBookmark.trafficStatus === 'orange' ? 85 : selectedBookmark.trafficStatus === 'yellow' ? 60 : selectedBookmark.trafficStatus === 'green' ? 40 : 10),
             }}
             onAccept={() => {
               const destUrl = selectedBookmark.latitude && selectedBookmark.longitude

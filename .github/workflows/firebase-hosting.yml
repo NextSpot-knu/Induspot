@@ -25,8 +25,14 @@ jobs:
         run: npm run web:build
         env:
           NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-api-7k46d5q.uc.gateway.dev"
-          NEXT_PUBLIC_SUPABASE_URL: "https://xdwnwrthrgflbzpvkouq.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_OOV6VgafzdczmjIBlR9hOQ_ZejGcj2y"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # 정적 export 빌드에 Kakao 지도 JS 키가 주입되지 않아 배포 사이트에서 지도가 안 뜨던 문제 해결.
+          # 아래 Secret 들을 리포지토리에 등록해야 한다(Settings > Secrets and variables > Actions):
+          #   gh secret set NEXT_PUBLIC_KAKAO_MAPS_APP_KEY --body "<카카오 JS 앱 키>"
+          #   gh secret set NEXT_PUBLIC_KAKAO_REST_API_KEY --body "<카카오 REST 키>"   (길안내용, 선택)
+          NEXT_PUBLIC_KAKAO_MAPS_APP_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY }}
+          NEXT_PUBLIC_KAKAO_REST_API_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_REST_API_KEY }}
 
       - name: Deploy to Firebase Hosting
         uses: w9jds/firebase-action@v2.2.0
