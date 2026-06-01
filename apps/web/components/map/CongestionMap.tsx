@@ -17,11 +17,13 @@ declare global {
 }
 
 const getMarkerSvg = (type: string, level: number, features: any = {}) => {
-  let color = "#10b981"; // green (여유)
-  if (level >= 0.7) {
-    color = "#ef4444"; // red (혼잡)
-  } else if (level >= 0.3) {
+  let color = "#3b82f6"; // blue (한산)
+  if (level >= 0.75) {
+    color = "#f97316"; // orange (혼잡)
+  } else if (level >= 0.50) {
     color = "#f59e0b"; // yellow/amber (보통)
+  } else if (level >= 0.25) {
+    color = "#10b981"; // green (여유)
   }
 
   let emoji = "📍";
@@ -279,7 +281,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
 
     const filtered = facilities.filter((f) => {
       if (filterType !== "all" && f.type !== filterType) return false;
-      if (onlyRelaxed && f.congestionLevel > 0.3) return false;
+      if (onlyRelaxed && f.congestionLevel >= 0.25) return false;
       return true;
     });
 
@@ -359,23 +361,29 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
     : null;
 
   const getCongestionBadge = (level: number) => {
-    if (level >= 0.7) {
+    if (level >= 0.75) {
       return {
         text: "혼잡",
-        colorClass: "text-rose-400 bg-rose-500/10 border-rose-500/20",
-        barClass: "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]",
+        colorClass: "text-orange-400 bg-orange-500/10 border-orange-500/20",
+        barClass: "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]",
       };
-    } else if (level >= 0.3) {
+    } else if (level >= 0.50) {
       return {
         text: "보통",
         colorClass: "text-amber-400 bg-amber-500/10 border-amber-500/20",
         barClass: "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]",
       };
-    } else {
+    } else if (level >= 0.25) {
       return {
         text: "여유",
         colorClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
         barClass: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]",
+      };
+    } else {
+      return {
+        text: "한산",
+        colorClass: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+        barClass: "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]",
       };
     }
   };
@@ -415,7 +423,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
 
   const filteredFacilities = facilities.filter((f) => {
     if (filterType !== "all" && f.type !== filterType) return false;
-    if (onlyRelaxed && f.congestionLevel > 0.3) return false;
+    if (onlyRelaxed && f.congestionLevel >= 0.25) return false;
     return true;
   });
 
@@ -567,7 +575,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
               onlyRelaxed ? "bg-emerald-500 animate-ping" : "bg-slate-500"
             }`}
           />
-          한산한 곳만 보기 (30%-)
+          한산한 곳만 보기 (25%-)
         </button>
       </div>
 

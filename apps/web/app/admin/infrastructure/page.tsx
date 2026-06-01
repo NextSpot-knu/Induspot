@@ -14,7 +14,7 @@ interface Infrastructure {
   id: string;
   name: string;
   type: '식당' | '주차장' | '회의실' | '휴게실';
-  status: 'green' | 'yellow' | 'red';
+  status: 'blue' | 'green' | 'yellow' | 'orange';
   capacity: string;
   expectedDemand: string;
 }
@@ -77,23 +77,26 @@ export default function InfrastructurePage() {
           };
           const mappedType = typeMap[f.type] || '회의실';
 
-          // 상태 매핑 (red, yellow, green)
-          let status: 'green' | 'yellow' | 'red' = 'green';
-          if (level >= 0.7) status = 'red';
-          else if (level >= 0.3) status = 'yellow';
+          // 상태 매핑 (orange, yellow, green, blue)
+          let status: 'blue' | 'green' | 'yellow' | 'orange' = 'blue';
+          if (level >= 0.75) status = 'orange';
+          else if (level >= 0.50) status = 'yellow';
+          else if (level >= 0.25) status = 'green';
 
           // expectedDemand 문구 매핑
           let expectedDemand = '낮음';
-          if (level >= 0.7) {
+          if (level >= 0.75) {
             expectedDemand = mappedType === '식당' ? '매우 높음 (선호 메뉴 통계 반영)' 
               : mappedType === '주차장' ? '매우 높음 (출퇴근 피크 혼잡 예측)'
               : '매우 높음';
-          } else if (level >= 0.4) {
+          } else if (level >= 0.50) {
             expectedDemand = mappedType === '식당' ? '보통 (일반적인 회식/점심 시간 패턴)'
               : mappedType === '주차장' ? '보통 (오후 부품 입출고 진입 예측)'
               : '보통';
+          } else if (level >= 0.25) {
+            expectedDemand = '낮음 (여유 상태)';
           } else {
-            expectedDemand = '낮음 (유휴 상태)';
+            expectedDemand = '매우 낮음 (한산한 상태)';
           }
 
           return {
@@ -215,9 +218,10 @@ export default function InfrastructurePage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'red': return 'bg-red-500';
+      case 'orange': return 'bg-orange-500';
       case 'yellow': return 'bg-amber-500';
       case 'green': return 'bg-emerald-500';
+      case 'blue': return 'bg-blue-500';
       default: return 'bg-gray-500';
     }
   };
@@ -385,7 +389,7 @@ export default function InfrastructurePage() {
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200">
                       <div className={`w-3 h-3 rounded-full ${getStatusColor(selectedInfra.status)}`} />
                       <span className="text-sm font-bold text-slate-700">
-                        {selectedInfra.status === 'red' ? '혼잡' : selectedInfra.status === 'yellow' ? '보통' : '여유'}
+                        {selectedInfra.status === 'orange' ? '혼잡' : selectedInfra.status === 'yellow' ? '보통' : selectedInfra.status === 'green' ? '여유' : '한산'}
                       </span>
                     </div>
                   </div>

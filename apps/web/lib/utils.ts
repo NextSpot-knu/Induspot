@@ -1,9 +1,11 @@
 export const getMarkerSvg = (type: string, level: number, features?: any) => {
-  let color = "#3b82f6"; // blue (여유)
-  if (level >= 0.7) {
-    color = "#ef4444"; // red (혼잡)
-  } else if (level >= 0.3) {
-    color = "#10b981"; // green (보통)
+  let color = "#3b82f6"; // blue (한산)
+  if (level >= 0.75) {
+    color = "#f97316"; // orange (혼잡)
+  } else if (level >= 0.50) {
+    color = "#f59e0b"; // yellow (보통)
+  } else if (level >= 0.25) {
+    color = "#10b981"; // green (여유)
   }
 
   let emoji = "📍";

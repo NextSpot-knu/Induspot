@@ -614,7 +614,7 @@ export default function MainPage() {
           id: fac.id,
           name: fac.name,
           category: fac.type === 'cafeteria' ? '식당' : fac.type === 'parking' ? '주차장' : fac.type === 'meeting_room' ? '회의실' : '휴게실',
-          trafficStatus: fac.congestionLevel >= 0.7 ? 'red' : fac.congestionLevel >= 0.3 ? 'yellow' : 'green',
+          trafficStatus: fac.congestionLevel >= 0.75 ? 'orange' : fac.congestionLevel >= 0.50 ? 'yellow' : fac.congestionLevel >= 0.25 ? 'green' : 'blue',
           waitTime: `${tttv?.expectedWait || 0}분`,
           tttv: tttv
         });
