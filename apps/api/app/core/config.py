@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # --- Gemini Settings (WP3) ---
     # 추천 사유 생성 모델. 비어 있으면 WP3 비활성화(=템플릿 폴백).
-    GEMINI_MODEL: str = "gemini-2.0-flash-001"
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     GEMINI_ENABLED: bool = False
     GEMINI_TIMEOUT_SECONDS: float = 4.0
 

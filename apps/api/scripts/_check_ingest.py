@@ -1,4 +1,4 @@
-"""읽기/진단: 실제 facility_id로 ingest insert 를 그대로 재현해 Supabase 가 왜 400을 주는지 확인."""
+"""읽기 전용: WP4 적재 확정 — 오늘 09~10시(UTC) 구간 publish 행을 직접 조회."""
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -6,26 +6,17 @@ from supabase import create_client
 
 url = os.getenv("SUPABASE_URL")
 srk = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-anon = os.getenv("SUPABASE_ANON_KEY")
-sb = create_client(url, srk or anon)
-print("USING_KEY:", "service_role" if srk else "anon")
+sb = create_client(url, srk or os.getenv("SUPABASE_ANON_KEY"))
 
-# 실제 존재하는 facility_id 하나 확보
-f = sb.table("facilities").select("id,type").limit(1).execute().data[0]
-fid = f["id"]
-print("facility:", fid, f["type"])
+total = sb.table("congestion_logs").select("id", count="exact").limit(1).execute()
+print("TOTAL_ROWS:", total.count)
 
-# ingest.py 가 만드는 row 와 동일한 형태 (timestamp 포함 안 함 → DB default)
-row = {
-    "facility_id": fid,
-    "congestion_level": 0.42,
-    "current_count": 7,
-    "source": "cctv",
-    "timestamp": "2026-06-01T09:50:33+00:00",
-}
-print("INSERT row:", row)
-try:
-    r = sb.table("congestion_logs").insert(row).execute()
-    print("INSERT_OK:", len(r.data), "row(s). id=", r.data[0]["id"] if r.data else None)
-except Exception as e:
-    print("INSERT_FAIL:", type(e).__name__, str(e)[:400])
+# publish_events 의 ts 는 datetime.now(utc) → 오늘 09~10시 UTC 구간
+res = (sb.table("congestion_logs")
+       .select("facility_id, timestamp, congestion_level, source, current_count")
+       .gte("timestamp", "2026-06-01T09:00:00+00:00")
+       .lt("timestamp", "2026-06-01T11:00:00+00:00")
+       .order("timestamp", desc=True).limit(10).execute())
+print("PUBLISH_WINDOW_ROWS(09~11 UTC):", len(res.data))
+for r in res.data[:8]:
+    print("  ", r["timestamp"], "src=", r["source"], "cong=", r["congestion_level"], "cnt=", r["current_count"])
