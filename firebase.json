@@ -1,13 +1,12 @@
 {
   "hosting": {
-    "source": "apps/web",
+    "public": "apps/web/out",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      ".next/**/node_modules/**",
-      "**/cache/**"
+      "**/node_modules/**"
     ],
-    "cleanUrls": true
+    "cleanUrls": true,
+    "trailingSlash": false
   }
 }
