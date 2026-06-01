@@ -38,11 +38,11 @@ async def test_calculate_predicted_wait_time():
 async def test_haversine_distance():
     # 3. 직선 거리 연산 검증
     # 동일 지점은 거리 0
-    dist = calculate_haversine_distance(37.3185, 126.8115, 37.3185, 126.8115)
+    dist = calculate_haversine_distance(36.1198, 128.3471, 36.1198, 128.3471)
     assert dist == 0.0
     
     # 특정 인접 지점 간 거리 양수
-    dist_diff = calculate_haversine_distance(37.3185, 126.8115, 37.3202, 126.8141)
+    dist_diff = calculate_haversine_distance(36.1198, 128.3471, 36.1215, 128.3497)
     assert dist_diff > 0.0
 
 
@@ -56,8 +56,8 @@ async def test_calculate_tttv_score(mock_pinecone):
     candidate = {
         "id": "test-infra-1",
         "type": "cafeteria",
-        "latitude": 37.3202,
-        "longitude": 126.8141,
+        "latitude": 36.1215,
+        "longitude": 128.3497,
         "capacity": 100,
         "features": {"average_processing_time": 15}
     }
@@ -69,8 +69,8 @@ async def test_calculate_tttv_score(mock_pinecone):
         original_congestion_level=0.9,
         candidate_facility=candidate,
         candidate_congestion_level=0.2,
-        user_lat=37.3185,
-        user_lng=126.8115
+        user_lat=36.1198,
+        user_lng=128.3471
     )
     
     # 출력 구조 검증

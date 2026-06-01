@@ -93,8 +93,8 @@ export function RecommendationCard({
     if (!window.kakao.maps.services) {
       console.warn("Kakao Places services library not loaded");
       setPlaceInfo({
-        address: facility?.features?.address || '경기 안산시 단원구 산단로',
-        phone: facility?.features?.phone || '031-123-4567',
+        address: facility?.features?.address || '경상북도 구미시 산단로',
+        phone: facility?.features?.phone || '054-123-4567',
         rating: 4.5,
         reviewCount: 28,
         url: `https://map.kakao.com/?q=${encodeURIComponent(title)}`
@@ -122,8 +122,8 @@ export function RecommendationCard({
         } else {
           // Fallback if no search match
           setPlaceInfo({
-            address: facility?.features?.address || '경기 안산시 단원구 산단로',
-            phone: facility?.features?.phone || '031-123-4567',
+            address: facility?.features?.address || '경상북도 구미시 산단로',
+            phone: facility?.features?.phone || '054-123-4567',
             rating: 4.3,
             reviewCount: 15,
             url: `https://map.kakao.com/?q=${encodeURIComponent(title)}`
