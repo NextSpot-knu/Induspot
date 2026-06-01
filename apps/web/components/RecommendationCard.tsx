@@ -263,8 +263,8 @@ export function RecommendationCard({
                 facility.congestionLevel >= 0.7 
                   ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
                   : facility.congestionLevel >= 0.3
-                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
               }`}>
                 혼잡도: {facility.congestionLevel >= 0.7 ? '혼잡' : facility.congestionLevel >= 0.3 ? '보통' : '여유'}
               </span>
