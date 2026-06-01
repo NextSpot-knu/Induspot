@@ -23,7 +23,6 @@ export default function MainPage() {
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
   const activeOverlayRef = useRef<any>(null);
-  const selectionOverlayRef = useRef<any>(null); // 선택된 시설 강조(확대 핀 + 펄스 링)
 
   const [activeTab, setActiveTab] = useState('Home');
   const [activeFilter, setActiveFilter] = useState('주차장');
@@ -772,8 +771,9 @@ export default function MainPage() {
     const newMarkers = displayFacilities.map((f) => {
       // 사내 주차장은 정사각형 마커 → 정사각 크기 + 중앙 앵커(가로세로 비율 유지). 그 외 핀은 바닥(끝) 앵커.
       const isPriv = f.type === 'parking' && f.features && (f.features.is_private === true || f.features.is_public === false);
+      const isSel = !!selectedFacility && f.id === selectedFacility.id; // 선택 시 진한 색으로 렌더
       const markerImage = new kakao.maps.MarkerImage(
-        getMarkerSvg(f.type, f.congestionLevel, f.features),
+        getMarkerSvg(f.type, f.congestionLevel, f.features, isSel),
         isPriv ? new kakao.maps.Size(mW, mW) : new kakao.maps.Size(mW, mH),
         { offset: isPriv ? new kakao.maps.Point(mW / 2, mW / 2) : new kakao.maps.Point(mW / 2, mH) }
       );
@@ -783,6 +783,7 @@ export default function MainPage() {
         image: markerImage,
         title: f.name,
       });
+      marker.setZIndex(isSel ? 100 : 1); // 선택된 마커를 위로
 
       kakao.maps.event.addListener(marker, "click", () => {
         console.log("Marker clicked:", f.name);
@@ -797,22 +798,8 @@ export default function MainPage() {
           content.className = 'bg-[#111622]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 min-w-[180px] max-w-[280px] max-h-[260px] overflow-y-auto no-scrollbar pointer-events-auto';
 
           const titleEl = document.createElement('div');
-          titleEl.className = 'flex items-center justify-between gap-2 px-2 py-1 mb-1 border-b border-white/10';
-          const titleText = document.createElement('span');
-          titleText.className = 'text-[10px] text-blue-400 font-bold uppercase tracking-wider';
-          titleText.innerText = f.name;
-          const closeBtn = document.createElement('button');
-          closeBtn.className = 'shrink-0 text-slate-400 hover:text-white text-sm leading-none cursor-pointer';
-          closeBtn.innerHTML = '&#10005;';
-          closeBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (activeOverlayRef.current) {
-              activeOverlayRef.current.setMap(null);
-              activeOverlayRef.current = null;
-            }
-          };
-          titleEl.appendChild(titleText);
-          titleEl.appendChild(closeBtn);
+          titleEl.className = 'text-[10px] text-blue-400 font-bold px-2 py-1 mb-1 border-b border-white/10 uppercase tracking-wider';
+          titleEl.innerText = f.name;
           content.appendChild(titleEl);
 
           f.subFacilities.forEach((sub: any) => {
@@ -852,51 +839,8 @@ export default function MainPage() {
     });
 
     markersRef.current = newMarkers;
-  }, [facilities, activeFilter, mapLoaded]);
-
-  // 선택된 시설 강조: 확대된 핀 + 펄스 링 (그림자 없음). 좌표가 있는 시설만.
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.kakao || !mapLoaded || !mapInstanceRef.current) return;
-    const kakao = window.kakao;
-
-    if (selectionOverlayRef.current) {
-      selectionOverlayRef.current.setMap(null);
-      selectionOverlayRef.current = null;
-    }
-    if (!selectedFacility || typeof selectedFacility.latitude !== 'number' || typeof selectedFacility.longitude !== 'number') return;
-
-    const isNarrow = window.innerWidth < 640;
-    // 사내 주차장은 정사각 마커 → 정사각 비율·중앙 기준, 그 외 핀은 세로형·머리(원) 기준
-    const isPriv = selectedFacility.type === 'parking' && selectedFacility.features && (selectedFacility.features.is_private === true || selectedFacility.features.is_public === false);
-    const w = isNarrow ? 58 : 70;
-    const h = isPriv ? w : (isNarrow ? 74 : 90);
-    const ring = Math.round(w * (isPriv ? 0.82 : 0.74));
-    const rs = Math.round(ring * 0.58);
-    const headTop = isPriv ? Math.round(h / 2) : Math.round(h * 0.39); // 정사각=중앙, 핀=머리
-    const half = Math.round(ring / 2);
-    const halfS = Math.round(rs / 2);
-
-    const el = document.createElement('div');
-    el.style.cssText = `position:relative;width:${w}px;height:${h}px;pointer-events:none;`;
-    // 위치용 래퍼와 애니메이션(scale)용 자식을 분리해 animate-ping 의 transform 과 충돌 방지
-    el.innerHTML = `
-      <span style="position:absolute;left:50%;top:${headTop}px;width:${ring}px;height:${ring}px;margin-left:-${half}px;margin-top:-${half}px;">
-        <span class="animate-ping" style="display:block;width:100%;height:100%;border-radius:9999px;background:rgba(59,130,246,0.38);"></span>
-      </span>
-      <span style="position:absolute;left:50%;top:${headTop}px;width:${rs}px;height:${rs}px;margin-left:-${halfS}px;margin-top:-${halfS}px;border-radius:9999px;border:2px solid rgba(96,165,250,0.95);box-sizing:border-box;"></span>
-      <img class="marker-pop" src="${getMarkerSvg(selectedFacility.type, selectedFacility.congestionLevel, selectedFacility.features)}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:block;transform-origin:${isPriv ? '50% 50%' : '50% 100%'};" />
-    `;
-
-    const overlay = new kakao.maps.CustomOverlay({
-      position: new kakao.maps.LatLng(selectedFacility.latitude, selectedFacility.longitude),
-      content: el,
-      xAnchor: 0.5,
-      yAnchor: isPriv ? 0.5 : 1,
-      zIndex: 200,
-    });
-    overlay.setMap(mapInstanceRef.current);
-    selectionOverlayRef.current = overlay;
-  }, [selectedFacility, mapLoaded]);
+    // selectedFacility 변경 시에도 재렌더해 선택 마커만 진한 색으로 갱신(기존 마커는 effect 시작부에서 정리)
+  }, [facilities, activeFilter, mapLoaded, selectedFacility?.id]);
 
   const filters = [
     { id: '식당', icon: Utensils },
