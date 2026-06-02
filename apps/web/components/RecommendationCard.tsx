@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, PanInfo } from 'framer-motion';
+import { motion, PanInfo, AnimatePresence } from 'framer-motion';
 import { Bookmark, Sparkles, Star, Phone, MapPin, Clock, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface RecommendationCardProps {
@@ -47,15 +47,11 @@ export function RecommendationCard({
 }: RecommendationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [translateY, setTranslateY] = useState(0);
-  const [startY, setStartY] = useState<number | null>(null);
   
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-
   useEffect(() => {
     setIsExpanded(false);
     setIsMinimized(false);
-    setTranslateY(0);
   }, [title]);
 
   useEffect(() => {
@@ -136,45 +132,30 @@ export function RecommendationCard({
     }
   }, [title, facility]);
 
-  // Drag Gesture Handlers
-  const handleStart = (clientY: number) => {
-    setStartY(clientY);
-  };
+  // Framer Motion Drag Handler
+  const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const offset = info.offset.y;
+    const velocity = info.velocity.y;
 
-  const handleMove = (clientY: number) => {
-    if (startY === null) return;
-    const diff = clientY - startY;
-    
     if (isExpanded) {
-      if (diff > 0) setTranslateY(diff);
+      if (offset > 50 || velocity > 200) {
+        setIsExpanded(false);
+      }
     } else if (isMinimized) {
-      if (diff < 0) setTranslateY(diff);
+      if (offset < -50 || velocity < -200) {
+        setIsMinimized(false);
+      }
     } else {
-      setTranslateY(diff);
-    }
-  };
-
-  const handleEnd = () => {
-    if (startY === null) return;
-    setStartY(null);
-    
-    if (isExpanded) {
-      if (translateY > 70) setIsExpanded(false);
-    } else if (isMinimized) {
-      if (translateY < -30) setIsMinimized(false);
-    } else {
-      if (translateY > 50) {
+      if (offset > 50 || velocity > 200) {
         if (onClose) {
           onClose();
         } else {
           setIsMinimized(true);
         }
-      }
-      if (translateY < -50) {
+      } else if (offset < -50 || velocity < -200) {
         setIsExpanded(true);
       }
     }
-    setTranslateY(0);
   };
 
   const toggleExpand = () => {
@@ -195,21 +176,14 @@ export function RecommendationCard({
   };
 
   return (
-    <div 
-      className={`w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
-      style={{
-        transform: `translateY(${translateY}px)`,
-        transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s, gap 0.3s',
-        // 모달(예약현황/예약) 열릴 땐 내부 스크롤이 되도록 드래그용 touchAction을 해제
-        touchAction: (showScheduleModal || showBookingModal) ? 'auto' : 'none'
-      }}
-      onTouchStart={(e) => handleStart(e.touches[0].clientY)}
-      onTouchMove={(e) => handleMove(e.touches[0].clientY)}
-      onTouchEnd={handleEnd}
-      onMouseDown={(e) => handleStart(e.clientY)}
-      onMouseMove={(e) => { if (startY !== null) handleMove(e.clientY); }}
-      onMouseUp={handleEnd}
-      onMouseLeave={handleEnd}
+    <motion.div 
+      className={`w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none relative overflow-hidden`}
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={0.2}
+      onDragEnd={handleDragEnd}
+      layout
+      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
     >
       {/* Decorative upper border glow */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/80 to-transparent" />
@@ -433,16 +407,16 @@ export function RecommendationCard({
         </div>
       )}
 
-      {/* Drag up / Expandable Details Section (Rating, Address, Phone, Hours) */}
-      <div 
-        className="overflow-hidden transition-all duration-300 ease-in-out"
-        style={{ 
-          maxHeight: isExpanded ? '280px' : '0px', 
-          opacity: isExpanded ? 1 : 0,
-          marginTop: isExpanded ? '4px' : '0px'
-        }}
-      >
-        <div className="border-t border-white/10 pt-3.5 space-y-3 text-xs text-slate-300">
+      {/* Expandable Details Section (Rating, Address, Phone, Hours) */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+            animate={{ height: 'auto', opacity: 1, marginTop: 4 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-white/10 pt-3.5 space-y-3 text-xs text-slate-300">
           
           {/* AI 추천 사유 (WP3 Gemini, 있을 때만) */}
           {reason && (
@@ -501,8 +475,10 @@ export function RecommendationCard({
               </span>
             </div>
           </div>
-        </div>
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Action Buttons: Reject, Put off, Accept Route (or custom for meeting rooms) */}
       {facilityType === 'rest_area' ? null : facilityType === 'meeting_room' ? (
@@ -617,6 +593,6 @@ export function RecommendationCard({
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
