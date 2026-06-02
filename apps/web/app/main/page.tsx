@@ -314,7 +314,7 @@ export default function MainPage() {
           100% { transform: scale(1.6); opacity: 0; }
         }
       </style>
-      <div style="position: relative; width: 100px; height: 100px; pointer-events: none; filter: invert(100%) hue-rotate(180deg) brightness(120%) contrast(110%);">
+      <div style="position: relative; width: 100px; height: 100px; pointer-events: none;">
         <!-- Glow -->
         <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,0,0.8) 0%, rgba(255,255,0,0.4) 40%, rgba(255,255,0,0) 80%); animation: pulse-user-marker 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
         <!-- Border -->
