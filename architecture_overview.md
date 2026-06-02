@@ -287,9 +287,11 @@ Firestore 벡터가 없으면 `users.preferred_categories`의 `CATEGORY_VECTORS`
 | 항목 | 내용 |
 |---|---|
 | **프로젝트 / 리전** | GCP 프로젝트 `knudc-henryseo711`. Cloud Run=asia-northeast3 / Vertex·BigQuery·Pub/Sub·API Gateway=us-central1(ML 정렬). |
-| **백엔드 배포** | Cloud Build `--source`로 컨테이너 빌드 → Cloud Run(`induspot-api`, 포트 8080). `apps/api/Dockerfile`은 Python 3.11, Poetry 2.4.1(`poetry-plugin-export`로 requirements.txt 생성) → pip 설치 흐름. |
+| **백엔드 배포** | `deploy.ps1 -Backend` → Cloud Build `--source` 컨테이너 빌드 → Cloud Run(`induspot-api`, asia-northeast3, 포트 8080). 배포 시 `--update-env-vars`(`VERTEX_ENDPOINT_ID`·`GEMINI_ENABLED`·`EMBEDDING_ENABLED`·`PUBSUB_PUSH_*`) + `--update-secrets`(Secret Manager 5비밀) 병합 주입. 라이브 rev `induspot-api-00020`. `apps/api/Dockerfile`은 Python 3.11 → pip 설치 흐름. |
+| **GCP 프로비저닝(멱등)** | `deploy.ps1 -Provision`: `grant_runtime_iam.py`(런타임 SA 8역할) → `setup_secrets.py`(SM 5비밀) → `provision_firestore.py`(`(default)` DB) → `load_bq.py`(Supabase→BQ) + `provision_bigquery.py`(BQML 학습+`forecast_lookup`) → (배포 후) `provision_pubsub.py`(토픽·push구독·`induspot-publisher` Job·Scheduler). `_gcloud.py`가 `gcloud.cmd` 전체경로 해석(Windows). 전 단계 멱등·`*_OK` 마커. 런북=`docs/GCP_NATIVE_DEPLOY_RUNBOOK.md`. |
 | **프론트 배포** | `.github/workflows/firebase-hosting.yml` — main 푸시 시 `npm ci` → `npm run web:build`(`NEXT_PUBLIC_API_GATEWAY_URL` 주입) → `firebase deploy --only hosting`. Node 20, npm 캐시. 정적 익스포트 `apps/web/out` → Firebase Hosting(`firebase.json`). |
-| **ML 배포 스크립트** | `apps/api/scripts/deploy_vertex.py`(Vertex Model Registry, prebuilt sklearn-cpu.1-3, n1-standard-2, GCS `induspot-models-6757`), `scripts/load_bq.py`·`_run_bqml.py`(BQML ARIMA_PLUS), `apps/api/sql/bqml_forecast.sql`(auto_arima·decompose·clean_spikes, 48h 예측), `scripts/setup_secrets.py`, `scripts/deploy_publisher_job.py`(Cloud Run Job + Cloud Scheduler `*/10`). |
+| **ML 배포 스크립트** | `apps/api/scripts/deploy_vertex.py`(Vertex Model Registry, prebuilt sklearn-cpu.1-3, n1-standard-2, GCS `induspot-models-6757`), `scripts/{load_bq,provision_bigquery,_run_bqml}.py`+`sql/bqml_forecast.sql`(BQML ARIMA_PLUS, auto_arima·decompose·clean_spikes, 48h 예측), `scripts/seed_facility_embeddings.py`(Vertex 임베딩→Firestore), `scripts/deploy_publisher_job.py`(Cloud Run Job + Scheduler `*/10`), `dataflow/launch_dataflow.py`(Dataflow 스트리밍, opt-in). `congestion_logs` 스키마는 런타임 계약(`facility_id/congestion_level/current_count/source/timestamp`)으로 단일화. |
+| **인증 정체성 주의** | gcloud CLI=Owner급(`projectIamAdmin`)이나 Python google-cloud 클라이언트는 ADC 사용. 프로비저닝은 BigQuery 권한을 부여한 SA 키로 ADC 고정, Pub/Sub 토픽/구독·`run.invoker`(프로젝트 레벨)는 gcloud(Owner)로 생성. |
 | **버전 스큐 위험** | prebuilt sklearn-cpu.1-3(numpy 1.x) vs 로컬 numpy 2.x → `_extract_coef.py`+`_rebuild_and_deploy.py` 폴백 포함. |
 
 ---
@@ -309,8 +311,10 @@ Firestore 벡터가 없으면 `users.preferred_categories`의 `CATEGORY_VECTORS`
 | **선호 NLP** | Gemini JSON 추출 | → 키워드 정규식 폴백(`is_fallback=true`) |
 | **지도 SDK** | Kakao Maps SDK | → CSS 그리드 시뮬레이션(앱키 없거나 목일 때) |
 | **대시보드 데이터** | Supabase 실데이터 | → KST 시간대 기반 의사난수 합성(패널 공백 방지) |
-| **Secret 로드** | Secret Manager | → `.env` |
-| **예보** | BQML `congestion_forecast_lookup` | → None 반환 → 클라 의사난수 히트맵 |
+| **Secret 로드** | Secret Manager(Cloud Run `--update-secrets` 주입 + 부팅 `load_gcp_secrets`) | → `.env`(로컬) |
+| **예보** | BQML `congestion_forecast_lookup`(라우트 `GET /api/v1/forecast/*` → `source:"bqml"`) | → `source:"unavailable"` → 클라 의사난수 히트맵 |
+| **수집 적재** | `/ingest/pubsub` → Supabase `congestion_logs` + BigQuery 듀얼라이트 | BQ 실패해도 Supabase 적재·200·멱등 유지(best-effort) |
+| **메뉴 의미검색(음성)** | Vertex 임베딩(`text-multilingual-embedding-002`) + Firestore `facility_embeddings` 코사인 | → Gemini 의도분류 → next 강등(폐기 안 함) |
 
 비-GCP 의존성: Supabase(facilities/users/auth/logs 단일 진실 원천, Tier3 Cloud SQL 마이그레이션 대상), Kakao(Maps SDK + Mobility), Firebase Auth. **Pinecone는 deprecated**(Firestore KV로 대체, 시그니처만 호환 유지 — `available` False 시 graceful).
 
@@ -318,7 +322,17 @@ Firestore 벡터가 없으면 `users.preferred_categories`의 `CATEGORY_VECTORS`
 
 ## 10. 현황 · 제약 노트
 
-- **현황(2026-06-02 기준)**: Tier 0 + 일부 Tier 1. WP1(Vertex), WP2(BigQuery ARIMA), WP3(Gemini), WP4(Pub/Sub) 동작. API Gateway 배포 완료(`induspot-gateway-9t4vof78.uc.gateway.dev`). Firestore 코드 완성·라이브 전. Secret Manager 지원 코드 있으나 미투입(.env 폴백 동작).
+- **현황(2026-06-03 기준, 라이브 실측)**: GCP-native 전환 완료 — 수집→AI/ML→저장 데이터 흐름이 실제로 동작 중. Cloud Run 라이브 리비전 `induspot-api-00020`(env: `VERTEX_ENDPOINT_ID`/`GEMINI_ENABLED`/`EMBEDDING_ENABLED` + Secret Manager 5비밀 주입). 실측 증거:
+  - **WP1 Vertex 예측**: `/predict` → `predicted_congestion=0.0955` (GCS 폴백이 아닌 라이브 Vertex Endpoint `2992545745120264192` 호출).
+  - **WP2 BigQuery/BQML**: ARIMA_PLUS 모델 학습 + `congestion_forecast_lookup`(7,056행/147시설) 사전계산. 신규 라우트 `GET /api/v1/forecast/{congestion,heatmap}` → `source:"bqml"` 실데이터 반환(게이트웨이 200).
+  - **WP3 Gemini**: `GEMINI_ENABLED=true` + 런타임 SA `aiplatform.user`(Vertex 예측과 동일 권한으로 동작 확인). 사유/음성/선호 NLP 경로에 라이브.
+  - **WP4 Pub/Sub**: 토픽 → push 구독(OIDC) → `/ingest/pubsub` → Supabase + **BigQuery `congestion_logs` 듀얼라이트**. Cloud Run Job `induspot-publisher` + Cloud Scheduler `induspot-publisher-cron`(`*/10`, ENABLED)로 발행. E2E 검증: `congestion_logs` 3,676→4,838행 자동 증가.
+  - **Firestore**: `(default)` Native DB(asia-northeast3) 생성·라이브(선호 벡터 KV).
+  - **Secret Manager**: 5비밀(`SUPABASE_*`/`JWT_SECRET`/`GCS_BUCKET_NAME`)을 Cloud Run `--update-secrets`로 소싱 + 런타임 SA `secretAccessor` → 부팅 시 `.env` 의존 제거(이전엔 평문 env였음).
+  - **API Gateway**: `induspot-gateway-9t4vof78.uc.gateway.dev`(`/health`·`/predict`·`/api/v1/forecast/*` 200).
+  - 활성화 자동화: `deploy.ps1 -Backend -Provision`(IAM→Secret→Firestore→BigQuery 프로비저닝 후 배포, Pub/Sub는 배포 후 멱등). 런북 = `docs/GCP_NATIVE_DEPLOY_RUNBOOK.md`.
+- **거의 완료**: ① 음성 메뉴 의미검색(Vertex 임베딩 `text-multilingual-embedding-002` + Firestore `facility_embeddings` 코사인) — **시드 완료(147시설, `seed_facility_embeddings.py`)** + `EMBEDDING_ENABLED=true`, rev `induspot-api-00020`로 인스턴스 재로드 → 라이브(시드 안 된 후보는 런타임 즉석 임베딩으로 보강). 한국 외식 택소노미로 단일 정밀분류(곱창집≠고깃집≠순댓국)로 귀착. ② 앱 데이터 주 저장소는 여전히 Supabase(facilities/users/recommendations); BigQuery/Firestore는 분석·예측·선호 용도로 공존.
+- **미착수(opt-in)**: Dataflow 5분 윈도우 집계(`congestion_windowed`) — 파이프라인/런처 코드 존재(`dataflow/launch_dataflow.py`)하나 ⓐ 상시 과금 opt-in(`deploy.ps1 -WithStreaming`)이고 ⓑ `.venv_beam`의 apache-beam[gcp]↔google-cloud-bigquery 버전 비호환(`WriteToBigQuery`→`parse_table_reference` TypeError)으로 미실행. 수집 자체(Pub/Sub→ingest→BQ 듀얼라이트)는 이미 라이브라 Dataflow는 보조 분석 계층.
 - **인증 분리 비용**: 근로자=Supabase / 관리자=Firebase 이중 모델 → 백엔드가 두 헤더 스타일 처리. Firebase 관리자는 Supabase user 레코드가 없어 `admin_update_settings` RLS(`users.role='admin'`)와 불일치(프로토타입 허용, 프로덕션은 커스텀 클레임/동기화 필요).
 - **멱등성**: Pub/Sub messageId LRU가 인스턴스 로컬(OrderedDict max 5000). 다중 인스턴스/재시작 시 중복 삽입 가능 → 프로덕션은 Firestore/Redis 권장.
 - **TTTV 가중치 불변**: 0.45/0.25/0.30 하드코딩, 런타임 튜닝 불가. 시설 4종 고정(cafeteria/parking/meeting_room/rest_area), Ridge 모델은 3피처 원-핫에 적합. loading_dock는 정규화로 rest_area 매핑.
