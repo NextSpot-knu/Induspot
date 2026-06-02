@@ -540,7 +540,7 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
               onlyRelaxed ? "bg-emerald-500 animate-ping" : "bg-slate-500"
             }`}
           />
-          한산한 곳만 보기 (25%-)
+          한산한 곳만 보기 (25% 미만)
         </button>
       </div>
 

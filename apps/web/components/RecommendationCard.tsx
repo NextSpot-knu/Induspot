@@ -409,9 +409,10 @@ export function RecommendationCard({
             <span className="font-extrabold text-rose-300">
               {(() => {
                 const c = facility?.congestionLevel ?? 0;
-                if (c >= 0.7) return `약 ${5 + Math.round(((c - 0.7) / 0.3) * 15)}분`;
-                if (c >= 0.3) return `약 ${Math.max(1, Math.round(c * 8))}분`;
-                return '즉시 이용 가능';
+                if (c >= 0.75) return `약 ${10 + Math.round(((c - 0.75) / 0.25) * 20)}분`; // 혼잡 10~30분
+                if (c >= 0.5) return `약 ${5 + Math.round(((c - 0.5) / 0.25) * 5)}분`;     // 보통 5~10분
+                if (c >= 0.25) return `약 ${2 + Math.round(((c - 0.25) / 0.25) * 3)}분`;    // 여유 2~5분
+                return '즉시 이용 가능';                                                      // 한산
               })()}
             </span>
           </div>

@@ -21,6 +21,7 @@ _SYSTEM_INSTRUCTION = (
     "당신은 산업단지 인프라 추천 사유를 작성하는 한국어 어시스턴트입니다. "
     "반드시 입력으로 주어진 수치와 사실만 사용하세요. "
     "입력에 없는 새로운 숫자나 사실을 절대 만들어내지 마세요. "
+    "추천 시설의 혼잡도가 75% 이상이면 해당 시설을 추천하지 말고, 혼잡해 대기가 길 수 있음을 안내하세요. "
     "출력은 한국어 1~2문장, 80자 내외로 간결하게 작성하세요."
 )
 
@@ -43,8 +44,14 @@ def _build_template(ctx: dict) -> str:
     if isinstance(cand_cong, (int, float)):
         parts.append(f"혼잡도 {round(cand_cong * 100)}%")
 
+    # 혼잡(>=0.75)이면 추천하지 않고 혼잡·대기를 솔직히 안내한다.
+    is_congested = isinstance(cand_cong, (int, float)) and cand_cong >= 0.75
     if parts:
+        if is_congested:
+            return f"{name}: " + ", ".join(parts) + " 수준으로 지금은 붐벼 대기가 길 수 있어요."
         return f"{name} 추천: " + ", ".join(parts) + " 수준으로 여유가 있습니다."
+    if is_congested:
+        return f"{name}은(는) 현재 혼잡해 대기가 길 수 있어요."
     return f"{name}을(를) 추천합니다."
 
 

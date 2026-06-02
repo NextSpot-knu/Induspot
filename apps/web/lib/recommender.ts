@@ -144,10 +144,22 @@ export function buildReason(facility: any, tttv: Tttv): string {
   }
   bits.push(`혼잡도 ${congPct}%(${congLabel})`);
 
-  let tail = "지금 균형이 가장 좋아 추천드려요.";
-  if (tttv.preferencePercent >= 70) tail = `취향 일치율 ${tttv.preferencePercent}%로 선호와 잘 맞아요.`;
-  else if (cong < 0.25) tail = "지금이 가장 한산해 바로 이용하기 좋아요.";
-  else if (facility?.type !== "parking" && tttv.expectedWait <= 5) tail = "대기 거의 없이 이용할 수 있어요.";
+  // 혼잡(>=0.75)이면 이 시설을 추천하지 않고, 혼잡·대기를 솔직히 알리고 대안을 권한다.
+  let tail: string;
+  if (cong >= 0.75) {
+    tail =
+      facility?.type === "parking"
+        ? "지금은 자리가 거의 없어 다른 주차장을 살펴보는 게 좋아요."
+        : "지금은 붐벼 대기가 길 수 있으니 잠시 후 방문하거나 다른 곳을 살펴보세요.";
+  } else if (tttv.preferencePercent >= 70) {
+    tail = `취향 일치율 ${tttv.preferencePercent}%로 선호와 잘 맞아요.`;
+  } else if (cong < 0.25) {
+    tail = "지금이 가장 한산해 바로 이용하기 좋아요.";
+  } else if (facility?.type !== "parking" && tttv.expectedWait <= 5) {
+    tail = "대기 거의 없이 이용할 수 있어요.";
+  } else {
+    tail = "지금 균형이 가장 좋아 추천드려요.";
+  }
 
   return `${name}: ${bits.join(", ")} 수준으로 ${tail}`;
 }

@@ -157,7 +157,7 @@ export default function MainPage() {
         const dummyMeetingsInsideSub = Array.from({length: 8}).map((_, i) => {
            // 혼잡도로 사용 여부·이용 인원·남은 시간(예상 대기)을 일관되게 결정
            const congestionLevel = Math.random();
-           const occupied = congestionLevel >= 0.3; // 보통 이상이면 사용중
+           const occupied = congestionLevel >= 0.5; // 보통(>=0.5) 이상이면 사용중
            const currentCount = occupied ? Math.max(1, Math.round(congestionLevel * 8)) : 0;
            const remainingMinutes = occupied ? Math.max(5, Math.round(congestionLevel * 55)) : 0; // 혼잡↑ → 대기↑
            return {
@@ -188,7 +188,7 @@ export default function MainPage() {
 
         const dummyMeetingsOutside = Array.from({length: 2}).map((_, i) => {
            const congestionLevel = Math.random();
-           const occupied = congestionLevel >= 0.3;
+           const occupied = congestionLevel >= 0.5; // 보통(>=0.5) 이상이면 사용중
            const currentCount = occupied ? Math.max(1, Math.round(congestionLevel * 12)) : 0;
            const remainingMinutes = occupied ? Math.max(5, Math.round(congestionLevel * 55)) : 0;
            return {
