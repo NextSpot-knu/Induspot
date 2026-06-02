@@ -746,6 +746,7 @@ export default function MainPage() {
         .map((x: any) => ({
           id: x.id,
           name: x.name,
+          cuisine: x.features?.cuisine_tags ?? x.features?.cuisine ?? null, // Gemini가 양식/짜장면 등 매칭에 사용
           congestion: x.congestionLevel ?? 0,
           distanceM: haversineMeters(userLocation.lat, userLocation.lng, x.latitude, x.longitude),
         }));
@@ -753,6 +754,10 @@ export default function MainPage() {
       return { action: res.action, targetId: res.targetFacilityId, matchIds: res.matchIds, spoken: res.spoken };
     },
   });
+
+  // 한 번만 등록되는 Kakao 지도 이벤트 콜백이 항상 '현재' voice(stop/active)를 참조하도록 ref 미러링.
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
 
   // 카드가 새로 뜨면(세션 활성 상태) Gemini 사유를 자동 발화, 카드가 사라지면 정지.
   // deps에 reason 포함 — 같은 시설이라도 mockHour/혼잡 변화로 사유가 바뀌면 새로 안내(id만 보면 놓침).
@@ -829,6 +834,16 @@ export default function MainPage() {
           setActiveGroupId(null);
           setSelectedFacility(null);
         });
+
+        // 음성 비서(Gemini) 활성 중 지도 영역을 터치(탭/드래그/줌)하면 즉시 정지 —
+        // 사용자가 지도를 보려는 의도이므로 안내가 끼어들지 않게 한다. (panTo 등 프로그램 이동은
+        // dragstart/zoom_start/click 을 발생시키지 않아 음성 선택·필터 시 오작동하지 않음.)
+        const stopVoiceOnMapTouch = () => {
+          if (voiceRef.current?.active) voiceRef.current.stop();
+        };
+        window.kakao.maps.event.addListener(map, 'click', stopVoiceOnMapTouch);
+        window.kakao.maps.event.addListener(map, 'dragstart', stopVoiceOnMapTouch);
+        window.kakao.maps.event.addListener(map, 'zoom_start', stopVoiceOnMapTouch);
       });
     }
   };
@@ -1056,10 +1071,8 @@ export default function MainPage() {
                     voiceState={voice.voiceState}
                     liveTranscript={voice.liveTranscript}
                     caption={voice.caption}
-                    muted={voice.muted}
                     sttSupported={voice.sttSupported}
                     onOrb={voice.onOrbClick}
-                    onToggleMute={voice.toggleMute}
                   />
                 </div>
               )}

@@ -65,14 +65,12 @@ export interface VoiceAssistant<T> {
   voiceState: VoiceState;
   liveTranscript: string;
   caption: string;
-  muted: boolean;
   ttsSupported: boolean;
   sttSupported: boolean;
   /** 오브 탭: 비활성이면 시작(제스처 게이트), 발화중이면 바지인, 그 외 정지 */
   onOrbClick: () => void;
   /** 카드가 새로 떴을 때 부모가 호출(null이면 카드 사라짐 → 정지). 잠금 해제 상태면 자동 발화. */
   notifyItem: (item: T | null) => void;
-  toggleMute: () => void;
   stop: () => void;
 }
 
@@ -85,7 +83,6 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
   const [voiceState, setVoiceStateRaw] = useState<VoiceState>("idle");
   const [liveTranscript, setLiveTranscript] = useState("");
   const [caption, setCaption] = useState("");
-  const [muted, setMuted] = useState(false);
   const [ttsSupported, setTtsSupported] = useState(true);
   const [sttSupported, setSttSupported] = useState(true);
 
@@ -95,7 +92,6 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
   const followupRef = useRef<any>(null);
   const voicesRef = useRef<any[]>([]);
   const stateRef = useRef<VoiceState>("idle");
-  const mutedRef = useRef(false);
   const startingRef = useRef(false);
   const repromptRef = useRef(0);
   const itemRef = useRef<T | null>(null);
@@ -186,7 +182,7 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
   // 1순위 Cloud TTS(고품질) → 실패/미설정 시 브라우저 TTS. onEnd는 어느 경로든 정확히 1회.
   // 첫 발화는 오브 탭(제스처) 직후라 sticky activation으로 오디오 재생 허용; 막히면 브라우저 폴백.
   const speak = (text: string, onEnd?: () => void) => {
-    if (typeof window === "undefined" || mutedRef.current) { onEnd?.(); return; }
+    if (typeof window === "undefined") { onEnd?.(); return; }
     const seq = ++speakSeqRef.current;
     try { if (audioRef.current) audioRef.current.pause(); } catch { /* noop */ }
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
@@ -416,7 +412,7 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
       if (stateRef.current !== "idle") finish(); // 카드 사라짐 → 종료
       return;
     }
-    if (!activeRef.current || mutedRef.current) return; // 세션 비활성/음소거: 대기(오브 표시만)
+    if (!activeRef.current) return; // 세션 비활성: 대기(오브 표시만)
     speakItem(item);
   };
 
@@ -426,7 +422,6 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     if (!active) {
       const item = itemRef.current;
       if (!item || !("speechSynthesis" in window)) return;
-      mutedRef.current = false; setMuted(false);
       setActiveBoth(true);
       repromptRef.current = 0;
       try { const w = new SpeechSynthesisUtterance(" "); w.volume = 0; window.speechSynthesis.speak(w); } catch { /* noop */ }
@@ -441,21 +436,8 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     stop();
   };
 
-  const toggleMute = () => {
-    const next = !mutedRef.current;
-    mutedRef.current = next; setMuted(next);
-    if (next && typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      // 발화 중 음소거 시 onend가 안 와 흐름이 멈출 수 있으니 곧바로 듣기로 전환(STT 유지).
-      if (stateRef.current === "speaking") {
-        if (followupRef.current) { clearTimeout(followupRef.current); followupRef.current = null; }
-        startListening();
-      }
-    }
-  };
-
   return {
-    active, voiceState, liveTranscript, caption, muted, ttsSupported, sttSupported,
-    onOrbClick, notifyItem, toggleMute, stop,
+    active, voiceState, liveTranscript, caption, ttsSupported, sttSupported,
+    onOrbClick, notifyItem, stop,
   };
 }
