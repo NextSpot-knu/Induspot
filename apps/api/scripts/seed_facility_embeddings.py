@@ -255,10 +255,11 @@ def main():
         )
     db = firestore.Client(project=settings.GCP_PROJECT_ID)
     col = db.collection(settings.FIRESTORE_EMBEDDING_COLLECTION)
-    batch = db.batch()
+    # 문서별 개별 set(). 벡터(768-요소 배열)는 Firestore 가 원소마다 색인을 만들어, 여러 건을 한 배치로
+    # 묶으면 색인 항목이 폭증해 'Transaction too big' 이 난다(147*768≈11만). 개별 쓰기로 회피(일회성 시드).
     n = 0
     for (fid, name, ftype, category, menu, profile), vec in zip(rows, vectors):
-        batch.set(col.document(str(fid)), {
+        col.document(str(fid)).set({
             "vector": [float(x) for x in vec],
             "name": name,
             "type": ftype,
@@ -269,10 +270,8 @@ def main():
             "dim": dim,
         })
         n += 1
-        if n % 400 == 0:
-            batch.commit()
-            batch = db.batch()
-    batch.commit()
+        if n % 25 == 0:
+            print(f"      {n}/{len(rows)} 저장...")
     print(f"      완료: {n}건 저장(collection={settings.FIRESTORE_EMBEDDING_COLLECTION}).")
     print("재배포(또는 인스턴스 교체) 후 음성 필터가 메뉴 의미검색을 사용합니다. EMBEDDING_ENABLED=true 필요.")
 
