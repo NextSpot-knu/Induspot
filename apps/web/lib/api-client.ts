@@ -224,8 +224,9 @@ export interface VoiceTurnCandidate {
 }
 
 export interface VoiceTurnResult {
-  action: string; // accept|next|reject|details|select|stop|unknown
+  action: string; // accept|next|reject|details|select|filter|stop|unknown
   targetFacilityId: string | null;
+  matchIds: string[]; // filter 일 때 선호에 맞는 후보 id들('양식'→양식 식당들)
   spoken: string | null; // Gemini 생성 한국어 응답(없으면 프런트 자체 멘트)
 }
 

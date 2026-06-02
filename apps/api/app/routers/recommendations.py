@@ -345,8 +345,9 @@ class VoiceTurnRequest(BaseModel):
 
 
 class VoiceTurnResponse(BaseModel):
-    action: str  # accept|next|reject|details|select|stop|unknown
+    action: str  # accept|next|reject|details|select|filter|stop|unknown
     target_facility_id: str | None = None  # select 일 때 후보 id
+    match_ids: list[str] = []  # filter 일 때 선호에 맞는 후보 id들(예: '양식' → 양식 식당들)
     spoken: str | None = None  # Gemini 생성 한국어 응답(없으면 프런트가 자체 멘트)
 
 

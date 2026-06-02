@@ -37,8 +37,9 @@ export type VoiceState = "idle" | "speaking" | "listening" | "thinking";
 
 /** 백엔드(Vertex Gemini)가 해석한 음성 1턴 결과 */
 export interface VoiceTurn {
-  action: string; // accept|next|reject|details|select|stop|unknown
+  action: string; // accept|next|reject|details|select|filter|stop|unknown
   targetId?: string | null; // select 일 때 고른 시설 id
+  matchIds?: string[]; // filter 일 때 선호에 맞는 후보 id들
   spoken?: string | null; // Gemini 생성 한국어 응답
 }
 
@@ -53,6 +54,8 @@ export interface VoiceAssistantOptions<T> {
   onNext: (item: T) => void;
   /** Gemini가 고른 시설로 전환(선호 매칭). spoken을 새 카드의 사유로 쓰면 자연스럽다. */
   onSelect?: (id: string, spoken?: string) => void;
+  /** Gemini가 선호로 후보를 좁힘(예: '양식'→양식 식당들). 추천 풀을 실시간 필터링해 재추천. */
+  onFilter?: (matchIds: string[], spoken?: string) => void;
   /** 사용자 발화를 Gemini로 해석(없으면 최소 키워드 폴백). 카드 정보로 후보를 만들어 백엔드 호출. */
   interpret?: (utterance: string, item: T) => Promise<VoiceTurn>;
 }
@@ -310,6 +313,13 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
         // notifyItem이 새 카드를 narrate. 별도 발화 안 함(이중 방지).
         try { recRef.current?.abort?.(); } catch { /* noop */ }
         if (turn.targetId && o.onSelect) o.onSelect(turn.targetId, turn.spoken || undefined);
+        else o.onNext(item);
+        break;
+      case "filter":
+        // Gemini가 선호로 후보를 좁혔다(예: 양식→양식 식당들). onFilter가 추천 풀을 실시간 필터링→재추천하면
+        // notifyItem이 새 #1을 narrate. 별도 발화 안 함(이중 방지).
+        try { recRef.current?.abort?.(); } catch { /* noop */ }
+        if (turn.matchIds && turn.matchIds.length && o.onFilter) o.onFilter(turn.matchIds, turn.spoken || undefined);
         else o.onNext(item);
         break;
       case "details": {

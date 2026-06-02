@@ -21,7 +21,7 @@ from app.core.config import settings
 
 logger = structlog.get_logger()
 
-VALID_ACTIONS = ["accept", "next", "reject", "details", "select", "stop", "unknown"]
+VALID_ACTIONS = ["accept", "next", "reject", "details", "select", "filter", "stop", "unknown"]
 _WALK_M_PER_MIN = 66.67
 
 _SYSTEM_INSTRUCTION = (
@@ -69,30 +69,35 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         f"후보 목록:\n{cand_block}\n\n"
         f'사용자 발화: "{utterance}"\n\n'
         "아래 JSON 형식으로만 답하세요(다른 텍스트 금지):\n"
-        '{"action":"accept|next|reject|details|select|stop|unknown",'
-        '"target_facility_id":"<select일 때 위 후보 id 중 하나, 아니면 null>",'
+        '{"action":"accept|next|reject|details|select|filter|stop|unknown",'
+        '"target_facility_id":"<select일 때 후보 id 하나, 아니면 null>",'
+        '"match_ids":["<filter일 때 선호에 맞는 후보 id들(여럿 가능), 아니면 빈 배열>"],'
         '"spoken":"<사용자에게 말할 한국어 1문장(없는 수치 지어내지 말 것)>"}\n'
         "분류 규칙: 수락/가자/길안내 의사=accept. 다른 거/넘기기=next. 별로/싫어=reject. "
         "자세히/정보/얼마=details. 그만/취소/중지=stop. "
-        "특정 선호(예: '양식 먹고 싶어')를 말하면 후보 이름을 보고 가장 맞는 것을 select 로 고르고 "
-        "target_facility_id 를 채우세요. 맞는 후보가 없으면 action=next 로 하고 spoken 에 그 사실을 안내하세요."
+        "특정 한 곳을 콕 집으면(예: '두 번째 거', '저 식당') select 로 target_facility_id 를 채우세요. "
+        "특정 종류·선호로 좁히면(예: '양식 먹고 싶어', '조용한 곳', '전기차 충전되는 데') filter 로 하고 "
+        "후보 이름/특징을 보고 그 선호에 맞는 후보 id 들을 match_ids 에 모두 담으세요. "
+        "어느 경우든 맞는 후보가 하나도 없으면 action=next 로 하고 spoken 에 그 사실을 안내하세요."
     )
 
 
 def _fallback(utterance: str) -> dict:
-    """Gemini 미사용/실패 시 최소 행동 분류(사유 문장은 만들지 않는다 — spoken=None)."""
+    """Gemini 미사용/실패 시 최소 행동 분류(사유 문장·필터는 만들지 않는다 — spoken=None, match_ids=[])."""
     low = (utterance or "").lower()
     if any(k in low for k in ["그만", "됐어", "중지", "중단", "스톱", "멈춰"]):
-        return {"action": "stop", "target_facility_id": None, "spoken": None}
-    if any(k in low for k in ["자세", "정보", "얼마", "대기", "거리", "도보"]):
-        return {"action": "details", "target_facility_id": None, "spoken": None}
-    if any(k in low for k in ["별로", "싫"]):
-        return {"action": "reject", "target_facility_id": None, "spoken": None}
-    if any(k in low for k in ["다음", "넘", "다른", "패스", "스킵", "말고"]):
-        return {"action": "next", "target_facility_id": None, "spoken": None}
-    if any(k in low for k in ["응", "네", "그래", "좋아", "가자", "갈래", "여기", "안내", "수락", "콜"]):
-        return {"action": "accept", "target_facility_id": None, "spoken": None}
-    return {"action": "unknown", "target_facility_id": None, "spoken": None}
+        action = "stop"
+    elif any(k in low for k in ["자세", "정보", "얼마", "대기", "거리", "도보"]):
+        action = "details"
+    elif any(k in low for k in ["별로", "싫"]):
+        action = "reject"
+    elif any(k in low for k in ["다음", "넘", "다른", "패스", "스킵", "말고"]):
+        action = "next"
+    elif any(k in low for k in ["응", "네", "그래", "좋아", "가자", "갈래", "여기", "안내", "수락", "콜"]):
+        action = "accept"
+    else:
+        action = "unknown"
+    return {"action": action, "target_facility_id": None, "match_ids": [], "spoken": None}
 
 
 def _generate_sync(model, prompt: str) -> Optional[dict]:
@@ -119,12 +124,21 @@ def _coerce(parsed: dict, valid_ids: set) -> dict:
         action = "unknown"
     tid = parsed.get("target_facility_id")
     tid = tid if (isinstance(tid, str) and tid in valid_ids) else None
+    # match_ids 는 유효 후보 id 만(중복 제거, 순서 보존)
+    match_ids, seen = [], set()
+    for m in (parsed.get("match_ids") or []):
+        if isinstance(m, str) and m in valid_ids and m not in seen:
+            seen.add(m)
+            match_ids.append(m)
     # select 인데 유효 후보 id 가 없으면 next 로 강등(엉뚱한 선택 방지)
     if action == "select" and not tid:
         action = "next"
+    # filter 인데 맞는 후보가 하나도 없으면 next 로 강등
+    if action == "filter" and not match_ids:
+        action = "next"
     spoken = parsed.get("spoken")
     spoken = spoken.strip()[:120] if isinstance(spoken, str) and spoken.strip() else None
-    return {"action": action, "target_facility_id": tid, "spoken": spoken}
+    return {"action": action, "target_facility_id": tid, "match_ids": match_ids, "spoken": spoken}
 
 
 async def interpret_turn(

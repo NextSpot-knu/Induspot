@@ -32,6 +32,12 @@ export default function MainPage() {
   const [activeFilter, setActiveFilter] = useState('주차장');
   const [facilities, setFacilities] = useState<any[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
+  // 음성 선호 필터(예: '양식 먹고 싶어'→양식 식당 id들). null이면 필터 없음.
+  // Gemini가 실시간으로 추천 풀을 좁혀 그 안에서 TTTV로 재랭킹한다.
+  // state = 카드/핸들러 렌더용, ref = 추천 effect가 dep 없이 최신값을 읽기 위함(필터 변경 시 더블셋 방지).
+  const [voiceFilterIds, setVoiceFilterIds] = useState<Set<string> | null>(null);
+  const voiceFilterIdsRef = useRef<Set<string> | null>(null);
+  const applyVoiceFilter = (s: Set<string> | null) => { voiceFilterIdsRef.current = s; setVoiceFilterIds(s); };
   // 그룹(모음) 마커 하이라이트 id — 카드 선택(selectedFacility)과 분리해 마커 확대/색상변경만 적용
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -439,40 +445,51 @@ export default function MainPage() {
     let cancelled = false;
     (async () => {
       try {
-        let realRanked: any[] = [];
-        if (liveMode && realCands.length > 0) {
-          try {
-            const recs = await recommendByType(targetType, userLocation, [...rejectedIds, ...savedIds]);
-            const byId = new Map(realCands.map(f => [f.id, f]));
-            realRanked = recs
-              .filter(r => byId.has(r.facility.id))
-              .map(r => {
-                const base = byId.get(r.facility.id);
-                const tttv = recToTttv(r);
-                return { ...base, tttv, reason: r.reason || "" }; // 백엔드 Gemini 사유만
-              });
-          } catch (e) {
-            console.warn("by-type 추천 실패 → 목업 미러로 폴백:", e);
-            realRanked = [];
+        let all: any[];
+        const vfilter = voiceFilterIdsRef.current; // ref로 최신 필터를 읽음(이 effect는 voiceFilterIds를 dep로 안 둠)
+        if (vfilter) {
+          // 음성 선호 필터(예: '양식'): 후보를 Gemini가 고른 id들로 좁혀 클라 미러로 TTTV 재랭킹(실시간).
+          // (필터 변경 직후 첫 카드는 onFilter가 동기로 직접 set하므로 여기선 이후 재실행 케이스만 처리.)
+          const filtered = expandGroups(candidates)
+            .filter((f: any) => vfilter.has(f.id) && !rejectedIds.has(f.id) && !savedIds.has(f.id));
+          all = rankFacilities(filtered, scoreOpts);
+        } else {
+          let realRanked: any[] = [];
+          if (liveMode && realCands.length > 0) {
+            try {
+              const recs = await recommendByType(targetType, userLocation, [...rejectedIds, ...savedIds]);
+              const byId = new Map(realCands.map(f => [f.id, f]));
+              realRanked = recs
+                .filter(r => byId.has(r.facility.id))
+                .map(r => {
+                  const base = byId.get(r.facility.id);
+                  const tttv = recToTttv(r);
+                  return { ...base, tttv, reason: r.reason || "" }; // 백엔드 Gemini 사유만
+                });
+            } catch (e) {
+              console.warn("by-type 추천 실패 → 목업 미러로 폴백:", e);
+              realRanked = [];
+            }
           }
+          // 백엔드 미가용/데모 모드: 실 후보도 클라 미러로 랭킹(동일 가중치)
+          if (realRanked.length === 0 && realCands.length > 0) {
+            realRanked = rankFacilities(realCands, scoreOpts);
+          }
+          // 합성/데모 시설은 항상 클라 미러로 점수 부여
+          const demoRanked = rankFacilities(demoCands, scoreOpts);
+          all = [...realRanked, ...demoRanked].sort(compareTttv);
         }
-        // 백엔드 미가용/데모 모드: 실 후보도 클라 미러로 랭킹(동일 가중치 + 사유)
-        if (realRanked.length === 0 && realCands.length > 0) {
-          realRanked = rankFacilities(realCands, scoreOpts);
-        }
-        // 합성/데모 시설은 항상 클라 미러로 점수·사유 부여
-        const demoRanked = rankFacilities(demoCands, scoreOpts);
 
-        const all = [...realRanked, ...demoRanked].sort(compareTttv);
         if (cancelled) return;
         if (all.length === 0) {
           setSelectedFacility(null);
           return;
         }
-        setSelectedFacility(all[0]);
+        const top = all[0];
+        setSelectedFacility(top);
         setIsCardHidden(false);
-        if (mapInstanceRef.current && typeof all[0].latitude === 'number') {
-          panToVisible(all[0].latitude, all[0].longitude);
+        if (mapInstanceRef.current && typeof top.latitude === 'number') {
+          panToVisible(top.latitude, top.longitude);
         }
       } catch (err) {
         console.error("Error in recommendation synchronization effect:", err);
@@ -480,6 +497,8 @@ export default function MainPage() {
     })();
 
     return () => { cancelled = true; };
+    // voiceFilterIds 는 dep로 두지 않는다(필터 변경은 onFilter가 직접 처리; effect는 ref로 최신값 읽음 → 더블셋/경합 방지).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories, mockHour]);
 
   // Action Button Handlers
@@ -551,12 +570,13 @@ export default function MainPage() {
     // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
     const nextSavedIds = new Set(savedIds);
     nextSavedIds.add(fac.id);
+    const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
     let nextCandidates = expandGroups(facilities.filter(f => f.type === targetType))
-      .filter((f: any) => !rejectedIds.has(f.id) && !nextSavedIds.has(f.id));
+      .filter((f: any) => voicePass(f) && !rejectedIds.has(f.id) && !nextSavedIds.has(f.id));
 
-    // Loop back if all exhausted
+    // Loop back if all exhausted (음성 필터는 그대로 유지)
     if (nextCandidates.length === 0) {
-      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType));
+      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType)).filter(voicePass);
     }
 
     if (nextCandidates.length > 0) {
@@ -621,12 +641,13 @@ export default function MainPage() {
     // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
     const nextRejectedIds = new Set(rejectedIds);
     nextRejectedIds.add(fac.id);
+    const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
     let nextCandidates = expandGroups(facilities.filter(f => f.type === targetType))
-      .filter((f: any) => !nextRejectedIds.has(f.id) && !savedIds.has(f.id));
+      .filter((f: any) => voicePass(f) && !nextRejectedIds.has(f.id) && !savedIds.has(f.id));
 
-    // Loop back if all exhausted
+    // Loop back if all exhausted (음성 필터는 그대로 유지)
     if (nextCandidates.length === 0) {
-      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType));
+      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType)).filter(voicePass);
     }
 
     if (nextCandidates.length > 0) {
@@ -682,6 +703,22 @@ export default function MainPage() {
       setIsCardHidden(false);
       if (mapInstanceRef.current && typeof target.latitude === 'number') panToVisible(target.latitude, target.longitude);
     },
+    // Gemini가 선호로 후보를 좁힘(예: '양식 먹고 싶어'→양식 식당 id들). 추천 풀을 실시간 필터링해 재랭킹.
+    // 동기로 필터 내 #1을 직접 set(첫 카드는 Gemini spoken을 사유로) → effect 더블셋/spoken 경합 없음.
+    onFilter: (matchIds, spoken) => {
+      const set = new Set(matchIds);
+      const pool = expandGroups(facilities)
+        .filter((f: any) => set.has(f.id) && !rejectedIds.has(f.id) && !savedIds.has(f.id));
+      if (pool.length === 0) {
+        showToast('음성 선호에 맞는 추천을 찾지 못했어요.'); // 빈 결과 → 필터 미적용(현재 카드 유지)
+        return;
+      }
+      applyVoiceFilter(set); // ref+state 동시 갱신(effect는 이후 재실행 시 ref로 읽음)
+      const ranked = pool.map((f: any) => ({ ...f, tttv: calculateTTTV(f) })).sort(compareFacilities);
+      setSelectedFacility(spoken ? { ...ranked[0], reason: spoken } : ranked[0]);
+      setIsCardHidden(false);
+      if (mapInstanceRef.current && typeof ranked[0].latitude === 'number') panToVisible(ranked[0].latitude, ranked[0].longitude);
+    },
     // 사용자 발화를 백엔드 Vertex Gemini(/api/v1/voice/turn)로 해석. 현재 타입 후보 목록(이름/혼잡/거리)을 동봉.
     interpret: async (utterance, f) => {
       const filterMap: Record<string, string> = { '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area' };
@@ -696,7 +733,7 @@ export default function MainPage() {
           distanceM: haversineMeters(userLocation.lat, userLocation.lng, x.latitude, x.longitude),
         }));
       const res = await voiceTurn(utterance, type, f?.name ?? null, cands);
-      return { action: res.action, targetId: res.targetFacilityId, spoken: res.spoken };
+      return { action: res.action, targetId: res.targetFacilityId, matchIds: res.matchIds, spoken: res.spoken };
     },
   });
 
@@ -949,6 +986,7 @@ export default function MainPage() {
                   setActiveFilter(filter.id);
                   setIsCardHidden(false);
                   setActiveGroupId(null);
+                  applyVoiceFilter(null); // 카테고리 전환 시 음성 선호 필터(예: 양식) 해제(ref+state)
                   // 필터(섹션) 전환 시 열려있던 모둠 팝업도 닫기
                   if (activeOverlayRef.current) {
                     activeOverlayRef.current.setMap(null);
@@ -976,13 +1014,15 @@ export default function MainPage() {
       {selectedFacility && !isCardHidden && (() => {
         try {
           const targetType = selectedFacility.type;
+          // 순위 고정: 거절한 시설을 제외하지 않은 '안정 랭킹'으로 순위를 매긴다 → 1순위를 거절해도
+          // 다음 카드는 1순위가 아니라 2순위로 표시된다. 음성 선호 필터(voiceFilterIds)는 반영.
           const activeCandidates = expandGroups(facilities.filter(f => f.type === targetType))
-            .filter((f: any) => !rejectedIds.has(f.id));
+            .filter((f: any) => !voiceFilterIds || voiceFilterIds.has(f.id));
           const activeScored = activeCandidates.map(f => ({
             ...f,
             tttv: calculateTTTV(f)
           })).sort(compareFacilities);
-          
+
           const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
           const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
           const totalCandidates = activeScored.length;
