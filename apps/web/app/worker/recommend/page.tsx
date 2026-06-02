@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
 import { getRecommendations, submitFeedback, parsePreference, RecommendationResponse } from "@/lib/api-client";
+import { classifyIntent, buildCardSpeech } from "@/lib/voiceIntent";
 import { toast } from "sonner";
 
 // Extend global Window
@@ -16,9 +17,14 @@ declare global {
 
 // 데모 회복탄력성: 백엔드/Gemini 사유가 없을 때(목업·폴백)도 추천 사유가 비지 않도록
 // 보여줄 결정적 한국어 사유를 생성한다. 백엔드 reason_service._build_template 와 어투를 맞춰 일관성 유지.
-function buildMockReason(name: string, waitMin: number, distanceM: number): string {
+function buildMockReason(name: string, waitMin: number, distanceM: number, congestionLevel: number = 0): string {
   const walk = Math.max(1, Math.round(distanceM / 80)); // 80m/min ≈ 4.8km/h
-  return `${name} 추천: 도보 ${walk}분, 예상 대기 ${Math.round(waitMin)}분 수준으로 지금 가장 여유로워요.`;
+  // 혼잡(>=0.75)이면 추천하지 않고 혼잡·대기를 솔직히 알린다.
+  if (congestionLevel >= 0.75) {
+    return `${name}: 도보 ${walk}분 거리지만 지금은 혼잡도 ${Math.round(congestionLevel * 100)}%로 붐벼 대기가 길 수 있어요.`;
+  }
+  const mood = congestionLevel >= 0.5 ? "대기가 길지 않은 편이에요" : "지금 비교적 여유로워요";
+  return `${name} 추천: 도보 ${walk}분, 예상 대기 ${Math.round(waitMin)}분 수준으로 ${mood}.`;
 }
 
 // MiniMap Component for Kakao Maps inside alternative cards
@@ -155,6 +161,113 @@ function RecommendContent() {
   // Coordinates used for recommendations
   const [lat, setLat] = useState<number>(36.1198);
   const [lng, setLng] = useState<number>(128.3471);
+
+  // ── 음성 비서(Hey Gemini 컨시어지) 상태 ──
+  // Gemini가 만든 추천 사유를 한국어 TTS로 읽어주고(speechSynthesis), 사용자의 음성 응답을
+  // STT(SpeechRecognition)로 받아 기존 핸들러(handleAccept/만족도/새로고침)에 위임한다.
+  // 정적 export(SSR) 안전: 모든 Web Speech 접근은 핸들러/이펙트 내부 + typeof window 가드.
+  const [assistantActive, setAssistantActive] = useState(false);
+  const [voiceState, setVoiceState] = useState<"idle" | "speaking" | "listening" | "thinking">("idle");
+  const [activeRecIndex, setActiveRecIndex] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [assistantMuted, setAssistantMuted] = useState(false);
+  const [ttsSupported, setTtsSupported] = useState(true);
+  const [sttSupported, setSttSupported] = useState(true);
+  const [spokenCaption, setSpokenCaption] = useState(""); // 현재 발화 텍스트(자막=청각 정보 시각 동시 제공)
+
+  const assistantRecRef = useRef<any>(null);
+  const voiceUnlockedRef = useRef(false);
+  const listenTimeoutRef = useRef<any>(null);
+  const speakFollowupRef = useRef<any>(null); // 발화 후 STT 시작 예약 타이머(정리 추적)
+  const voicesRef = useRef<any[]>([]);
+  const voiceStateRef = useRef<"idle" | "speaking" | "listening" | "thinking">("idle");
+  const activeRecIndexRef = useRef(0);
+  const mutedRef = useRef(false);
+  const recommendationsRef = useRef<RecommendationResponse[]>([]);
+  const repromptCountRef = useRef(0);
+  const startingRef = useRef(false);
+
+  // 상태와 ref를 동시에 갱신(비동기 콜백에서 stale 값 방지).
+  const setVoice = (s: "idle" | "speaking" | "listening" | "thinking") => {
+    voiceStateRef.current = s;
+    setVoiceState(s);
+  };
+  const setActiveRec = (i: number) => {
+    activeRecIndexRef.current = i;
+    setActiveRecIndex(i);
+  };
+  // 음성 비서 즉시 정리(수동 조작/언마운트/모달 전환/새 추천 도착 시). 후속 헬퍼에 의존하지 않게 위쪽에 정의.
+  const quietAssistant = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    try { assistantRecRef.current?.abort?.(); } catch { /* noop */ }
+    if (listenTimeoutRef.current) { clearTimeout(listenTimeoutRef.current); listenTimeoutRef.current = null; }
+    if (speakFollowupRef.current) { clearTimeout(speakFollowupRef.current); speakFollowupRef.current = null; }
+    startingRef.current = false;
+    repromptCountRef.current = 0;
+    voiceStateRef.current = "idle";
+    setVoiceState("idle");
+    setAssistantActive(false);
+    setLiveTranscript("");
+    setSpokenCaption("");
+  };
+
+  // 음성 비서: 브라우저 지원 감지 + 한국어 보이스 캐싱(마운트 1회).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const synthOk = "speechSynthesis" in window;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setTtsSupported(synthOk);
+    setSttSupported(!!SR);
+    if (!synthOk) return;
+    const loadVoices = () => { voicesRef.current = window.speechSynthesis.getVoices() || []; };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  // 최신 추천 배열을 비동기 콜백 클로저에서 참조하기 위한 미러.
+  useEffect(() => { recommendationsRef.current = recommendations; }, [recommendations]);
+
+  // 새 추천 세트가 도착하면 음성 비서를 idle로 되돌린다(자동재생 정책 회피 — 재탭 요구, 매 시연 동일).
+  useEffect(() => {
+    setActiveRec(0);
+    quietAssistant();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recommendations]);
+
+  // 온보딩 모달이 열리면 음성 비서 정지, 닫히면 온보딩 음성입력(recognitionRef)도 정지(이중 인식 충돌 방지).
+  useEffect(() => {
+    if (showOnboarding) {
+      quietAssistant();
+    } else {
+      try { recognitionRef.current?.stop?.(); } catch { /* noop */ }
+      setIsListening(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showOnboarding]);
+
+  // 탭이 숨겨지면(백그라운드) 발화/인식 정지 — 일부 브라우저의 발화 큐잉/정지 이슈 회피.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = () => { if (document.hidden) quietAssistant(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 언마운트 시 정리(발화/인식/타이머).
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+      try { assistantRecRef.current?.abort?.(); } catch { /* noop */ }
+      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
+      if (speakFollowupRef.current) clearTimeout(speakFollowupRef.current);
+    };
+  }, []);
 
   // Load User ID and Kakao Maps SDK
   useEffect(() => {
@@ -484,7 +597,7 @@ function RecommendContent() {
               incentive: 0.2
             },
             distanceM: 120 + (i * 35),
-            reason: buildMockReason(f.name, 5 + (i * 3), 120 + (i * 35)),
+            reason: buildMockReason(f.name, 5 + (i * 3), 120 + (i * 35), f.congestion_logs?.[0]?.congestion_level ?? 0),
             rank: i + 1,
             totalCandidates: filteredMock.length
           }));
@@ -517,7 +630,7 @@ function RecommendContent() {
       tttvScore: 85 - i * 10,
       breakdown: { preference: 0.9 - i * 0.15, waitTime: 5 + i * 3, travelTime: 2.5 + i, incentive: 0.2 },
       distanceM: 120 + i * 35,
-      reason: buildMockReason(f.name, 5 + i * 3, 120 + i * 35),
+      reason: buildMockReason(f.name, 5 + i * 3, 120 + i * 35, f.congestion_logs?.[0]?.congestion_level ?? 0),
       rank: i + 1,
       totalCandidates: filteredMock.length,
     }));
@@ -676,7 +789,7 @@ function RecommendContent() {
             incentive: 0.2
           },
           distanceM: 120 + (i * 35),
-          reason: buildMockReason(f.name, 5 + (i * 3), 120 + (i * 35)),
+          reason: buildMockReason(f.name, 5 + (i * 3), 120 + (i * 35), f.congestion_logs?.[0]?.congestion_level ?? 0),
           rank: i + 1,
           totalCandidates: filteredMock.length
         }));
@@ -690,6 +803,7 @@ function RecommendContent() {
 
   // CTA Click: Accept Alternative
   const handleAccept = async (rec: RecommendationResponse) => {
+    quietAssistant(); // 음성 비서 진행 중이면 정리(수동/음성 수락 공통)
     // 팝업 차단 방지: 동기적 흐름 내에서 빈 창을 즉시 오픈
     const newWindow = window.open("about:blank", "_blank");
     
@@ -783,6 +897,7 @@ function RecommendContent() {
   // "다른 대안 보기" Click: Reject current top 3, fetch next 3
   const handleRejectAllAndRefresh = async () => {
     if (recommendations.length === 0 || !facilityId) return;
+    quietAssistant(); // 음성 비서 진행 중이면 정리(수동/음성 새로고침 공통)
     setIsRefreshing(true);
     try {
       // 1. Call submitFeedback for all displayed recommendations as rejected
@@ -802,6 +917,288 @@ function RecommendContent() {
     }
   };
 
+  // ───────────────────────── 음성 비서 헬퍼 ─────────────────────────
+  // (forward 참조는 모두 이벤트/타이머에서 실행되므로 런타임에 안전 — 컴포넌트 본문이 끝난 뒤 호출됨)
+  const pickKoVoice = () => {
+    const vs = voicesRef.current || [];
+    return (
+      vs.find((v: any) => v.lang === "ko-KR") ||
+      vs.find((v: any) => (v.lang || "").toLowerCase().startsWith("ko")) ||
+      null
+    );
+  };
+
+  // 한 문장 발화. 상태 전이는 호출자가 관리. onEnd는 정상/오류/미지원/음소거 모두에서 호출(흐름 보장).
+  const speak = (text: string, onEnd?: () => void) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || mutedRef.current) {
+      onEnd?.();
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel(); // 이전 큐 비움(중복/겹침 발화 방지)
+      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
+      u.lang = "ko-KR";
+      u.rate = 1.05;
+      u.pitch = 1.0;
+      const v = pickKoVoice();
+      if (v) u.voice = v;
+      u.onend = () => onEnd?.();
+      u.onerror = () => onEnd?.();
+      window.speechSynthesis.speak(u);
+    } catch {
+      onEnd?.();
+    }
+  };
+
+  const clearListenTimeout = () => {
+    if (listenTimeoutRef.current) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
+  };
+
+  // 발화 종료 후 STT 시작 예약(추적되는 타이머 — quietAssistant가 정리). 0.5s 지연으로 스피커 잔향 self-trigger 방지.
+  const scheduleListen = () => {
+    if (speakFollowupRef.current) clearTimeout(speakFollowupRef.current);
+    if (voiceStateRef.current === "idle") return;
+    speakFollowupRef.current = window.setTimeout(() => {
+      speakFollowupRef.current = null;
+      if (voiceStateRef.current !== "idle") startAssistantListening();
+    }, 500);
+  };
+
+  const finishAssistant = (text?: string) => {
+    clearListenTimeout();
+    if (speakFollowupRef.current) { clearTimeout(speakFollowupRef.current); speakFollowupRef.current = null; }
+    try { assistantRecRef.current?.abort?.(); } catch { /* noop */ }
+    startingRef.current = false;
+    repromptCountRef.current = 0;
+    voiceStateRef.current = "idle";
+    setVoiceState("idle");
+    setAssistantActive(false);
+    setLiveTranscript("");
+    setSpokenCaption("");
+    if (text) speak(text);
+    else if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  };
+
+  const advanceOrFinish = (fromIndex?: number) => {
+    const recs = recommendationsRef.current;
+    const base = fromIndex ?? activeRecIndexRef.current;
+    const next = base + 1;
+    if (next < recs.length) {
+      repromptCountRef.current = 0;
+      speakCard(next);
+    } else {
+      finishAssistant("추천을 모두 안내했어요. 마음에 드는 곳을 선택해 주세요.");
+    }
+  };
+
+  const handleNoResponse = () => {
+    if (voiceStateRef.current === "idle") return;
+    if (repromptCountRef.current < 1) {
+      repromptCountRef.current += 1;
+      const msg = "수락하려면 '응', 넘기려면 '다음'이라고 말해 주세요.";
+      setVoice("speaking");
+      setSpokenCaption(msg);
+      speak(msg, () => scheduleListen());
+    } else {
+      repromptCountRef.current = 0;
+      advanceOrFinish();
+    }
+  };
+
+  // cardIndex = 이 응답이 가리키는 카드(듣기 세션 시작 시 고정). activeRecIndexRef를 다시 읽지 않아 stale 방지.
+  const handleVoiceIntent = (alts: string[], cardIndex: number) => {
+    if (voiceStateRef.current === "idle") return;
+    setVoice("thinking");
+    repromptCountRef.current = 0;
+    const recs = recommendationsRef.current;
+    const rec = recs[cardIndex];
+    if (!rec) {
+      finishAssistant();
+      return;
+    }
+    const sayThen = (msg: string, then: () => void) => {
+      setVoice("speaking");
+      setSpokenCaption(msg);
+      speak(msg, then);
+    };
+    const intent = classifyIntent(alts);
+    switch (intent) {
+      case "cancel":
+        finishAssistant("음성 안내를 마칠게요.");
+        break;
+      case "rejectAll":
+        // 확인 멘트를 끝까지 들려준 뒤 새로고침(직후 호출하면 그 핸들러의 quietAssistant가 발화를 끊음).
+        sayThen("새로운 대안을 찾아볼게요.", () => handleRejectAllAndRefresh());
+        break;
+      case "accept":
+        // 확인 멘트를 끝까지 들려준 뒤 길안내(onEnd 시점엔 발화가 끝나 handleAccept의 cancel이 무해).
+        sayThen("알겠어요, 여기로 안내할게요!", () => handleAccept(rec));
+        break;
+      case "detail": {
+        const waitTime = rec.breakdown?.waitTime?.toFixed(1) || "--";
+        const travelTime = (rec.distanceM / 80).toFixed(1);
+        const preferencePct = Math.round((rec.breakdown?.preference || 0) * 100);
+        sayThen(
+          `예상 대기 ${waitTime}분, 도보 ${travelTime}분, 선호 일치율 ${preferencePct}%예요. 여기로 안내할까요?`,
+          () => scheduleListen()
+        );
+        break;
+      }
+      case "negative":
+        handleSatisfactionFeedback(rec, "down");
+        sayThen("알려줘서 고마워요. 다음 추천 보여드릴게요.", () => advanceOrFinish(cardIndex));
+        break;
+      case "next":
+        sayThen("다음 추천 보여드릴게요.", () => advanceOrFinish(cardIndex));
+        break;
+      default: // unknown
+        handleNoResponse();
+    }
+  };
+
+  const startAssistantListening = () => {
+    if (typeof window === "undefined") return;
+    if (voiceStateRef.current === "idle") return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      // STT 미지원: 발화는 끝났고 카드 버튼으로 응답 유도(자막 안내). 권한 루프 없음.
+      setSttSupported(false);
+      setVoice("listening");
+      setLiveTranscript("");
+      return;
+    }
+    if (startingRef.current) return;
+    startingRef.current = true;
+    const idxForThisListen = activeRecIndexRef.current; // 이 듣기 세션이 묻는 카드 인덱스를 고정(stale 방지)
+    try { assistantRecRef.current?.abort?.(); } catch { /* noop */ }
+    try {
+      const rec = new SR();
+      rec.lang = "ko-KR";
+      rec.interimResults = true; // 부분 인식 자막
+      rec.continuous = false;
+      rec.maxAlternatives = 3; // 키워드 매칭 폭 확대(하나라도 매칭되면 채택)
+      rec.onresult = (e: any) => {
+        let interim = "";
+        let finalAlts: string[] | null = null;
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) {
+            finalAlts = [];
+            for (let j = 0; j < r.length; j++) finalAlts.push(r[j].transcript);
+          } else {
+            interim += r[0]?.transcript || "";
+          }
+        }
+        if (interim) setLiveTranscript(interim);
+        if (finalAlts) {
+          if (voiceStateRef.current !== "listening") return; // thinking/acting 중 추가 final 무시
+          clearListenTimeout();
+          setLiveTranscript(finalAlts[0] || "");
+          handleVoiceIntent(finalAlts, idxForThisListen);
+        }
+      };
+      rec.onerror = (e: any) => {
+        startingRef.current = false;
+        clearListenTimeout();
+        const err = e?.error;
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          setSttSupported(false);
+          toast.info("마이크 권한이 없어 음성 응답은 끌게요. 카드 버튼으로 응답해 주세요.");
+          voiceStateRef.current = "idle";
+          setVoiceState("idle");
+          setAssistantActive(false); // 권한 거부 시 비서 종료(assistantActive=true로 남는 UI 불일치 방지)
+          setSpokenCaption("");
+          return;
+        }
+        if (voiceStateRef.current === "listening") handleNoResponse(); // no-speech/aborted
+      };
+      rec.onend = () => {
+        startingRef.current = false;
+      };
+      assistantRecRef.current = rec;
+      setVoice("listening");
+      setLiveTranscript("");
+      rec.start();
+      clearListenTimeout();
+      listenTimeoutRef.current = window.setTimeout(() => {
+        try { assistantRecRef.current?.stop?.(); } catch { /* noop */ }
+        if (voiceStateRef.current === "listening") handleNoResponse();
+      }, 7000); // 무응답 7초 → 재안내(1회) → 소극 진행
+    } catch {
+      startingRef.current = false;
+      handleNoResponse();
+    }
+  };
+
+  const speakCard = (index: number) => {
+    const recs = recommendationsRef.current;
+    if (!recs || index < 0 || index >= recs.length) {
+      finishAssistant();
+      return;
+    }
+    setActiveRec(index);
+    const rec = recs[index];
+    const reasonText =
+      rec.reason ||
+      buildMockReason(rec.facility.name, rec.breakdown?.waitTime ?? 0, rec.distanceM);
+    const sentence = buildCardSpeech(rec.facility.name, reasonText, index);
+    setVoice("speaking");
+    setSpokenCaption(sentence); // 발화 텍스트를 자막으로(청각 정보 시각 동시 제공 + Gemini 사유 가시화)
+    speak(sentence, () => scheduleListen());
+  };
+
+  // 제스처 게이트: 오브/칩 onClick 콜백 동기 스택 안에서 첫 발화 → 자동재생 정책 통과.
+  const startAssistant = () => {
+    if (typeof window === "undefined") return;
+    if (!("speechSynthesis" in window)) {
+      toast.info("이 브라우저는 음성 안내를 지원하지 않아요.");
+      return;
+    }
+    if (!recommendationsRef.current.length) return;
+    voiceUnlockedRef.current = true;
+    mutedRef.current = false;
+    setAssistantMuted(false);
+    setAssistantActive(true);
+    repromptCountRef.current = 0;
+    try {
+      const warm = new SpeechSynthesisUtterance(" "); // audio context 워밍업(첫 발화 누락 방지)
+      warm.volume = 0;
+      window.speechSynthesis.speak(warm);
+    } catch { /* noop */ }
+    speakCard(0);
+  };
+
+  const onOrbClick = () => {
+    if (!assistantActive) {
+      startAssistant();
+      return;
+    }
+    // 발화 중 탭 = 바지인(말 끊고 바로 듣기)
+    if (voiceStateRef.current === "speaking") {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+      startAssistantListening();
+      return;
+    }
+    quietAssistant();
+  };
+
+  const toggleAssistantMute = () => {
+    const next = !mutedRef.current;
+    mutedRef.current = next;
+    setAssistantMuted(next);
+    if (next && typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      // 발화 중 음소거 시 utterance.onend가 안 와 흐름이 멈출 수 있으니 곧바로 듣기로 전환(STT는 유지).
+      if (voiceStateRef.current === "speaking") {
+        if (speakFollowupRef.current) { clearTimeout(speakFollowupRef.current); speakFollowupRef.current = null; }
+        startAssistantListening();
+      }
+    }
+  };
+
   const getTypeName = (type: string) => {
     switch (type) {
       case "cafeteria":
@@ -818,9 +1215,10 @@ function RecommendContent() {
   };
 
   const getCongestionLabel = (level: number) => {
-    if (level >= 0.7) return "혼잡";
-    if (level >= 0.3) return "보통";
-    return "여유";
+    if (level >= 0.75) return "혼잡";
+    if (level >= 0.5) return "보통";
+    if (level >= 0.25) return "여유";
+    return "한산";
   };
 
   const categoriesList = [
@@ -840,7 +1238,7 @@ function RecommendContent() {
         {/* Header */}
         <header className="flex items-center justify-between border-b border-white/10 pb-4">
           <button
-            onClick={() => router.push("/worker/map")}
+            onClick={() => { quietAssistant(); router.push("/worker/map"); }}
             className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition-all duration-200"
           >
             ← 지도 보기
@@ -897,15 +1295,20 @@ function RecommendContent() {
               </div>
             ))
           ) : recommendations.length > 0 ? (
-            recommendations.map((rec) => {
+            recommendations.map((rec, idx) => {
               const waitTime = rec.breakdown?.waitTime?.toFixed(1) || "--";
               const travelTime = (rec.distanceM / 80).toFixed(1); // 80m/min (approx. 4.8 km/h)
               const preferencePct = Math.round((rec.breakdown?.preference || 0) * 100);
+              const isVoiceActive = assistantActive && idx === activeRecIndex; // 음성 비서가 지금 안내 중인 카드
 
               return (
                 <div
                   key={rec.recommendationId}
-                  className="glass-panel p-5 rounded-2xl border border-white/10 transition-all duration-300 hover:border-sky-500/30 hover:shadow-lg hover:shadow-sky-500/5 hover:scale-[1.01]"
+                  className={`glass-panel p-5 rounded-2xl border transition-all duration-300 hover:shadow-lg hover:shadow-sky-500/5 ${
+                    isVoiceActive
+                      ? "border-sky-400/60 ring-2 ring-sky-400/50 scale-[1.02] shadow-lg shadow-sky-500/10"
+                      : "border-white/10 hover:border-sky-500/30 hover:scale-[1.01]"
+                  }`}
                 >
                   {/* Top info row */}
                   <div className="flex justify-between items-start">
@@ -916,6 +1319,11 @@ function RecommendContent() {
                       {rec.rank && rec.totalCandidates && (
                         <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-md ml-2">
                           대안 {rec.totalCandidates}개 중 {rec.rank}등
+                        </span>
+                      )}
+                      {isVoiceActive && voiceState !== "idle" && (
+                        <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md ml-2 inline-flex items-center gap-1 align-middle">
+                          {voiceState === "speaking" ? "🔊 안내 중" : voiceState === "listening" ? "🎙️ 듣는 중" : "✨ 해석 중"}
                         </span>
                       )}
                       <h4 className="text-base font-extrabold text-slate-100 mt-1.5">
@@ -1041,6 +1449,114 @@ function RecommendContent() {
           </div>
         )}
       </div>
+
+      {/* ── 음성 비서 오버레이 (Hey Gemini 컨시어지) ── */}
+      {!loadingRecommendations && recommendations.length > 0 && ttsSupported && !showOnboarding && (
+        <div
+          className="fixed right-4 z-40 flex flex-col items-end gap-2 select-none"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
+        >
+          {/* 자막 / 안내 pill (스크린리더 라이브 영역) */}
+          {assistantActive && (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="max-w-[15rem] md:max-w-[17rem] glass-panel border border-white/10 rounded-2xl px-3.5 py-2.5 shadow-xl bg-[#0b1022]/90 backdrop-blur"
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="flex gap-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                </span>
+                <span className="text-[10px] font-bold tracking-wide gradient-text">InduSpot 음성 비서</span>
+              </div>
+              <p className="text-[11px] leading-snug text-slate-200 min-h-[1.1rem]">
+                {voiceState === "listening"
+                  ? liveTranscript
+                    ? `“${liveTranscript}”`
+                    : "듣고 있어요…"
+                  : voiceState === "thinking"
+                  ? "✨ 응답을 해석하고 있어요…"
+                  : voiceState === "speaking"
+                  ? spokenCaption || "추천을 안내하고 있어요. 끝나면 말씀해 주세요."
+                  : "음성으로 응답할 수 있어요."}
+              </p>
+              <p className="text-[9px] text-slate-500 mt-1">응=수락 · 다음=넘기기 · 자세히 · 그만</p>
+              {!sttSupported && (
+                <p className="text-[9px] text-amber-300/90 mt-1">음성 응답 미지원 — 아래 카드 버튼으로 응답해 주세요</p>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            {assistantActive && (
+              <button
+                onClick={toggleAssistantMute}
+                aria-label={assistantMuted ? "음성 안내 켜기" : "음성 안내 끄기"}
+                className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10 bg-white/5 text-slate-300 hover:text-white text-sm transition-all"
+              >
+                {assistantMuted ? "🔇" : "🔈"}
+              </button>
+            )}
+            <button
+              onClick={onOrbClick}
+              aria-label={assistantActive ? "음성 안내 정지" : "AI 음성 추천 듣기"}
+              className={`relative w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95 border ${
+                voiceState === "listening"
+                  ? "bg-emerald-500/15 border-emerald-400/60 shadow-emerald-500/20"
+                  : voiceState === "speaking"
+                  ? "bg-purple-500/15 border-purple-400/60 shadow-purple-500/20"
+                  : voiceState === "thinking"
+                  ? "bg-sky-500/15 border-sky-400/60"
+                  : "bg-gradient-to-br from-sky-500/20 to-purple-600/20 border-white/15"
+              }`}
+            >
+              {!assistantActive && (
+                <span className="absolute inset-0 rounded-full border border-sky-400/30 animate-ping" />
+              )}
+              {!assistantActive ? (
+                <span>🔊</span>
+              ) : voiceState === "speaking" ? (
+                <span className="flex items-end gap-0.5 h-5">
+                  {[0, 1, 2, 3].map((i) => (
+                    <span
+                      key={i}
+                      className="w-1 bg-purple-300 rounded-full animate-pulse"
+                      style={{ height: `${8 + (i % 2) * 8}px`, animationDelay: `${i * 120}ms` }}
+                    />
+                  ))}
+                </span>
+              ) : voiceState === "listening" ? (
+                <span className="relative flex items-center justify-center">
+                  <span className="absolute w-9 h-9 rounded-full bg-emerald-400/20 animate-ping" />
+                  <span className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-bounce"
+                        style={{ animationDelay: `${i * 150}ms` }}
+                      />
+                    ))}
+                  </span>
+                </span>
+              ) : voiceState === "thinking" ? (
+                <span className="w-5 h-5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span>🔊</span>
+              )}
+            </button>
+          </div>
+
+          {!assistantActive && (
+            <span className="text-[10px] text-slate-300 bg-black/50 border border-white/10 rounded-full px-2.5 py-1 animate-pulse">
+              🔊 AI 음성 추천 듣기
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Onboarding Overlay Modal (Cold Start) */}
       {showOnboarding && (
