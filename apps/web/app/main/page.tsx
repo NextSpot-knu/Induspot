@@ -934,7 +934,7 @@ export default function MainPage() {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }
                 }}
-                className={`flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1.5 transition-all fractal-glass sm:px-4 sm:py-2 ${
+                className={`flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1.5 transition-all fractal-glass sm:px-4 sm:py-2 ${
                   isActive
                     ? 'bg-blue-600/30 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] text-shadow-sm'
                     : 'border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'

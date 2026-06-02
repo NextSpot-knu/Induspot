@@ -83,3 +83,10 @@ body {
   filter: none !important;
   -webkit-filter: none !important;
 }
+
+/* 글래스 효과(필터 칩 등). 이전엔 .fractal-glass 가 미정의라 효과가 없었음.
+   테두리/배경색은 Tailwind 유틸(border, border-*, bg-*)이 처리하므로 여기선 blur 만 적용해 충돌 방지. */
+.fractal-glass {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
