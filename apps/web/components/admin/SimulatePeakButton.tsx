@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
-import { getAdminIdToken } from '@/lib/firebase-auth';
+import { getAdminToken } from '@/lib/admin-auth';
 
 export function SimulatePeakButton() {
   const router = useRouter();
@@ -15,9 +15,9 @@ export function SimulatePeakButton() {
     setIsSimulating(true);
     setMessage(null);
     try {
-      // 관리자 인증 = Firebase. Firebase ID 토큰을 X-Admin-Authorization 으로 보내면 백엔드
-      // (require_firebase_admin)가 검증한다. (게이트웨이가 Authorization 을 OIDC 로 덮어쓰므로 별도 헤더)
-      const idToken = await getAdminIdToken();
+      // 관리자 세션 토큰을 X-Admin-Authorization 으로 전달(게이트웨이가 Authorization 을 OIDC 로
+      // 덮어쓰므로 별도 헤더). 데모 토큰이며 실제 권한 검증은 백엔드 책임이다.
+      const idToken = getAdminToken();
       await apiClient.post(
         '/api/v1/admin/simulate-peak',
         undefined,

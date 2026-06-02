@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, ShieldCheck, Loader2, Eye, EyeOff, Mail } from 'lucide-react';
-import { signInAdmin, firebaseConfigured } from '@/lib/firebase-auth';
+import { Lock, ShieldCheck, Loader2, Eye, EyeOff } from 'lucide-react';
+import { signInWithPassword } from '@/lib/admin-auth';
 
-// 관리자 인증 = GCP 베이스(Firebase Authentication, REST). 워커 앱의 Supabase 인증과는 분리.
-// 선행: Firebase 콘솔에서 이메일/비밀번호 사용설정 + 관리자 user 추가 + NEXT_PUBLIC_FIREBASE_API_KEY 설정.
+// 관리자 진입 = 데모용 간편 인증. 비밀번호 한 개(`admin`)만 입력하면 진입.
+// 성공 시 로컬 세션 마커가 저장되고, admin/layout 가드가 통과시킨다.
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -22,24 +21,18 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('이메일과 비밀번호를 입력해주세요.');
-      return;
-    }
-    if (!firebaseConfigured()) {
-      setError('Firebase 미설정: NEXT_PUBLIC_FIREBASE_API_KEY 환경변수가 필요합니다.');
+    if (!password) {
+      setError('비밀번호를 입력해주세요.');
       return;
     }
 
     setIsLoading(true);
     setError('');
 
-    try {
-      await signInAdmin(email, password);
-      // 성공: Firebase ID 토큰이 localStorage 에 저장됨. admin/layout 가드가 통과시킨다.
+    if (signInWithPassword(password)) {
       router.replace('/admin/dashboard');
-    } catch (err: any) {
-      setError(err?.message || '로그인 처리 중 오류가 발생했습니다.');
+    } else {
+      setError('비밀번호가 올바르지 않습니다.');
       setIsLoading(false);
     }
   };
@@ -78,34 +71,6 @@ export default function AdminLoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2"
-              >
-                이메일
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
-                  <Mail size={18} />
-                </span>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  disabled={isLoading}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@company.com"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 transition-all text-sm disabled:opacity-50"
-                  autoFocus
-                />
-              </div>
-            </div>
-
             {/* Password */}
             <div>
               <label
@@ -129,6 +94,7 @@ export default function AdminLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="관리자 비밀번호 입력"
                   className="w-full pl-10 pr-10 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 transition-all text-sm disabled:opacity-50"
+                  autoFocus
                 />
                 <button
                   type="button"
@@ -168,7 +134,7 @@ export default function AdminLoginPage() {
           {/* Footer note */}
           <div className="mt-8 text-center">
             <span className="text-slate-500 text-xs">
-              Firebase 인증 · 무단 접근이 엄격히 제한됩니다.
+              관리자 전용 · 무단 접근이 엄격히 제한됩니다.
             </span>
           </div>
         </div>

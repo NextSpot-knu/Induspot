@@ -1,11 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, BarChart3, Settings, HelpCircle, Sparkles } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, Building2, BarChart3, Settings, HelpCircle, Sparkles, LogOut } from 'lucide-react';
+import { signOutAdmin } from '@/lib/admin-auth';
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    signOutAdmin();
+    router.replace('/admin/login');
+  };
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
@@ -43,6 +50,17 @@ export function AdminSidebar() {
           );
         })}
       </nav>
+
+      {/* 로그아웃 */}
+      <div className="p-4 border-t border-slate-800 sticky bottom-0 bg-slate-900">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+        >
+          <LogOut size={20} />
+          로그아웃
+        </button>
+      </div>
     </aside>
   );
 }

@@ -102,7 +102,8 @@ export function DashboardHeatmap({ heatmapData }: { heatmapData: any[] }) {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedFacilities = filteredFacilities.slice(startIndex, startIndex + itemsPerPage);
 
-  const hours = Array.from({length: 24}, (_, i) => (i + 10) % 24);
+  // 0시 ~ 23시 순서대로 표시
+  const hours = Array.from({length: 24}, (_, i) => i);
   
   const getHeatmapColor = (value: number) => {
     if (value === 0) return 'bg-slate-800'; // 데이터 없음
