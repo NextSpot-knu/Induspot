@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, PanInfo, AnimatePresence } from 'framer-motion';
-import { Bookmark, Sparkles, Star, Phone, MapPin, Clock, ChevronUp, ChevronDown } from 'lucide-react';
+import { Bookmark, Sparkles, Star, Phone, MapPin, Clock, ChevronUp, ChevronDown, Info } from 'lucide-react';
 
 interface RecommendationCardProps {
   title: string;
@@ -255,11 +255,27 @@ export function RecommendationCard({
 
         {/* Dynamic Badge (TTTV Score or match percentage) */}
         {hasTttvMetrics ? (
-          <div
-            className="flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-2xl border border-purple-500/40 bg-gradient-to-b from-purple-500/20 to-purple-500/5 cursor-pointer shadow-lg shadow-purple-500/10"
-          >
-            <span className="text-[9px] text-purple-300 font-bold uppercase mb-0.5">TTTV 점수</span>
-            <span className="text-white font-black text-xl leading-none">{Math.round(tttvScore || 0)}<span className="text-[10px] font-normal text-purple-200 ml-0.5">점</span></span>
+          <div className="relative group">
+            <div
+              className="flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-2xl border border-purple-500/40 bg-gradient-to-b from-purple-500/20 to-purple-500/5 cursor-pointer shadow-lg shadow-purple-500/10"
+            >
+              <span className="text-[9px] text-purple-300 font-bold uppercase mb-0.5">TTTV 점수</span>
+              <span className="text-white font-black text-xl leading-none">{Math.round(tttvScore || 0)}<span className="text-[10px] font-normal text-purple-200 ml-0.5">점</span></span>
+            </div>
+            
+            {/* Info Icon */}
+            <div className="absolute -top-1.5 -right-1.5 bg-[#111622] rounded-full p-0.5 border border-purple-500/30 shadow-md">
+              <Info size={12} className="text-purple-300" />
+            </div>
+
+            {/* Tooltip */}
+            <div className="absolute top-full right-0 mt-3 w-[260px] p-3.5 bg-[#161c28]/95 backdrop-blur-xl border border-purple-500/20 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+              <p className="text-[11px] text-slate-300 leading-relaxed text-right break-keep space-y-1">
+                <span className="block mb-1.5"><strong className="text-purple-300 font-bold text-[12px]">TTTV Score란?</strong></span>
+                <span className="block">InduSpot의 핵심 기술로, 도착 시점의 혼잡도를 미리 예측하는 <strong className="text-purple-200">머신러닝 AI 모델</strong>과 사용자의 선호도를 분석하는 <strong className="text-purple-200">벡터 알고리즘</strong>의 결합.</span>
+                <span className="block mt-1.5">지금 이 순간, 사용자의 시간 가치를 극대화하는 가장 완벽한 목적지를 제안합니다.</span>
+              </p>
+            </div>
           </div>
         ) : (
           matchPercentage !== undefined && (
