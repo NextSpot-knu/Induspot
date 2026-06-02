@@ -680,6 +680,23 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
+  // 음성 '다음/별로': 폐기(rejectedIds)하지 않고 '안정 랭킹'에서 다음 순위로만 이동(우선순위만 낮춤).
+  // 거절한 시설은 풀에 그대로 남아 순위 유지·재방문 가능. 끝이면 처음으로 순환.
+  const handleAdvanceRank = (fac: any) => {
+    if (!fac) return;
+    const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id);
+    const pool = expandGroups(facilities.filter(f => f.type === fac.type))
+      .filter((f: any) => voicePass(f) && !rejectedIds.has(f.id) && !savedIds.has(f.id))
+      .map((f: any) => ({ ...f, tttv: calculateTTTV(f) }))
+      .sort(compareFacilities);
+    if (pool.length <= 1) { showToast('다른 추천이 없어요.'); return; }
+    const curIdx = pool.findIndex(f => f.id === fac.id);
+    const next = pool[curIdx < 0 ? 0 : (curIdx + 1) % pool.length]; // 폐기 안 함 — 순위 순서대로 다음, 끝이면 처음
+    setSelectedFacility(next);
+    setIsCardHidden(false);
+    if (mapInstanceRef.current && typeof next.latitude === 'number') panToVisible(next.latitude, next.longitude);
+  };
+
   // ── 음성 비서: 현재 추천 카드를 Gemini 사유로 TTS 안내 + STT 응답 위임 ──
   // 수락(응/가자)→handleAccept(길안내), 다음/별로→handleReject(폐기+다음), 자세히→상세 재안내, 그만→종료.
   const voice = useVoiceAssistant<any>({
@@ -694,7 +711,7 @@ export default function MainPage() {
       return parts.length ? `${parts.join(', ')}예요. 여기로 안내할까요?` : `${f?.name ?? '이 장소'}, 여기로 안내할까요?`;
     },
     onAccept: (f) => handleAccept(f),
-    onNext: (f) => handleReject(f),
+    onNext: (f) => handleAdvanceRank(f), // 음성 '다음/별로' → 폐기 안 하고 다음 순위로(우선순위만 낮춤)
     // Gemini가 선호('양식 먹고 싶어' 등)에 맞춰 고른 시설로 전환. spoken을 사유로 부여 → notifyItem이 읽어줌.
     onSelect: (id, spoken) => {
       const target = expandGroups(facilities).find((f: any) => f.id === id);
@@ -1014,10 +1031,10 @@ export default function MainPage() {
       {selectedFacility && !isCardHidden && (() => {
         try {
           const targetType = selectedFacility.type;
-          // 순위 고정: 거절한 시설을 제외하지 않은 '안정 랭킹'으로 순위를 매긴다 → 1순위를 거절해도
-          // 다음 카드는 1순위가 아니라 2순위로 표시된다. 음성 선호 필터(voiceFilterIds)는 반영.
+          // 순위 = handleAdvanceRank 와 동일한 '안정 랭킹 풀'에서의 위치.
+          // 음성 '다음'은 폐기하지 않으므로 풀이 그대로 유지돼 1→2→3 순위가 고정된다(거절/저장만 제외, 음성필터 반영).
           const activeCandidates = expandGroups(facilities.filter(f => f.type === targetType))
-            .filter((f: any) => !voiceFilterIds || voiceFilterIds.has(f.id));
+            .filter((f: any) => (!voiceFilterIds || voiceFilterIds.has(f.id)) && !rejectedIds.has(f.id) && !savedIds.has(f.id));
           const activeScored = activeCandidates.map(f => ({
             ...f,
             tttv: calculateTTTV(f)

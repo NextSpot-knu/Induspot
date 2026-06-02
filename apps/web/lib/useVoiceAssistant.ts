@@ -267,17 +267,8 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     }
   };
 
-  // 최소 키워드 폴백 — interpret(백엔드 Gemini) 미제공/네트워크 실패 시에만. 풍부한 분류는 Gemini가 한다.
-  const localAction = (text: string): string => {
-    const t = (text || "").toLowerCase();
-    if (/그만|됐어|중지|중단|스톱|멈춰/.test(t)) return "stop";
-    if (/별로|싫|다음|다른|넘|패스|스킵|말고/.test(t)) return "next";
-    if (/응|네|그래|좋|가자|갈래|여기|안내|수락|콜/.test(t)) return "accept";
-    if (/자세|정보|얼마|대기|거리|도보/.test(t)) return "details";
-    return "unknown";
-  };
-
-  // 사용자 발화 1턴을 처리. 1순위: 백엔드 Vertex Gemini(interpret) — 의도 분류 + 선호 매칭 select.
+  // 사용자 발화 1턴을 처리. 의도/필터는 전적으로 백엔드 Vertex Gemini(interpret)가 판단한다.
+  // 하드코딩 키워드 분류는 두지 않는다 — Gemini 미제공/실패 시 'unknown'으로 재질문(엉뚱한 동작 방지).
   const handleIntent = async (alts: string[]) => {
     if (stateRef.current === "idle") return;
     const item = itemRef.current;
@@ -289,9 +280,9 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
 
     let turn: VoiceTurn;
     try {
-      turn = o.interpret ? await o.interpret(utterance, item) : { action: localAction(utterance) };
+      turn = o.interpret ? await o.interpret(utterance, item) : { action: "unknown" };
     } catch {
-      turn = { action: localAction(utterance) }; // 네트워크/Gemini 실패 폴백
+      turn = { action: "unknown" }; // Gemini/네트워크 실패 → 키워드 추측 없이 재질문
     }
     if ((stateRef.current as VoiceState) === "idle") return; // 해석 대기(await) 중 취소/정지됐으면 중단
     if (itemRef.current !== item) return; // 해석 중 카드가 바뀌었으면(새 카드 narrate 중) 이 턴 폐기(stale)

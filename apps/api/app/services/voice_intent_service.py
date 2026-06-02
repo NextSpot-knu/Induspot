@@ -82,22 +82,10 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
     )
 
 
-def _fallback(utterance: str) -> dict:
-    """Gemini 미사용/실패 시 최소 행동 분류(사유 문장·필터는 만들지 않는다 — spoken=None, match_ids=[])."""
-    low = (utterance or "").lower()
-    if any(k in low for k in ["그만", "됐어", "중지", "중단", "스톱", "멈춰"]):
-        action = "stop"
-    elif any(k in low for k in ["자세", "정보", "얼마", "대기", "거리", "도보"]):
-        action = "details"
-    elif any(k in low for k in ["별로", "싫"]):
-        action = "reject"
-    elif any(k in low for k in ["다음", "넘", "다른", "패스", "스킵", "말고"]):
-        action = "next"
-    elif any(k in low for k in ["응", "네", "그래", "좋아", "가자", "갈래", "여기", "안내", "수락", "콜"]):
-        action = "accept"
-    else:
-        action = "unknown"
-    return {"action": action, "target_facility_id": None, "match_ids": [], "spoken": None}
+def _fallback() -> dict:
+    """Gemini 미사용/실패 시 — 하드코딩 키워드 분류는 하지 않는다(의도/필터는 Gemini 전담).
+    항상 unknown 을 반환해 프런트가 '다시 말씀해 주세요'로 재질문하게 한다(엉뚱한 동작 방지)."""
+    return {"action": "unknown", "target_facility_id": None, "match_ids": [], "spoken": None}
 
 
 def _generate_sync(model, prompt: str) -> Optional[dict]:
@@ -152,7 +140,7 @@ async def interpret_turn(
 
     model = _get_model()
     if model is None or not (utterance or "").strip():
-        return _fallback(utterance)
+        return _fallback()
 
     try:
         raw = await asyncio.wait_for(
@@ -167,7 +155,7 @@ async def interpret_turn(
         raw = None
 
     if not raw:
-        return _fallback(utterance)
+        return _fallback()
 
     result = _coerce(raw, valid_ids)
     logger.info("voice_intent_resolved", action=result["action"], has_target=bool(result["target_facility_id"]))
