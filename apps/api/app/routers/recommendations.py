@@ -14,6 +14,7 @@ from app.services.preference_vector_service import preference_vector_service
 from app.services.reason_service import generate_reason
 from app.services.voice_intent_service import interpret_turn
 from app.services.embedding_service import filter_candidates as vector_filter_candidates
+from app.services.embedding_service import enrich_candidates as enrich_voice_candidates
 from app.services.tttv.score import calculate_tttv_score
 from app.services.tttv.travel import calculate_haversine_distance, WALKING_SPEED_M_PER_MIN
 from app.services.tttv.preference import CATEGORY_VECTORS, get_category_average_vector
@@ -359,6 +360,11 @@ _VOICE_TYPE_KO = {"cafeteria": "식당", "parking": "주차장", "meeting_room":
 async def voice_turn(req: VoiceTurnRequest):
     type_ko = _VOICE_TYPE_KO.get(req.facility_type, "시설")
     candidates = req.candidates or []
+    # 0) 후보에 시드된 분류·대표메뉴를 채워 Gemini 가 '자세히/메뉴/혼잡' 질문에 실제 데이터로 답하게 한다.
+    try:
+        candidates = await enrich_voice_candidates(candidates)
+    except Exception:
+        pass
     # 1) Gemini: 의도 분류 + 한국어 응답 + search_query(선호를 구체 메뉴로 확장)(역할 분리의 '대화' 쪽).
     result = await interpret_turn(req.utterance, type_ko, req.current_name, candidates)
     # 2) 임베딩 의미검색: '선호 필터'로 분류되면 어떤 후보가 맞는지는 벡터가 결정(retrieval).
