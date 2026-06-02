@@ -178,7 +178,7 @@ export function RecommendationCard({
   return (
     <motion.div 
       className={`w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none relative overflow-hidden`}
-      drag="y"
+      drag={(showScheduleModal || showBookingModal) ? false : "y"}
       dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={0.2}
       onDragEnd={handleDragEnd}
