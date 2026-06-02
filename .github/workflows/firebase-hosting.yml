@@ -22,8 +22,11 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Site
-        run: npm run web:build
+        # CI는 webpack 으로 빌드: Next 16 기본 Turbopack 콜드 빌드가 러너에서 간헐 실패(배포 실패)하던
+        # 문제를 회피한다(로컬 개발은 그대로 Turbopack 기본 사용). 메모리 헤드룸도 부여.
+        run: npm run build --workspace=apps/web -- --webpack
         env:
+          NODE_OPTIONS: --max-old-space-size=6144
           NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-9t4vof78.uc.gateway.dev"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
@@ -33,6 +36,10 @@ jobs:
           #   gh secret set NEXT_PUBLIC_KAKAO_REST_API_KEY --body "<카카오 REST 키>"   (길안내용, 선택)
           NEXT_PUBLIC_KAKAO_MAPS_APP_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY }}
           NEXT_PUBLIC_KAKAO_REST_API_KEY: ${{ secrets.NEXT_PUBLIC_KAKAO_REST_API_KEY }}
+          # 음성 비서 고품질 TTS(Google Cloud Text-to-Speech). 미설정 시 브라우저 TTS 폴백.
+          #   gh secret set NEXT_PUBLIC_GOOGLE_TTS_API_KEY --body "<Cloud TTS API 키(API+리퍼러 제한)>"
+          NEXT_PUBLIC_GOOGLE_TTS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_TTS_API_KEY }}
+          NEXT_PUBLIC_GOOGLE_TTS_VOICE: ${{ secrets.NEXT_PUBLIC_GOOGLE_TTS_VOICE }}
 
       - name: Deploy to Firebase Hosting
         uses: w9jds/firebase-action@v2.2.0
