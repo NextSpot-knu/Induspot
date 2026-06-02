@@ -5,7 +5,9 @@
 여기서는 "어디에/어떤 권한으로/얼마나 영속적으로" 실행할지(런타임 결선)만 책임진다.
 
 전제(이미 프로비저닝됨 — 이 스크립트는 GCP 를 만들지 않는다):
-  - Pub/Sub 구독:  induspot-congestion-push  (토픽 induspot-congestion)
+  - Pub/Sub PULL 구독:  induspot-congestion-dataflow  (토픽 induspot-congestion; push 구독과 별개의 fan-out)
+  - 런타임 SA IAM:  roles/dataflow.worker + roles/storage.objectAdmin(temp/staging 쓰기) + pubsub.subscriber
+    (grant_runtime_iam.py 로 부여) · Dataflow/Compute API 활성화 필요(dataflow.googleapis.com, compute.googleapis.com)
   - BigQuery:      induspot.congestion_windowed  (없으면 WriteToBigQuery 가 CREATE_IF_NEEDED 로 생성)
   - GCS temp/staging: gs://induspot-models-6757/dataflow-temp, .../dataflow-staging
   - 런타임 SA:     768699236852-compute@developer.gserviceaccount.com
@@ -34,7 +36,9 @@ REGION = "us-central1"
 TEMP_LOCATION = "gs://induspot-models-6757/dataflow-temp"
 STAGING_LOCATION = "gs://induspot-models-6757/dataflow-staging"
 SERVICE_ACCOUNT_EMAIL = "768699236852-compute@developer.gserviceaccount.com"
-SUBSCRIPTION = "projects/knudc-henryseo711/subscriptions/induspot-congestion-push"
+# Dataflow 전용 PULL 구독. push 구독(induspot-congestion-push)은 pull 이 불가하므로 별도 구독을 쓴다.
+# 토픽 fan-out 으로 push 구독(/ingest)과 독립적으로 같은 이벤트를 받는다(provision_pubsub 이 멱등 생성).
+SUBSCRIPTION = "projects/knudc-henryseo711/subscriptions/induspot-congestion-dataflow"
 BQ_TABLE = "knudc-henryseo711:induspot.congestion_windowed"
 
 # 영속 스트리밍 잡 이름(고정 → 멱등 재실행/--update 의 키).

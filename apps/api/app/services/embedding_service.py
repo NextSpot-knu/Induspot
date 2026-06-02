@@ -198,8 +198,33 @@ async def _doc_vectors(candidates) -> dict:
             for c, v in zip(missing, vecs):
                 out[c["id"]] = v
                 # 메모리 캐시만 데움(요청 경로에서 Firestore 쓰기는 하지 않는다).
-                cache[c["id"]] = {"vector": v, "name": c.get("name"), "tags": c.get("cuisine"), "menu": None}
+                cache[c["id"]] = {"vector": v, "name": c.get("name"), "category": None, "menu": None}
     return out
+
+
+async def enrich_candidates(candidates: list) -> list:
+    """후보 dict 에 시드된 **분류(category)·대표메뉴(menu)** 를 채운다(상세/맥락 답변용).
+
+    Gemini 가 "자세히 알려줘"·"메뉴 뭐 있어?" 같은 질문에 실제 데이터로 답하려면 프롬프트에 그 정보가
+    있어야 한다. facility_embeddings 캐시(이름·분류·메뉴)를 후보 id 로 조회해 보강한다. 캐시에 없으면
+    그대로 두고(빈손 방지), EMBEDDING 비활성/Firestore 불가 시에도 안전하게 no-op.
+    """
+    if not candidates:
+        return candidates
+    try:
+        cache = await _get_cache()
+    except Exception as e:
+        logger.warning("enrich_candidates_cache_failed", error=str(e))
+        return candidates
+    for c in candidates:
+        hit = cache.get(c.get("id"))
+        if not hit:
+            continue
+        if not c.get("category") and hit.get("category"):
+            c["category"] = hit["category"]
+        if not c.get("menu") and hit.get("menu"):
+            c["menu"] = hit["menu"]
+    return candidates
 
 
 # ────────────────────────────────────────────────────────────────────

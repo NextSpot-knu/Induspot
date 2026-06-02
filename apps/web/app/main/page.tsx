@@ -702,13 +702,19 @@ export default function MainPage() {
   const voice = useVoiceAssistant<any>({
     getName: (f) => f?.name ?? '이 장소',
     getReason: (f) => f?.reason || '', // 백엔드 Gemini 사유만(없으면 이름만 안내) — 하드코딩 제거
+    // Gemini가 spoken으로 실데이터 상세를 주는 게 우선. 이건 Gemini 불가 시 폴백 — 종류/혼잡/도보로 구성.
     getDetail: (f) => {
       const t = f?.tttv || calculateTTTV(f);
       const parts: string[] = [];
-      if (t?.expectedWait != null) parts.push(`예상 대기 ${t.expectedWait}분`);
+      const tags = f?.features?.cuisine_tags;
+      const kind = Array.isArray(tags) ? tags.join(', ') : (typeof tags === 'string' ? tags : null);
+      if (kind) parts.push(`${kind} 쪽`);
+      if (typeof f?.congestionLevel === 'number') parts.push(`혼잡도 ${Math.round(f.congestionLevel * 100)}%`);
       if (t?.expectedTravel != null) parts.push(`도보 ${t.expectedTravel}분`);
-      if (t?.preferencePercent != null) parts.push(`선호 일치율 ${t.preferencePercent}%`);
-      return parts.length ? `${parts.join(', ')}예요. 여기로 안내할까요?` : `${f?.name ?? '이 장소'}, 여기로 안내할까요?`;
+      else if (t?.expectedWait != null) parts.push(`예상 대기 ${t.expectedWait}분`);
+      return parts.length
+        ? `${f?.name ?? '이 장소'}는 ${parts.join(', ')}이에요. 여기로 안내할까요?`
+        : `${f?.name ?? '이 장소'}, 여기로 안내할까요?`;
     },
     onAccept: (f) => handleAccept(f),
     onNext: (f) => handleAdvanceRank(f), // 음성 '다음/별로' → 폐기 안 하고 다음 순위로(우선순위만 낮춤)

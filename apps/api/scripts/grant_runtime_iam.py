@@ -35,7 +35,8 @@ RUNTIME_SA = "768699236852-compute@developer.gserviceaccount.com"
 #   bigquery.jobUser             : BigQuery 쿼리 잡 실행(예측 lookup 조회/BQML)
 #   pubsub.publisher             : 점유 이벤트 발행(WP4 publisher)
 #   pubsub.subscriber            : push 구독 소비(WP4 ingest)
-#   storage.objectViewer         : GCS 모델 아티팩트 읽기(WP1 폴백 model.pkl)
+#   storage.objectAdmin          : GCS 모델 읽기(WP1 폴백) + Dataflow temp/staging 쓰기(WP5)
+#   dataflow.worker              : Dataflow 워커 SA 실행(WP5 스트리밍 윈도잉 잡)
 ROLES = [
     "roles/secretmanager.secretAccessor",
     "roles/aiplatform.user",
@@ -44,7 +45,8 @@ ROLES = [
     "roles/bigquery.jobUser",
     "roles/pubsub.publisher",
     "roles/pubsub.subscriber",
-    "roles/storage.objectViewer",
+    "roles/storage.objectAdmin",
+    "roles/dataflow.worker",
 ]
 
 

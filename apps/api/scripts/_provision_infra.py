@@ -18,6 +18,8 @@ TOPIC = "induspot-congestion"
 
 # --- WP4 push 구독 설정 ---
 SUBSCRIPTION = "induspot-congestion-push"
+# WP5 Dataflow 전용 PULL 구독(push 구독은 pull 불가 → 토픽 fan-out 으로 별도 수신).
+DATAFLOW_SUBSCRIPTION = "induspot-congestion-dataflow"
 # push 대상: Cloud Run /ingest/pubsub. OIDC audience 도 동일 URL 로 둔다.
 PUSH_ENDPOINT = "https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub"
 PUSH_AUDIENCE = PUSH_ENDPOINT
@@ -121,7 +123,17 @@ def provision_pubsub():
     else:
         print("PUBSUB_SUB=create_failed", SUBSCRIPTION)
 
-    # 3) push SA → Cloud Run run.invoker (OIDC 검증 통과의 1차 IAM 방어선).
+    # 3) Dataflow 전용 PULL 구독(멱등): push 구독은 pull 불가 → 토픽 fan-out 으로 같은 이벤트를 받는
+    #    별도 pull 구독. Dataflow 워커(compute SA, pubsub.subscriber)가 소비한다(WP5 윈도잉 잡).
+    if _run_gcloud([GCLOUD, "pubsub", "subscriptions", "describe", DATAFLOW_SUBSCRIPTION, f"--project={PROJECT}", "--format=none"]):
+        print("PUBSUB_DATAFLOW_SUB=exists", DATAFLOW_SUBSCRIPTION)
+    elif _run_gcloud([GCLOUD, "pubsub", "subscriptions", "create", DATAFLOW_SUBSCRIPTION,
+                      f"--topic={TOPIC}", f"--project={PROJECT}", "--ack-deadline=60"]):
+        print("PUBSUB_DATAFLOW_SUB=created", DATAFLOW_SUBSCRIPTION)
+    else:
+        print("PUBSUB_DATAFLOW_SUB=create_failed", DATAFLOW_SUBSCRIPTION)
+
+    # 4) push SA → Cloud Run run.invoker (OIDC 검증 통과의 1차 IAM 방어선).
     grant_run_invoker()
 
 

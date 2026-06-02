@@ -66,8 +66,11 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         cuisine = c.get("cuisine")  # 예: ['한식','순대'] / '양식' — 메뉴·종류 매칭에 사용
         if isinstance(cuisine, (list, tuple)):
             cuisine = ", ".join(str(x) for x in cuisine if x)
-        cuisine_s = f" | 종류: {cuisine}" if cuisine else ""
-        lines.append(f"- id={c.get('id')} | {c.get('name')}{cuisine_s} | {cong_s} | {walk_s}")
+        kind = c.get("category") or cuisine  # 시드된 정밀 분류(곱창집 등) 우선, 없으면 원시 태그
+        kind_s = f" | 종류: {kind}" if kind else ""
+        menu = c.get("menu")  # 시드된 대표 메뉴(상세/맥락 답변용)
+        menu_s = f" | 대표메뉴: {menu}" if menu else ""
+        lines.append(f"- id={c.get('id')} | {c.get('name')}{kind_s}{menu_s} | {cong_s} | {walk_s}")
     cand_block = "\n".join(lines) if lines else "(후보 없음)"
     return (
         f"사용자는 '{facility_type_ko}' 추천을 음성으로 듣고 있습니다. 현재 추천: {current_name or '없음'}.\n"
@@ -80,7 +83,11 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         '"search_query":"<filter일 때 의미검색용 한국어 검색어, 아니면 빈 문자열>",'
         '"spoken":"<사용자에게 말할 한국어 1문장(없는 수치 지어내지 말 것)>"}\n'
         "분류 규칙: 수락/가자/길안내 의사=accept. 다른 거/넘기기=next. 별로/싫어=reject. "
-        "자세히/정보/얼마=details. 그만/취소/중지=stop. "
+        "자세히/정보/메뉴/혼잡/얼마나 걸려 같은 질문=details. 그만/취소/중지=stop. "
+        "details 일 때는 spoken 에 빈말('알려드릴게요') 대신 해당 시설의 '실제 데이터'를 담아 1~2문장으로 "
+        "구체적으로 답하세요 — 위 후보 목록의 종류·대표메뉴·혼잡도·도보시간을 활용. 어느 시설인지 모호하면 "
+        f"현재 추천('{current_name or '없음'}')을 기준으로 하세요. 데이터에 없는 값(가격·영업시간 등)은 지어내지 말고 "
+        "모른다고 솔직히 말하세요. "
         "특정 한 곳을 콕 집으면(예: '두 번째 거', '저 식당') select 로 target_facility_id 를 채우세요. "
         "메뉴·종류·분위기 등 선호로 좁히면(예: '짜장면 먹고싶어', '고깃집', '양식', '조용한 곳') filter 로 하세요. "
         "filter 일 때는 search_query 에 사용자 선호를 한국 음식문화 상식으로 '구체적인 대표 메뉴(요리 이름)'로 확장해 넣으세요. "
@@ -137,7 +144,8 @@ def _coerce(parsed: dict, valid_ids: set) -> dict:
     # filter 는 여기서 강등하지 않는다. 어떤 후보가 맞는지는 라우터의 임베딩 의미검색이 정하고,
     # 벡터·Gemini 둘 다 빈값일 때만 라우터가 next 로 강등한다(선택지 폐기 아님, 우선순위만 조정).
     spoken = parsed.get("spoken")
-    spoken = spoken.strip()[:120] if isinstance(spoken, str) and spoken.strip() else None
+    # details 답변(메뉴·혼잡 등)은 한 문장보다 길 수 있어 200자까지 허용.
+    spoken = spoken.strip()[:200] if isinstance(spoken, str) and spoken.strip() else None
     # search_query: filter 일 때 임베딩 의미검색에 쓸 확장 검색어(고깃집→삼겹살·갈비…). 그 외엔 None.
     sq = parsed.get("search_query")
     sq = sq.strip()[:200] if isinstance(sq, str) and sq.strip() else None
