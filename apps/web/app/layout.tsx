@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
+import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
 import { Toaster } from "sonner";
+
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const notoSansKr = Noto_Sans_KR({ variable: "--font-noto-sans-kr", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -10,16 +15,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} h-full antialiased`}>
       <head>
-        {/* 폰트는 런타임 <link> 로 로드한다(빌드 시 next/font/google 의 구글폰트 네트워크 fetch 가
-            CI 러너에서 간헐/지속 실패해 배포가 깨지던 문제 제거). CSS 변수는 globals.css :root 에 정의. */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap"
-          rel="stylesheet"
-        />
         <Script
           id="kakao-maps-sdk"
           src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAPS_APP_KEY || process.env.NEXT_PUBLIC_KAKAO_API_KEY || process.env.NEXT_PUBLIC_KAKAO_MAP_KEY || ""}&autoload=false&libraries=services,clusterer`}
