@@ -171,6 +171,12 @@ def run(argv=None):
 
     DataflowRunner / DirectRunner 는 --runner 로 PipelineOptions 를 통해 전달된다
     (launch_dataflow.py 가 --runner=DataflowRunner 등을 주입).
+
+    DataflowRunner(라이브 제출)면 잡을 Dataflow 서비스에 제출만 하고 즉시 반환한다.
+    스트리밍 잡은 영속이라 wait_until_finish() 로 블로킹하면 런처가 끝나지 않는다
+    (이전엔 `with beam.Pipeline(...)` 의 __exit__ 가 대기해 Ctrl+C 가 필요했다; 잡은
+    p.run() 시점에 이미 생성·기동되므로 반환해도 안전). DirectRunner 등 로컬 실행에서는
+    프로세스가 곧장 종료되면 파이프라인이 죽으므로 끝까지 결과를 기다린다.
     """
     known, pipeline_args = _parse_args(argv)
 
@@ -178,8 +184,14 @@ def run(argv=None):
     options.view_as(StandardOptions).streaming = True
     options.view_as(GoogleCloudOptions).project = known.project
 
-    with beam.Pipeline(options=options) as p:
-        build_pipeline(p, known)
+    p = beam.Pipeline(options=options)
+    build_pipeline(p, known)
+    result = p.run()
+
+    runner = (options.view_as(StandardOptions).runner or "").lower()
+    if "dataflow" not in runner:
+        result.wait_until_finish()
+    return result
 
 
 if __name__ == "__main__":

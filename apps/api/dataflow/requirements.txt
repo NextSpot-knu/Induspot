@@ -10,3 +10,8 @@
 # 버전 핀: 로컬 .venv_beam 에 설치된 apache-beam 2.59.0 과 일치(Python 3.11).
 # [gcp] extra 가 Pub/Sub·BigQuery IO 와 DataflowRunner 클라이언트를 끌어온다.
 apache-beam[gcp]==2.59.0
+
+# --setup_file 의 sdist 빌드용. 없으면 Beam stager 가 `python -m build` 실패 후
+# `setup.py sdist` 로 폴백하지만(동작엔 무방), 설치돼 있으면 1차 경로로 깔끔히 빌드되고
+# 런처 실행 시 'No module named build' 경고가 사라진다. (설치: pip install -r dataflow/requirements.txt)
+build

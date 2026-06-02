@@ -52,6 +52,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pkl
+# setuptools sdist 부산물(Dataflow --setup_file 빌드가 dataflow/ 에 생성)
+*.egg-info/
 
 # Python 가상환경
 .venv/
