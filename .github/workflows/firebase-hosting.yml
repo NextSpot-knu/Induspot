@@ -22,26 +22,8 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Site
-        # 빌드 실패 시 에러 핵심 라인을 ::error:: annotation 으로 내보낸다(로그 admin 권한 없이도
-        # check-run annotations API 로 실제 원인을 확인하기 위함). 폰트 fetch 등 일시 실패 대비 2회 시도.
-        run: |
-          set +e
-          attempt=0
-          while [ $attempt -lt 2 ]; do
-            attempt=$((attempt+1))
-            echo "===== web build attempt $attempt ====="
-            npm run web:build 2>&1 | tee build.log
-            code=${PIPESTATUS[0]}
-            [ $code -eq 0 ] && exit 0
-            rm -rf apps/web/.next
-          done
-          echo "=== build failed — emitting error annotations ==="
-          grep -niE "error|fail|cannot|not found|exceeded|heap|out of memory|Module not found|ENOENT|EACCES|killed|next/font" build.log | tail -12 | while IFS= read -r ln; do
-            echo "::error::$(echo "$ln" | tr -d '\r' | cut -c1-300)"
-          done
-          exit 1
+        run: npm run web:build
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
           NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-9t4vof78.uc.gateway.dev"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
