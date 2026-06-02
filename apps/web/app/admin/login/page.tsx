@@ -3,13 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, ShieldCheck, Loader2, Eye, EyeOff, Mail } from 'lucide-react';
-import { createPublicClient } from '@/lib/supabase';
+import { signInAdmin, firebaseConfigured } from '@/lib/firebase-auth';
 
-// 정적 export 환경에서는 Next 미들웨어(proxy.ts)·서버 라우트(/api/admin/login)가 동작하지 않는다.
-// 따라서 관리자 인증도 워커 앱과 동일하게 Supabase Auth(이메일/비밀번호)를 쓰고,
-// users.role==='admin' 인지 확인해 통과시킨다. (가드는 admin/layout.tsx 가 담당)
-const supabase = createPublicClient();
-
+// 관리자 인증 = GCP 베이스(Firebase Authentication, REST). 워커 앱의 Supabase 인증과는 분리.
+// 선행: Firebase 콘솔에서 이메일/비밀번호 사용설정 + 관리자 user 추가 + NEXT_PUBLIC_FIREBASE_API_KEY 설정.
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -29,40 +26,20 @@ export default function AdminLoginPage() {
       setError('이메일과 비밀번호를 입력해주세요.');
       return;
     }
+    if (!firebaseConfigured()) {
+      setError('Firebase 미설정: NEXT_PUBLIC_FIREBASE_API_KEY 환경변수가 필요합니다.');
+      return;
+    }
 
     setIsLoading(true);
     setError('');
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError || !data.session) {
-        setError('이메일 또는 비밀번호가 올바르지 않습니다.');
-        setIsLoading(false);
-        return;
-      }
-
-      // 관리자 권한 확인: RLS(select_users) 가 본인 행 조회를 허용하므로 안전.
-      const { data: profile, error: roleError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', data.session.user.id)
-        .maybeSingle();
-
-      if (roleError || !profile || profile.role !== 'admin') {
-        await supabase.auth.signOut();
-        setError('관리자 권한이 없는 계정입니다.');
-        setIsLoading(false);
-        return;
-      }
-
-      // 성공: 대시보드로 이동(세션은 supabase-js 가 보관, admin/layout 가드가 재검증)
+      await signInAdmin(email, password);
+      // 성공: Firebase ID 토큰이 localStorage 에 저장됨. admin/layout 가드가 통과시킨다.
       router.replace('/admin/dashboard');
-    } catch (err) {
-      setError('로그인 처리 중 오류가 발생했습니다.');
+    } catch (err: any) {
+      setError(err?.message || '로그인 처리 중 오류가 발생했습니다.');
       setIsLoading(false);
     }
   };
@@ -191,7 +168,7 @@ export default function AdminLoginPage() {
           {/* Footer note */}
           <div className="mt-8 text-center">
             <span className="text-slate-500 text-xs">
-              보안 강화를 위해 무단 접근이 엄격히 제한됩니다.
+              Firebase 인증 · 무단 접근이 엄격히 제한됩니다.
             </span>
           </div>
         </div>

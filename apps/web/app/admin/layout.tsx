@@ -3,15 +3,14 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { createPublicClient } from '@/lib/supabase';
+import { getAdminIdToken } from '@/lib/firebase-auth';
 
 // 정적 export(Firebase 호스팅)에서는 Next 미들웨어가 실행되지 않으므로, /admin/* 보호는
-// 이 클라이언트 레이아웃 가드가 담당한다. (과거 proxy.ts + admin_session 쿠키 흐름 대체)
-//  - 로그인 페이지(/admin/login)는 공개로 통과시킨다.
-//  - 그 외 /admin/* 는 Supabase 세션 + users.role==='admin' 을 확인하고, 아니면 로그인으로 보낸다.
-//  - 민감한 admin 백엔드 작업은 FastAPI 가 JWT 로 role 을 한 번 더 재검증한다(이중 방어).
-const supabase = createPublicClient();
-
+// 이 클라이언트 레이아웃 가드가 담당한다.
+//  - 인증 = GCP 베이스(Firebase Auth, REST). 로컬스토리지의 Firebase ID 토큰 유효성으로 판정.
+//  - 로그인 페이지(/admin/login)는 공개로 통과.
+//  - 그 외 /admin/* 는 유효 토큰 없으면 로그인으로. (프로토타입: 인증된 Firebase 사용자=관리자)
+//  - 민감 백엔드 작업(simulate-peak)은 FastAPI 가 Firebase ID 토큰을 재검증(이중 방어).
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -30,21 +29,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     setStatus('checking');
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        if (active) router.replace('/admin/login');
-        return;
-      }
-      const { data: profile } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle();
+      const token = await getAdminIdToken();
       if (!active) return;
-      if (profile?.role === 'admin') {
+      if (token) {
         setStatus('allowed');
       } else {
-        await supabase.auth.signOut();
         router.replace('/admin/login');
       }
     })();

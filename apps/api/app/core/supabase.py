@@ -79,28 +79,39 @@ def get_current_user(
         )
 
 
-def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    """관리자 전용 가드(이중 방어의 서버 측).
+def require_firebase_admin(request: Request) -> dict:
+    """관리자 전용 가드 — GCP 베이스(Firebase Authentication).
 
-    주의: Supabase JWT 의 `role` 클레임은 PostgREST 역할('authenticated'/'anon')이라
-    앱 권한이 아니다. 따라서 service_role 클라이언트로 users.role 을 재조회해 'admin' 인지
-    검증한다(RLS 우회 = 신뢰 경로). 프런트의 클라이언트 가드(admin/layout.tsx)와 합쳐 이중 방어.
+    워커 경로(Supabase JWT, get_current_user)와 분리된다. 관리자 프런트(admin/*)는 Firebase Auth 로
+    로그인하고 Firebase ID 토큰을 X-Admin-Authorization 헤더로 보낸다. 여기서 google-auth 로 그 토큰을
+    검증한다(issuer=securetoken.google.com/<project>, audience=<project>). 게이트웨이가 Authorization 을
+    백엔드 인증용 OIDC 로 덮어쓰므로 admin 토큰은 별도 헤더로 받는다.
+    프로토타입 정책: 인증된 Firebase 사용자를 관리자로 간주한다(보안강화 불요 — 사용자 결정).
     """
-    role = None
-    try:
-        res = (
-            supabase_admin.table("users")
-            .select("role")
-            .eq("id", current_user["id"])
-            .single()
-            .execute()
-        )
-        role = (res.data or {}).get("role")
-    except Exception:
-        role = None
-    if role != "admin":
+    auth = request.headers.get("x-admin-authorization") or request.headers.get("authorization") or ""
+    if not auth.startswith("Bearer "):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="관리자 권한이 필요합니다.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="관리자 인증 토큰(Firebase ID token)이 없습니다.",
         )
-    return current_user
+    token = auth.split(" ", 1)[1]
+    try:
+        # pyrefly: ignore [missing-import]
+        from google.oauth2 import id_token as google_id_token
+        # pyrefly: ignore [missing-import]
+        from google.auth.transport import requests as g_requests
+
+        claims = google_id_token.verify_firebase_token(
+            token, g_requests.Request(), audience=settings.GCP_PROJECT_ID
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Firebase 토큰 검증 실패: {e}",
+        )
+    if not claims:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 Firebase 토큰입니다.",
+        )
+    return claims

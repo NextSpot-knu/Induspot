@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { getAdminIdToken } from '@/lib/firebase-auth';
 
 export function SimulatePeakButton() {
   const router = useRouter();
@@ -14,9 +15,14 @@ export function SimulatePeakButton() {
     setIsSimulating(true);
     setMessage(null);
     try {
-      // 정적 export 에서는 Next 라우트(/api/admin/simulate-peak)가 없으므로 백엔드(FastAPI)를 직접 호출.
-      // apiClient 가 Supabase JWT 를 자동 첨부하고, 백엔드는 require_admin 으로 role 을 재검증한다.
-      await apiClient.post('/api/v1/admin/simulate-peak');
+      // 관리자 인증 = Firebase. Firebase ID 토큰을 X-Admin-Authorization 으로 보내면 백엔드
+      // (require_firebase_admin)가 검증한다. (게이트웨이가 Authorization 을 OIDC 로 덮어쓰므로 별도 헤더)
+      const idToken = await getAdminIdToken();
+      await apiClient.post(
+        '/api/v1/admin/simulate-peak',
+        undefined,
+        idToken ? { headers: { 'X-Admin-Authorization': `Bearer ${idToken}` } } : undefined
+      );
       setMessage('24시간 모의 데이터 생성 완료! 대시보드를 새로고침합니다.');
       router.refresh();
       setTimeout(() => setMessage(null), 4000);
