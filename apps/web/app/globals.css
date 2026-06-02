@@ -3,6 +3,11 @@
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;
+  /* 폰트는 런타임 <link>(layout.tsx)로 로드. next/font 가 만들던 CSS 변수를 직접 정의해
+     @theme 의 --font-sans/--font-mono 매핑을 유지(빌드 시 폰트 네트워크 fetch 제거). */
+  --font-geist-sans: 'Geist', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --font-geist-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+  --font-noto-sans-kr: 'Noto Sans KR', sans-serif;
 }
 
 @theme inline {
