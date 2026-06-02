@@ -28,7 +28,12 @@
 """
 
 import argparse
+import os
 import sys
+
+# 워커 패키징용 setup.py(같은 dataflow 디렉터리). --setup_file 로 지정하면 Beam 이 sdist 를
+# 만들어 워커에 install → 워커가 congestion_pipeline 을 import 가능해진다(ModuleNotFoundError 해소).
+SETUP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup.py")
 
 # 프로젝트 사실(verbatim) — congestion_pipeline 의 DEFAULT_* 과 일치시킨다.
 PROJECT = "knudc-henryseo711"
@@ -61,6 +66,9 @@ def build_argv(update: bool) -> list:
         "--streaming",
         # 워커 자동 확장 상한(데모 비용 억제). 필요 시 조정.
         "--max_num_workers=2",
+        # 파이프라인 모듈(congestion_pipeline)을 워커에 패키징·설치 → 변환 언피클 시
+        # ModuleNotFoundError: No module named 'congestion_pipeline' 방지(핵심 수정).
+        f"--setup_file={SETUP_FILE}",
     ]
     if update:
         # 같은 이름의 RUNNING 잡을 무중단 갱신(drain-and-replace).
