@@ -196,16 +196,13 @@ export function RecommendationCard({
 
   return (
     <div 
-      className={`w-full bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
+      className={`w-full max-h-[50dvh] bg-[#111622]/95 backdrop-blur-2xl border border-white/10 rounded-3xl ${isMinimized ? 'p-3' : 'p-5'} shadow-[0_10px_35px_rgba(0,0,0,0.5)] flex flex-col ${isMinimized ? 'gap-1' : 'gap-3'} select-none transition-all duration-300 relative overflow-hidden`}
       style={{
         transform: `translateY(${translateY}px)`,
         transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s, gap 0.3s',
-        touchAction: 'none'
       }}
-      onTouchStart={(e) => handleStart(e.touches[0].clientY)}
       onTouchMove={(e) => handleMove(e.touches[0].clientY)}
       onTouchEnd={handleEnd}
-      onMouseDown={(e) => handleStart(e.clientY)}
       onMouseMove={(e) => { if (startY !== null) handleMove(e.clientY); }}
       onMouseUp={handleEnd}
       onMouseLeave={handleEnd}
@@ -213,9 +210,12 @@ export function RecommendationCard({
       {/* Decorative upper border glow */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/80 to-transparent" />
 
-      {/* Swipe/Drag Handle Bar */}
-      <div 
-        className="w-16 h-1.5 bg-white/20 hover:bg-white/30 rounded-full mx-auto mb-1 cursor-pointer flex items-center justify-center transition-colors"
+      {/* Swipe/Drag Handle Bar — 드래그 제스처는 핸들에만(본문 스크롤과 충돌 방지) */}
+      <div
+        className="w-16 h-1.5 bg-white/20 hover:bg-white/30 rounded-full mx-auto mb-1 cursor-pointer flex items-center justify-center transition-colors shrink-0"
+        style={{ touchAction: 'none' }}
+        onTouchStart={(e) => handleStart(e.touches[0].clientY)}
+        onMouseDown={(e) => handleStart(e.clientY)}
         onClick={() => {
           if (isMinimized) setIsMinimized(false);
           else toggleExpand();
@@ -236,6 +236,8 @@ export function RecommendationCard({
         </div>
       ) : (
         <>
+          {/* 본문만 스크롤(핸들은 고정) — 카드는 max-h-[50dvh]로 화면 절반 이하 유지 */}
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-3">
           {/* Top Header Row */}
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
@@ -539,6 +541,8 @@ export function RecommendationCard({
           </button>
         </div>
       )}
+          </div>
+          {/* /본문 스크롤 영역 끝 */}
 
       {/* Meeting Room Schedule Modal (Mock) */}
       {showScheduleModal && (
