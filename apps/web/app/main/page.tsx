@@ -9,6 +9,8 @@ import { createPublicClient } from '@/lib/supabase';
 import { getMarkerSvg } from '@/lib/utils';
 import { scoreFacility, compareTttv, rankFacilities, recToTttv, buildReason } from '@/lib/recommender';
 import { recommendByType } from '@/lib/api-client';
+import { useVoiceAssistant } from '@/lib/useVoiceAssistant';
+import VoiceAssistantOrb from '@/components/VoiceAssistantOrb';
 
 const supabase = createPublicClient();
 
@@ -518,7 +520,7 @@ export default function MainPage() {
           const eY = endData.documents[0].y;
           // target=car 와 rt 파라미터를 사용하여 즉시 길안내 화면 렌더링
           const destUrl = `https://map.kakao.com/?map_type=TYPE_MAP&target=car&rt=${sX},${sY},${eX},${eY}&rt1=${encodeURIComponent("현재 위치")}&rt2=${encodeURIComponent(fac.name)}`;
-          if (newWindow) newWindow.location.href = destUrl;
+          if (newWindow) newWindow.location.href = destUrl; else window.location.href = destUrl;
         } else {
           throw new Error("좌표 변환 실패");
         }
@@ -526,7 +528,7 @@ export default function MainPage() {
         console.error("PC 길안내 자동 시작 실패(좌표변환 에러):", err);
         // 실패 시 기존 텍스트 채우기 방식으로 폴백
         const destUrl = `https://map.kakao.com/?sName=${encodeURIComponent("현재 위치")}&eName=${encodeURIComponent(fac.name)}&sY=${userLocation.lat}&sX=${userLocation.lng}&eY=${fac.latitude}&eX=${fac.longitude}`;
-        if (newWindow) newWindow.location.href = destUrl;
+        if (newWindow) newWindow.location.href = destUrl; else window.location.href = destUrl;
       });
     }
   };
@@ -657,6 +659,30 @@ export default function MainPage() {
     showToast(`'${fac.name}' 추천을 폐기했습니다. 다음 추천을 불러옵니다.`);
   };
 
+  // ── 음성 비서: 현재 추천 카드를 Gemini 사유로 TTS 안내 + STT 응답 위임 ──
+  // 수락(응/가자)→handleAccept(길안내), 다음/별로→handleReject(폐기+다음), 자세히→상세 재안내, 그만→종료.
+  const voice = useVoiceAssistant<any>({
+    getName: (f) => f?.name ?? '이 장소',
+    getReason: (f) => f?.reason || buildReason(f, f?.tttv || calculateTTTV(f)),
+    getDetail: (f) => {
+      const t = f?.tttv || calculateTTTV(f);
+      const parts: string[] = [];
+      if (t?.expectedWait != null) parts.push(`예상 대기 ${t.expectedWait}분`);
+      if (t?.expectedTravel != null) parts.push(`도보 ${t.expectedTravel}분`);
+      if (t?.preferencePercent != null) parts.push(`선호 일치율 ${t.preferencePercent}%`);
+      return parts.length ? `${parts.join(', ')}예요. 여기로 안내할까요?` : `${f?.name ?? '이 장소'}, 여기로 안내할까요?`;
+    },
+    onAccept: (f) => handleAccept(f),
+    onNext: (f) => handleReject(f),
+  });
+
+  // 카드가 새로 뜨면(세션 활성 상태) Gemini 사유를 자동 발화, 카드가 사라지면 정지.
+  // deps에 reason 포함 — 같은 시설이라도 mockHour/혼잡 변화로 사유가 바뀌면 새로 안내(id만 보면 놓침).
+  useEffect(() => {
+    voice.notifyItem(selectedFacility && !isCardHidden ? selectedFacility : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFacility?.id, selectedFacility?.reason, isCardHidden]);
+
   // Initialize map if Kakao Maps script is already loaded
   useEffect(() => {
     const initInterval = setInterval(() => {
@@ -756,10 +782,10 @@ export default function MainPage() {
 
     // 마커 크기: 평소엔 작게, 선택 시엔 확대(뒤쪽 펄스/이펙트 없이 크기만 키움). 화면 폭에 따라 반응형.
     const isNarrow = typeof window !== 'undefined' && window.innerWidth < 640;
-    const baseW = isNarrow ? 34 : 40;
-    const baseH = isNarrow ? 44 : 51;
-    const selW = isNarrow ? 48 : 58;
-    const selH = isNarrow ? 62 : 74;
+    const baseW = isNarrow ? 28 : 34;
+    const baseH = isNarrow ? 36 : 44;
+    const selW = isNarrow ? 40 : 50;
+    const selH = isNarrow ? 52 : 64;
 
     const newMarkers = displayFacilities.map((f) => {
       // 사내 주차장은 정사각형 마커 → 정사각 크기 + 중앙 앵커(가로세로 비율 유지). 그 외 핀은 바닥(끝) 앵커.
@@ -942,6 +968,20 @@ export default function MainPage() {
           const reason = selectedFacility.reason || buildReason(selectedFacility, tttv);
           return (
             <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
+              {voice.ttsSupported && (
+                <div className="flex justify-end mb-2 pr-1">
+                  <VoiceAssistantOrb
+                    active={voice.active}
+                    voiceState={voice.voiceState}
+                    liveTranscript={voice.liveTranscript}
+                    caption={voice.caption}
+                    muted={voice.muted}
+                    sttSupported={voice.sttSupported}
+                    onOrb={voice.onOrbClick}
+                    onToggleMute={voice.toggleMute}
+                  />
+                </div>
+              )}
               <RecommendationCard
                 title={selectedFacility.name}
                 reason={reason}
