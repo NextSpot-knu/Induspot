@@ -1,7 +1,8 @@
 -- WP2 — BigQuery ML 시계열 혼잡 예측 (ARIMA_PLUS)
 --
 -- 전제: scripts/load_bq.py 로 `induspot.congestion_logs` 가 적재되어 있어야 한다.
---   스키마: facility_id STRING, facility_type STRING, ts TIMESTAMP, congestion FLOAT64, source STRING
+--   공유 계약 스키마: facility_id STRING, congestion_level FLOAT64, current_count INT64, source STRING, timestamp TIMESTAMP
+--   (ARIMA_PLUS 는 ts/congestion 컬럼을 기대하므로 아래 SELECT 에서 timestamp/congestion_level 을 alias 한다.)
 --
 -- 실행:
 --   bq query --use_legacy_sql=false < apps/api/sql/bqml_forecast.sql
@@ -30,10 +31,10 @@ OPTIONS(
 ) AS
 SELECT
   facility_id,
-  ts,
-  congestion
+  `timestamp` AS ts,
+  congestion_level AS congestion
 FROM `induspot.congestion_logs`
-WHERE congestion IS NOT NULL;
+WHERE congestion_level IS NOT NULL;
 
 
 -- =====================================================================

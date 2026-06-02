@@ -19,6 +19,8 @@ import argparse
 import subprocess
 import sys
 
+from _gcloud import GCLOUD  # gcloud.cmd 전체 경로(Windows WinError 2 회피)
+
 PROJECT = "knudc-henryseo711"
 # Cloud Run 런타임 서비스계정(컴퓨트 기본). 배포 환경에 맞게 바꿀 수 있다.
 RUNTIME_SA = "768699236852-compute@developer.gserviceaccount.com"
@@ -53,13 +55,14 @@ def run(cmd, value=None):
     print("$", " ".join(cmd if value is None else cmd + ["(value via stdin)"]))
     r = subprocess.run(cmd, input=value, capture_output=True, text=True)
     if r.returncode != 0 and r.stderr:
+        # Log only the last stderr line (English-style operator log, no secret values).
         print("   ", r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "")
     return r.returncode == 0
 
 
 def secret_exists(name: str) -> bool:
     r = subprocess.run(
-        ["gcloud", "secrets", "describe", name, f"--project={PROJECT}", "--format=value(name)"],
+        [GCLOUD, "secrets", "describe", name, f"--project={PROJECT}", "--format=value(name)"],
         capture_output=True, text=True,
     )
     return r.returncode == 0
@@ -75,23 +78,35 @@ def main():
     if missing:
         print(f"경고: .env 에 값이 없는 키(건너뜀): {missing}")
 
+    # 멱등 처리: 시크릿은 get-or-create, 버전은 매 실행마다 :latest 갱신, IAM 은 add-binding(중복 무해).
+    processed = []
     for key in SECRET_KEYS:
         val = env.get(key)
         if not val:
             continue
+        # 1) get-or-create: 이미 있으면 create 를 건너뛴다(멱등).
         if not secret_exists(key):
             print(f"=== create secret {key} ===")
-            run(["gcloud", "secrets", "create", key,
+            run([GCLOUD, "secrets", "create", key,
                  "--replication-policy=automatic", f"--project={PROJECT}"])
+        else:
+            print(f"=== secret {key} exists — reuse ===")
+        # 2) add version: 새 :latest 버전을 추가(이전 버전은 보존). 재실행해도 안전.
         print(f"=== add version {key} ===")
-        run(["gcloud", "secrets", "versions", "add", key,
+        run([GCLOUD, "secrets", "versions", "add", key,
              "--data-file=-", f"--project={PROJECT}"], value=val)
-        # 런타임 SA 에 접근 권한 부여(멱등)
-        run(["gcloud", "secrets", "add-iam-policy-binding", key,
+        # 3) 런타임 SA 에 secretAccessor 부여(add-iam-policy-binding 은 중복 호출에 멱등).
+        run([GCLOUD, "secrets", "add-iam-policy-binding", key,
              f"--member=serviceAccount:{RUNTIME_SA}",
              "--role=roles/secretmanager.secretAccessor", f"--project={PROJECT}"])
+        processed.append(key)
 
     print("\n완료. 재배포 시 Cloud Run 의 해당 평문 env 를 제거하면 Secret Manager 가 단일 진실원이 된다.")
+    print(f"   processed secrets: {processed}")
+    if missing:
+        print(f"   skipped (no value in env): {missing}")
+    # 성공 마커(배포 스크립트가 grep 으로 단계 성공을 확인).
+    print("SECRETS_OK")
 
 
 if __name__ == "__main__":

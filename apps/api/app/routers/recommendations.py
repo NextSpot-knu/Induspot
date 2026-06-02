@@ -13,6 +13,7 @@ from app.core.supabase import supabase_admin as supabase_client, get_current_use
 from app.services.preference_vector_service import preference_vector_service
 from app.services.reason_service import generate_reason
 from app.services.voice_intent_service import interpret_turn
+from app.services.embedding_service import filter_candidates as vector_filter_candidates
 from app.services.tttv.score import calculate_tttv_score
 from app.services.tttv.travel import calculate_haversine_distance, WALKING_SPEED_M_PER_MIN
 from app.services.tttv.preference import CATEGORY_VECTORS, get_category_average_vector
@@ -357,8 +358,31 @@ _VOICE_TYPE_KO = {"cafeteria": "식당", "parking": "주차장", "meeting_room":
 @router.post("/voice/turn", response_model=VoiceTurnResponse)
 async def voice_turn(req: VoiceTurnRequest):
     type_ko = _VOICE_TYPE_KO.get(req.facility_type, "시설")
-    result = await interpret_turn(req.utterance, type_ko, req.current_name, req.candidates or [])
-    return VoiceTurnResponse(**result)
+    candidates = req.candidates or []
+    # 1) Gemini: 의도 분류 + 한국어 응답 + search_query(선호를 구체 메뉴로 확장)(역할 분리의 '대화' 쪽).
+    result = await interpret_turn(req.utterance, type_ko, req.current_name, candidates)
+    # 2) 임베딩 의미검색: '선호 필터'로 분류되면 어떤 후보가 맞는지는 벡터가 결정(retrieval).
+    #    Gemini 가 확장한 search_query("고깃집"→"삼겹살 갈비 숯불구이…")로 검색해 곱창집·순댓국과 섞이지 않게 한다.
+    if result["action"] == "filter":
+        query = result.get("search_query") or req.utterance
+        try:
+            vids = await vector_filter_candidates(query, candidates)
+        except Exception:
+            vids = []
+        match = vids or result.get("match_ids") or []  # 벡터 우선, Gemini match_ids 가 폴백
+        if match:
+            result["match_ids"] = match
+        else:
+            # 벡터·Gemini 둘 다 빈손이면 next 로만 강등(선택지 폐기 아님, 우선순위만 유지·조정).
+            result["action"] = "next"
+            result["match_ids"] = []
+    # search_query 는 내부용(응답 스키마에 없음) — 제거 후 응답 구성.
+    return VoiceTurnResponse(
+        action=result["action"],
+        target_facility_id=result.get("target_facility_id"),
+        match_ids=result.get("match_ids") or [],
+        spoken=result.get("spoken"),
+    )
 
 
 @router.post("/feedback")

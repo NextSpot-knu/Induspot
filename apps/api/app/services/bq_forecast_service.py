@@ -12,29 +12,11 @@ from typing import Optional
 import structlog
 
 from app.core.config import settings
+# 공유 클라이언트로 위임: 중복 BigQuery 클라이언트 생성을 피한다(core.bigquery 가 lazy 싱글톤).
+from app.core.bigquery import get_bq_client as _get_client
+from app.core.bigquery import query_forecast as _query_forecast
 
 logger = structlog.get_logger()
-
-_bq_client = None
-_bq_init_attempted = False
-
-
-def _get_client():
-    global _bq_client, _bq_init_attempted
-    if _bq_init_attempted:
-        return _bq_client
-    _bq_init_attempted = True
-    try:
-        from google.cloud import bigquery
-
-        _bq_client = bigquery.Client(
-            project=settings.GCP_PROJECT_ID, location=settings.BQ_LOCATION
-        )
-        logger.info("bq_client_initialized", dataset=settings.BQ_DATASET)
-    except Exception as e:
-        logger.warning("bq_client_init_failed", error=str(e))
-        _bq_client = None
-    return _bq_client
 
 
 def get_forecast_congestion(facility_id: str, timeout: float = 5.0) -> Optional[float]:
@@ -65,3 +47,13 @@ def get_forecast_congestion(facility_id: str, timeout: float = 5.0) -> Optional[
     except Exception as e:
         logger.warning("bq_forecast_query_failed", facility_id=facility_id, error=str(e))
     return None
+
+
+def get_forecast_series(facility_id: Optional[str] = None, hours: int = 24) -> list:
+    """heatmap 라우트용 시계열 예측 조회. core.bigquery.query_forecast 위임(실패 시 []).
+
+    가드레일: 이 경로 역시 배치/대시보드 전용 사전계산 lookup 조회다. 실시간 단건 예측의
+    1차 경로(WP1 Vertex Endpoint)를 대체하지 않는다.
+    반환 row: {facility_id, forecast_timestamp(iso), forecast_congestion}.
+    """
+    return _query_forecast(facility_id=facility_id, hours=hours)

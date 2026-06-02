@@ -23,9 +23,9 @@ class PreferenceVectorStore:
     (Vector Search 는 인덱스 콜드스타트·streaming upsert 의 eventual consistency 때문에
      "피드백 직후 같은 벡터를 즉시 읽어야 하는" 이 패턴에 부적합하다.)
 
-    폴백 우선: Firestore 미가용/실패 시 get→None, upsert→no-op (기존 Pinecone-미설정과 동일 동작).
+    폴백 우선: Firestore 미가용/실패 시 get→None, upsert→no-op (벡터 저장소 미설정 시 무해한 동작).
     외부 인터페이스(_normalize_vector / get_user_vector / upsert_user_vector /
-    adjust_user_vector_on_feedback)는 기존 PineconeService 와 동일하게 유지한다.
+    adjust_user_vector_on_feedback)는 시그니처 호환을 위해 그대로 유지한다(내부 백엔드만 Firestore).
     """
 
     def __init__(self):
@@ -42,7 +42,7 @@ class PreferenceVectorStore:
 
     @property
     def available(self) -> bool:
-        """저장소 사용 가능 여부(기존 코드의 `.index is not None` 대체)."""
+        """저장소 사용 가능 여부(벡터 백엔드 클라이언트 초기화 성공 여부)."""
         return self.client is not None
 
     def _doc(self, user_id: str):
@@ -113,5 +113,5 @@ class PreferenceVectorStore:
         await self.upsert_user_vector(user_id, new_vector)
 
 
-# 싱글톤 인스턴스 (기존 pinecone_service 를 대체; 이름만 GCP 네이티브로 정리)
+# 싱글톤 인스턴스 (GCP 네이티브 Firestore 백엔드; 시그니처 호환 유지)
 preference_vector_service = PreferenceVectorStore()
