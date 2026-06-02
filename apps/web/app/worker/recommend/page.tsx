@@ -767,7 +767,7 @@ function RecommendContent() {
     if (votedRef.current.has(rec.recommendationId) || feedbackVotes[rec.recommendationId]) return;
     votedRef.current.add(rec.recommendationId);
     setFeedbackVotes((prev) => ({ ...prev, [rec.recommendationId]: vote }));
-    setToast(
+    toast.success(
       vote === "up"
         ? "좋아요! 이런 추천을 더 보여드릴게요 🎯"
         : "알려줘서 고마워요. 다음 추천에 반영할게요 🙏"
