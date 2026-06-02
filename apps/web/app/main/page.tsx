@@ -383,6 +383,24 @@ export default function MainPage() {
   const expandGroups = (list: any[]) =>
     list.flatMap((f: any) => (f.isGroup && Array.isArray(f.subFacilities)) ? f.subFacilities : [f]);
 
+  // 선택 마커가 하단 카드에 가리지 않도록 지도 위쪽 가시영역으로 패닝(지도 중심을 마커보다 아래로 둔다).
+  const panToVisible = (lat: number, lng: number) => {
+    const map = mapInstanceRef.current;
+    if (!map || typeof window === 'undefined' || !window.kakao) return;
+    const latlng = new window.kakao.maps.LatLng(lat, lng);
+    try {
+      const proj = map.getProjection();
+      const pt = proj.containerPointFromCoords(latlng);
+      const h = mapContainerRef.current?.clientHeight || 0;
+      const target = proj.coordsFromContainerPoint(
+        new window.kakao.maps.Point(pt.x, pt.y + Math.round(h * 0.22))
+      );
+      map.panTo(target);
+    } catch (e) {
+      map.panTo(latlng);
+    }
+  };
+
   // AI 추천 동기화: 실 DB 시설은 백엔드(/recommendations/by-type) 랭킹 + Gemini 사유,
   // 합성 그룹·시간대 시뮬(mockHour) 등 데모는 lib/recommender 미러(사유 포함)로 처리해 합친 뒤 #1을 표시.
   // (백엔드는 합성 시설/mockHour 를 모르므로 데모는 분리해 클라 미러로 점수를 매긴다.)
@@ -452,7 +470,7 @@ export default function MainPage() {
         setSelectedFacility(all[0]);
         setIsCardHidden(false);
         if (mapInstanceRef.current && typeof all[0].latitude === 'number') {
-          mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(all[0].latitude, all[0].longitude));
+          panToVisible(all[0].latitude, all[0].longitude);
         }
       } catch (err) {
         console.error("Error in recommendation synchronization effect:", err);
@@ -545,7 +563,7 @@ export default function MainPage() {
       setSelectedFacility(nextScored[0]);
       setIsCardHidden(false);
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(nextScored[0].latitude, nextScored[0].longitude));
+        panToVisible(nextScored[0].latitude, nextScored[0].longitude);
       }
     } else {
       setSelectedFacility(null);
@@ -615,7 +633,7 @@ export default function MainPage() {
       setSelectedFacility(nextScored[0]);
       setIsCardHidden(false);
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.panTo(new window.kakao.maps.LatLng(nextScored[0].latitude, nextScored[0].longitude));
+        panToVisible(nextScored[0].latitude, nextScored[0].longitude);
       }
     } else {
       setSelectedFacility(null);
@@ -816,7 +834,7 @@ export default function MainPage() {
           setActiveGroupId(null);
           setSelectedFacility(f);
           setIsCardHidden(false);
-          mapInstanceRef.current.panTo(new kakao.maps.LatLng(f.latitude, f.longitude));
+          panToVisible(f.latitude, f.longitude);
         }
       });
 
@@ -881,6 +899,11 @@ export default function MainPage() {
                   setActiveFilter(filter.id);
                   setIsCardHidden(false);
                   setActiveGroupId(null);
+                  // 필터(섹션) 전환 시 열려있던 모둠 팝업도 닫기
+                  if (activeOverlayRef.current) {
+                    activeOverlayRef.current.setMap(null);
+                    activeOverlayRef.current = null;
+                  }
                   if (typeof window !== 'undefined') {
                     sessionStorage.setItem('induspot_active_filter', filter.id);
                   }

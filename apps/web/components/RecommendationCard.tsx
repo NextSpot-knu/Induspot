@@ -200,7 +200,8 @@ export function RecommendationCard({
       style={{
         transform: `translateY(${translateY}px)`,
         transition: startY ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s, gap 0.3s',
-        touchAction: 'none'
+        // 모달(예약현황/예약) 열릴 땐 내부 스크롤이 되도록 드래그용 touchAction을 해제
+        touchAction: (showScheduleModal || showBookingModal) ? 'auto' : 'none'
       }}
       onTouchStart={(e) => handleStart(e.touches[0].clientY)}
       onTouchMove={(e) => handleMove(e.touches[0].clientY)}
@@ -322,72 +323,47 @@ export function RecommendationCard({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                {/* Time Cost Column */}
-                <div className="flex-1 bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2 opacity-20">
-                    <Clock size={24} className="text-blue-300" />
-                  </div>
-                  <span className="text-blue-300 text-[10px] font-semibold mb-1">총 소요 시간</span>
-                  <div className="flex items-baseline gap-1 mb-1.5">
-                    <span className="text-2xl font-black text-white">{timeToService}</span>
-                    <span className="text-xs text-blue-200 font-medium">분</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[9px] text-blue-200/80 font-medium">
-                    <span className="bg-blue-500/20 px-1.5 py-0.5 rounded text-blue-300">대기 {expectedWait}분</span>
-                    <span className="text-blue-500/50">+</span>
-                    <span className="bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-400">이동 {expectedTravel}분</span>
-                  </div>
+            <div className="flex gap-2 items-stretch">
+              {/* Time Cost Column (총 소요 시간) */}
+              <div className="flex-1 min-w-[118px] bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-20">
+                  <Clock size={24} className="text-blue-300" />
                 </div>
-
-                {/* Preference Column */}
-                <div className="w-[110px] bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col justify-center items-center text-center">
-                  <span className="text-slate-400 text-[10px] font-semibold mb-1">취향 일치율</span>
-                  <div className="flex items-baseline gap-0.5 mb-1">
-                    <span className="text-xl font-black text-sky-400">{preferencePercent}</span>
-                    <span className="text-xs text-sky-400/80 font-bold">%</span>
-                  </div>
-                  {facilityType === 'parking' ? (
-                    <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">주차공간 맞춤</span>
-                  ) : (
-                    <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">사용자 패턴 기반</span>
-                  )}
+                <span className="text-blue-300 text-[10px] font-semibold mb-1">총 소요 시간</span>
+                <div className="flex items-baseline gap-1 mb-1.5">
+                  <span className="text-2xl font-black text-white">{timeToService}</span>
+                  <span className="text-xs text-blue-200 font-medium">분</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[9px] text-blue-200/80 font-medium">
+                  <span className="bg-blue-500/20 px-1.5 py-0.5 rounded text-blue-300">대기 {expectedWait}분</span>
+                  <span className="text-blue-500/50">+</span>
+                  <span className="bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-400">이동 {expectedTravel}분</span>
                 </div>
               </div>
 
-              {/* Timeline UI */}
+              {/* Timeline UI — 총 소요 시간 오른쪽 / 취향 일치율 왼쪽(가운데)로 이동 */}
               {currentTime && arrivalTime && serviceTime && (
-                <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-3">
-                  <div className="flex items-start justify-between relative mt-1">
+                <div className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-2xl px-2 py-3 flex flex-col justify-center">
+                  <div className="flex items-start justify-between relative">
                     {/* Connecting Line */}
-                    <div className="absolute top-[3px] left-4 right-4 h-[2px] bg-white/10 z-0" />
-                    
-                    {/* Travel Duration Label */}
-                    <div className="absolute top-[-10px] left-[25%] -translate-x-1/2 z-10">
-                      <span className="text-[9px] font-medium text-emerald-400 bg-[#161c28] px-1.5 py-0.5 rounded border border-emerald-500/20">이동 {travelMins}분</span>
-                    </div>
-                    {/* Wait Duration Label */}
-                    <div className="absolute top-[-10px] left-[75%] -translate-x-1/2 z-10">
-                      <span className="text-[9px] font-medium text-amber-400 bg-[#161c28] px-1.5 py-0.5 rounded border border-amber-500/20">대기 {waitMins}분</span>
-                    </div>
-                    
-                    {/* Current Time Step */}
-                    <div className="flex flex-col items-center z-10 w-12">
+                    <div className="absolute top-[3px] left-3 right-3 h-[2px] bg-white/10 z-0" />
+
+                    {/* Current Time Step (출발) */}
+                    <div className="flex flex-col items-center z-10 flex-1 min-w-0">
                       <div className="w-2 h-2 rounded-full bg-blue-500 ring-4 ring-[#1a2133] mb-1.5" />
                       <span className="text-[10px] text-white font-bold">{formatTime(currentTime)}</span>
                       <span className="text-[9px] text-slate-400 mt-0.5">출발</span>
                     </div>
-                    
-                    {/* Arrival Time Step */}
-                    <div className="flex flex-col items-center z-10 w-12">
+
+                    {/* Arrival Time Step (도착) */}
+                    <div className="flex flex-col items-center z-10 flex-1 min-w-0">
                       <div className="w-2 h-2 rounded-full bg-emerald-400 ring-4 ring-[#1a2133] mb-1.5" />
                       <span className="text-[10px] text-white font-bold">{formatTime(arrivalTime)}</span>
                       <span className="text-[9px] text-slate-400 mt-0.5">도착</span>
                     </div>
 
-                    {/* Service Start Step */}
-                    <div className="flex flex-col items-center z-10 w-12">
+                    {/* Service Start Step (이용) */}
+                    <div className="flex flex-col items-center z-10 flex-1 min-w-0">
                       <div className="w-2 h-2 rounded-full bg-amber-400 ring-4 ring-[#1a2133] mb-1.5" />
                       <span className="text-[10px] text-white font-bold">{formatTime(serviceTime)}</span>
                       <span className="text-[9px] text-slate-400 mt-0.5">{facilityType === 'cafeteria' ? '식사' : '이용'}</span>
@@ -395,6 +371,20 @@ export function RecommendationCard({
                   </div>
                 </div>
               )}
+
+              {/* Preference Column (취향 일치율) */}
+              <div className="w-[92px] shrink-0 bg-white/5 border border-white/10 rounded-2xl p-2.5 flex flex-col justify-center items-center text-center">
+                <span className="text-slate-400 text-[10px] font-semibold mb-1">취향 일치율</span>
+                <div className="flex items-baseline gap-0.5 mb-1">
+                  <span className="text-xl font-black text-sky-400">{preferencePercent}</span>
+                  <span className="text-xs text-sky-400/80 font-bold">%</span>
+                </div>
+                {facilityType === 'parking' ? (
+                  <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">주차공간 맞춤</span>
+                ) : (
+                  <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-2">사용자 패턴 기반</span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -549,7 +539,7 @@ export function RecommendationCard({
             <h4 className="text-white font-bold text-lg">오늘 예약 현황</h4>
             <button onClick={() => setShowScheduleModal(false)} className="text-gray-400 hover:text-white">✕</button>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 pr-2 custom-scrollbar">
             {['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'].map((time, idx) => {
               const isBooked = idx % 3 === 1 || idx % 4 === 2; // dummy logic
               return (
