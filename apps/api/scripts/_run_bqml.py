@@ -34,9 +34,10 @@ OPTIONS(
   decompose_time_series = TRUE,
   clean_spikes_and_dips = TRUE
 ) AS
-SELECT facility_id, ts, congestion
+-- congestion_logs 공유 계약 스키마(timestamp/congestion_level)를 ARIMA 가 기대하는 ts/congestion 으로 alias.
+SELECT facility_id, `timestamp` AS ts, congestion_level AS congestion
 FROM `{PROJECT}.{DS}.congestion_logs`
-WHERE congestion IS NOT NULL
+WHERE congestion_level IS NOT NULL AND `timestamp` IS NOT NULL
 """)
 
 # 3) 사전계산 lookup 테이블 (horizon 48)

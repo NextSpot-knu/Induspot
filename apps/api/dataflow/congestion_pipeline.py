@@ -13,14 +13,20 @@
     --project=knudc-henryseo711 --topic=induspot-congestion \
     --bq_table=knudc-henryseo711:induspot.congestion_windowed --temp_location=gs://induspot-models-6757/dataflow-temp
 
-Dataflow(라이브) 실행:
+Dataflow(라이브) 실행은 launch_dataflow.py 를 사용한다(README.md 참조).
+직접 실행도 가능:
   python -m dataflow.congestion_pipeline --runner=DataflowRunner \
     --project=knudc-henryseo711 --region=us-central1 \
-    --topic=induspot-congestion \
+    --subscription=projects/knudc-henryseo711/subscriptions/induspot-congestion-push \
     --bq_table=knudc-henryseo711:induspot.congestion_windowed \
     --temp_location=gs://induspot-models-6757/dataflow-temp \
     --staging_location=gs://induspot-models-6757/dataflow-staging \
-    --job_name=induspot-congestion-stream --streaming
+    --job_name=induspot-congestion-windowing --streaming
+
+설계 메모(스트림 처리 책임 분리):
+  - build_pipeline(p, source) 는 변환 그래프만 조립하므로 테스트(TestPipeline)와
+    라이브(DataflowRunner) 가 동일한 로직을 공유한다.
+  - run(argv) 는 옵션 파싱 + IO(Pub/Sub→BigQuery) 결선 + Pipeline 실행을 담당한다.
 """
 
 import argparse
@@ -33,6 +39,12 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions, GoogleCloudOptions
 
 WINDOW_SECONDS = 300  # 5분 고정 윈도우
+
+# 라이브 기본값(프로젝트 사실과 일치). run() 에서 CLI 로 덮어쓸 수 있다.
+DEFAULT_PROJECT = "knudc-henryseo711"
+DEFAULT_SUBSCRIPTION = "induspot-congestion-push"  # push 구독을 pull 로도 읽을 수 있음
+DEFAULT_TOPIC = "induspot-congestion"
+DEFAULT_BQ_TABLE = "knudc-henryseo711:induspot.congestion_windowed"
 
 BQ_SCHEMA = ",".join([
     "facility_id:STRING",
@@ -93,42 +105,81 @@ def _sum_count_combiner():
     return SumCount()
 
 
-def run(argv=None):
+def build_aggregation(pcoll):
+    """원천 PCollection(파싱 전 bytes 요소) → BQ 행 dict 의 PCollection 으로 변환.
+
+    이 함수는 IO(ReadFromPubSub / WriteToBigQuery) 와 완전히 분리된 순수 변환 그래프이므로
+    TestPipeline(DirectRunner) 과 라이브 DataflowRunner 가 동일한 로직을 공유한다.
+    (test_congestion_pipeline.py 가 검증하는 단계 이름/함수와 1:1 대응.)
+    """
+    return (
+        pcoll
+        | "Parse" >> beam.Map(_parse_event)
+        | "DropInvalid" >> beam.Filter(lambda d: bool(d))
+        | "Window5m" >> beam.WindowInto(beam.window.FixedWindows(WINDOW_SECONDS))
+        | "ToKV" >> beam.Map(lambda d: (d["facility_id"], d["congestion"]))
+        | "SumCountPerKey" >> beam.CombinePerKey(_sum_count_combiner())
+        | "ToBqRow" >> beam.ParDo(_AddWindowInfo())
+    )
+
+
+def build_pipeline(p, known):
+    """파싱된 옵션(known)으로 Pub/Sub→집계→BigQuery 전체 그래프를 파이프라인 p 에 결선한다.
+
+    known 은 _parse_args() 가 반환한 Namespace (project / topic / subscription / bq_table).
+    구독이 주어지면 구독을, 아니면 토픽을 읽는다.
+    """
+    if known.subscription:
+        source = beam.io.ReadFromPubSub(subscription=known.subscription)
+    else:
+        topic_path = f"projects/{known.project}/topics/{known.topic}"
+        source = beam.io.ReadFromPubSub(topic=topic_path)
+
+    raw = p | "ReadPubSub" >> source
+    rows = build_aggregation(raw)
+    (
+        rows
+        | "WriteBQ" >> beam.io.WriteToBigQuery(
+            known.bq_table,
+            schema=BQ_SCHEMA,
+            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+            create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
+        )
+    )
+    return rows
+
+
+def _parse_args(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project", required=True)
-    parser.add_argument("--topic", default="induspot-congestion", help="Pub/Sub topic 이름(프로젝트 내)")
-    parser.add_argument("--subscription", default="", help="구독 경로(있으면 topic 대신 사용)")
-    parser.add_argument("--bq_table", required=True, help="project:dataset.table")
+    parser.add_argument("--project", default=DEFAULT_PROJECT)
+    parser.add_argument("--topic", default=DEFAULT_TOPIC, help="Pub/Sub topic 이름(프로젝트 내)")
+    parser.add_argument(
+        "--subscription",
+        default=DEFAULT_SUBSCRIPTION,
+        help="구독 이름 또는 전체 경로(있으면 topic 대신 사용). 빈 문자열이면 topic 사용.",
+    )
+    parser.add_argument("--bq_table", default=DEFAULT_BQ_TABLE, help="project:dataset.table")
     known, pipeline_args = parser.parse_known_args(argv)
+    # 구독을 짧은 이름으로 준 경우 전체 경로로 정규화한다(라이브 편의).
+    if known.subscription and not known.subscription.startswith("projects/"):
+        known.subscription = f"projects/{known.project}/subscriptions/{known.subscription}"
+    return known, pipeline_args
+
+
+def run(argv=None):
+    """CLI 진입점. 옵션을 파싱하고 streaming 파이프라인을 빌드/실행한다.
+
+    DataflowRunner / DirectRunner 는 --runner 로 PipelineOptions 를 통해 전달된다
+    (launch_dataflow.py 가 --runner=DataflowRunner 등을 주입).
+    """
+    known, pipeline_args = _parse_args(argv)
 
     options = PipelineOptions(pipeline_args)
     options.view_as(StandardOptions).streaming = True
     options.view_as(GoogleCloudOptions).project = known.project
 
-    topic_path = f"projects/{known.project}/topics/{known.topic}"
-
     with beam.Pipeline(options=options) as p:
-        if known.subscription:
-            source = beam.io.ReadFromPubSub(subscription=known.subscription)
-        else:
-            source = beam.io.ReadFromPubSub(topic=topic_path)
-
-        (
-            p
-            | "ReadPubSub" >> source
-            | "Parse" >> beam.Map(_parse_event)
-            | "DropInvalid" >> beam.Filter(lambda d: bool(d))
-            | "Window5m" >> beam.WindowInto(beam.window.FixedWindows(WINDOW_SECONDS))
-            | "ToKV" >> beam.Map(lambda d: (d["facility_id"], d["congestion"]))
-            | "SumCountPerKey" >> beam.CombinePerKey(_sum_count_combiner())
-            | "ToBqRow" >> beam.ParDo(_AddWindowInfo())
-            | "WriteBQ" >> beam.io.WriteToBigQuery(
-                known.bq_table,
-                schema=BQ_SCHEMA,
-                write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
-                create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-            )
-        )
+        build_pipeline(p, known)
 
 
 if __name__ == "__main__":

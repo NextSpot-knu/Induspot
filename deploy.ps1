@@ -6,6 +6,8 @@
     .\deploy.ps1 -Frontend       # frontend only (most changes)
     .\deploy.ps1 -Backend        # Cloud Run backend only
     .\deploy.ps1 -Backend -Gateway   # backend + gateway (when openapi changed)
+    .\deploy.ps1 -Backend -Provision  # one-time idempotent GCP setup: IAM+secrets+Firestore+BQ (pre-deploy) -> deploy -> Pub/Sub (post-deploy, needs the image)
+    .\deploy.ps1 -WithStreaming  # OPTIONAL heavier step: launch/refresh the Dataflow streaming job (separate from the Cloud Run image)
 
   - Deploys backend / gateway / frontend in order; stops on the first failure.
   - The gateway api-config name is auto-generated with a timestamp (always unique).
@@ -16,6 +18,8 @@ param(
   [switch]$Backend,
   [switch]$Gateway,
   [switch]$Frontend,
+  [switch]$Provision,
+  [switch]$WithStreaming,
   [string]$Gcloud = "C:\Users\samsung-user\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd",
   [string]$SaKey  = "C:\Users\samsung-user\Desktop\Google_Challenge\knudc-henryseo711-775e5ed806b7.json"
 )
@@ -35,8 +39,8 @@ $GatewayUrl      = "https://induspot-gateway-9t4vof78.uc.gateway.dev"
 # Move to repo root (this script's directory)
 Set-Location $PSScriptRoot
 
-# No flags => deploy everything
-if (-not ($Backend -or $Gateway -or $Frontend)) {
+# No flags => deploy everything (Provision + streaming are opt-in only, never part of the default-all)
+if (-not ($Backend -or $Gateway -or $Frontend -or $Provision -or $WithStreaming)) {
   $Backend = $true; $Gateway = $true; $Frontend = $true
 }
 
@@ -45,12 +49,112 @@ function Ok($msg)   { Write-Host "  OK $msg" -ForegroundColor Green }
 
 if (-not (Test-Path $Gcloud)) { throw "gcloud not found: $Gcloud  (use -Gcloud to set the path)" }
 
+# Provisioning script runtime environment:
+#  - GCLOUD_PATH: on Windows, Python subprocess can't find bare 'gcloud' (it's gcloud.cmd) -> WinError 2.
+#    The scripts (_gcloud.py) use this value first to resolve the full gcloud.cmd path.
+#  - $VenvPy: project venv python (has google-cloud-{bigquery,pubsub,...}). The system 'python' (other version)
+#    may lack those libs, so provision_bigquery / _provision_infra would die with ImportError.
+$env:GCLOUD_PATH = $Gcloud
+$VenvPy = Join-Path $PSScriptRoot "apps\api\.venv\Scripts\python.exe"
+if (-not (Test-Path $VenvPy)) {
+  Write-Host "  WARN venv python not found ($VenvPy); falling back to 'python' on PATH" -ForegroundColor Yellow
+  $VenvPy = "python"
+}
+# google-cloud Python clients (bigquery/pubsub) authenticate via ADC, NOT the gcloud CLI account.
+# The user's ADC (application-default) lacked BigQuery perms -> 403 (datasets.get denied).
+# Pin ADC to a project SA key that HAS BigQuery/PubSub access (this key is also used for the frontend deploy).
+# gcloud-CLI scripts (grant_runtime_iam / setup_secrets / firestore fallback) are unaffected; they keep using the owner account.
+if (Test-Path $SaKey) {
+  $env:GOOGLE_APPLICATION_CREDENTIALS = $SaKey
+} else {
+  Write-Host "  WARN SA key not found ($SaKey); Python provisioning will use ambient ADC (may lack BigQuery perms)" -ForegroundColor Yellow
+}
+
+# (0) One-time GCP provisioning (idempotent). Guarded by -Provision so normal redeploys skip it.
+#     Order matters: IAM first (so the runtime SA can read secrets & call every GCP path),
+#     then secrets, then Firestore + BigQuery backing stores (DB exists before the app boots).
+#     NOTE: Pub/Sub provisioning is intentionally NOT here - provision_pubsub.py deploys the
+#     publisher Cloud Run Job, which needs the induspot-api image to already exist. It therefore
+#     runs AFTER the backend deploy at step (a2), also gated by -Provision. Canonical one-time
+#     activation is:  .\deploy.ps1 -Backend -Provision   (provision -> deploy -> pubsub, in order).
+#     The Python scripts run from apps/api (they read .env / import app.core.config relative to that dir).
+#     All scripts are idempotent (get-or-create + AlreadyExists guarded) and print *_OK on success.
+if ($Provision) {
+  Step "(0) GCP provisioning (-Provision): IAM -> secrets -> Firestore -> BigQuery (Pub/Sub runs post-deploy at a2)"
+  Push-Location apps/api
+  try {
+    & $VenvPy scripts/grant_runtime_iam.py
+    if ($LASTEXITCODE -ne 0) { throw "grant_runtime_iam.py failed (exit $LASTEXITCODE)" }
+    & $VenvPy scripts/setup_secrets.py
+    if ($LASTEXITCODE -ne 0) { throw "setup_secrets.py failed (exit $LASTEXITCODE)" }
+    & $VenvPy scripts/provision_firestore.py
+    if ($LASTEXITCODE -ne 0) { throw "provision_firestore.py failed (exit $LASTEXITCODE)" }
+    # provision_bigquery / load_bq below authenticate as the SA key (GOOGLE_APPLICATION_CREDENTIALS).
+    # The firebase-adminsdk SA has NO BigQuery permissions by default, so grant them here as the owner
+    # gcloud account (idempotent). dataEditor = datasets/tables/models.create + tables.updateData;
+    # jobUser = jobs.create (BQML training + data loads). SA email is derived from the key file.
+    if (Test-Path $SaKey) {
+      $SaEmail = (Get-Content $SaKey -Raw | ConvertFrom-Json).client_email
+      foreach ($r in @("roles/bigquery.dataEditor", "roles/bigquery.jobUser")) {
+        & $Gcloud projects add-iam-policy-binding $ProjectId --member="serviceAccount:$SaEmail" --role=$r --condition=None --format=none --quiet | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Host "  WARN could not grant $r to $SaEmail (continuing)" -ForegroundColor Yellow }
+      }
+      Ok "BigQuery roles ensured for provisioning SA ($SaEmail); waiting ~15s for IAM propagation"
+      Start-Sleep -Seconds 15
+    }
+    # Load Supabase -> BigQuery history (BQML training data). Non-fatal: even on failure/0 rows, provisioning
+    # continues; BQML can be (re)trained later once data accumulates (provision_bigquery skips the model step non-fatally).
+    & $VenvPy scripts/load_bq.py
+    if ($LASTEXITCODE -ne 0) { Write-Host "  WARN load_bq.py failed (exit $LASTEXITCODE) - retry BQML training after loading data" -ForegroundColor Yellow }
+    & $VenvPy scripts/provision_bigquery.py
+    if ($LASTEXITCODE -ne 0) { throw "provision_bigquery.py failed (exit $LASTEXITCODE)" }
+  } finally {
+    Pop-Location
+  }
+  Ok "Provisioning complete (IAM_OK / SECRETS_OK / FIRESTORE_PROVISION_OK / BQML_OK or BQML_DEFERRED if no data yet)"
+}
+
 # (a) Cloud Run (backend)
 if ($Backend) {
-  Step "(a) Cloud Run deploy ($Service) - existing secrets/env preserved"
-  & $Gcloud run deploy $Service --source apps/api --region $Region --project $ProjectId --quiet
+  Step "(a) Cloud Run deploy ($Service) - merges AI/OIDC env + Secret Manager secrets (other env preserved)"
+  # --update-env-vars (NOT --set-env-vars) merges these keys without wiping existing env:
+  #   VERTEX_ENDPOINT_ID  -> flips congestion prediction from GCS-pickle fallback to a real Vertex online RPC
+  #   GEMINI_ENABLED      -> turns on Vertex Gemini reasoning (fallback = template)
+  #   EMBEDDING_ENABLED   -> turns on Vertex text-embedding semantic search for the voice menu filter
+  #                          (reads facility_embeddings in Firestore; seed via apps/api/scripts/seed_facility_embeddings.py)
+  #   PUBSUB_PUSH_*       -> turns on OIDC verification on /ingest/pubsub (empty would skip it)
+  # --update-secrets sources the Supabase/JWT/GCS values from Secret Manager (audit: live revision lacked these).
+  # If a prior revision set these 5 keys as PLAIN env vars, Cloud Run refuses to flip literal -> secret in one
+  # update ("already set with a different type"). Strip any literal copies first (non-fatal: service may be new,
+  # vars may already be secrets, or absent). The app still boots because config.load_gcp_secrets() reads them
+  # from Secret Manager at startup (runtime SA has secretAccessor).
+  & $Gcloud run services update $Service --region $Region --project $ProjectId --quiet `
+      --remove-env-vars SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,JWT_SECRET,GCS_BUCKET_NAME
+  if ($LASTEXITCODE -ne 0) { Write-Host "  (note) strip literal env vars skipped/no-op (new service, already secrets, or absent)" -ForegroundColor DarkGray }
+  & $Gcloud run deploy $Service --source apps/api --region $Region --project $ProjectId --quiet `
+      --update-env-vars VERTEX_ENDPOINT_ID=2992545745120264192,GEMINI_ENABLED=true,EMBEDDING_ENABLED=true,PUBSUB_PUSH_SERVICE_ACCOUNT=768699236852-compute@developer.gserviceaccount.com,PUBSUB_PUSH_AUDIENCE=https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub `
+      --update-secrets SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,JWT_SECRET=JWT_SECRET:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest
   if ($LASTEXITCODE -ne 0) { throw "Cloud Run deploy failed (exit $LASTEXITCODE)" }
   Ok "Cloud Run deployed"
+
+  # (a2) Pub/Sub provisioning (topic + push sub + run.invoker + publisher Job/Scheduler).
+  #      Gated by -Provision (one-time setup), and runs AFTER the deploy above so the service image
+  #      exists (publisher Cloud Run Job needs it) and the live URL is reachable for the push subscription.
+  #      Routine '.\deploy.ps1 -Backend' redeploys skip this heavy, already-idempotent step.
+  if ($Provision) {
+    Step "(a2) Pub/Sub provisioning (topic + push sub + run.invoker + publisher Job/Scheduler)"
+    Push-Location apps/api
+    try {
+      & $VenvPy scripts/provision_pubsub.py
+      if ($LASTEXITCODE -ne 0) { throw "Pub/Sub provisioning failed (exit $LASTEXITCODE)" }
+    } finally { Pop-Location }
+    Ok "Pub/Sub provisioned"
+  }
+
+  # (a3) BigQuery provisioning (idempotent: dataset + congestion_logs + BQML ARIMA_PLUS + lookup).
+  #      Left as a documented MANUAL step (not auto-run): ARIMA_PLUS training takes minutes and must
+  #      not block every backend deploy. Safe to re-run when the model needs (re)training.
+  Step "(a3) BigQuery provision (run manually if model needs retrain): cd apps/api; poetry run python scripts/provision_bigquery.py  -> expect 'BQML_OK'"
 }
 
 # (b) API Gateway (when openapi changed)
@@ -91,6 +195,22 @@ if ($Frontend) {
   & npx --yes firebase-tools@latest deploy --only "hosting:induspot" --project $ProjectId --non-interactive
   if ($LASTEXITCODE -ne 0) { throw "Firebase deploy failed (exit $LASTEXITCODE)" }
   Ok "Frontend deployed -> https://induspot.web.app"
+}
+
+# (d) Streaming processing (OPTIONAL, heavier) - separate managed Dataflow job, NOT part of the Cloud Run image.
+#     apache-beam is deliberately excluded from apps/api/requirements.txt; this launches the persistent
+#     streaming job 'induspot-congestion-windowing' via the dedicated beam venv. Re-run is idempotent
+#     (the launcher uses a fixed job name; pass --update to roll out changes with no downtime).
+if ($WithStreaming) {
+  Step "(d) Dataflow streaming job (induspot-congestion-windowing) - optional, billed continuously"
+  $BeamPython = Join-Path $PSScriptRoot "apps\api\.venv_beam\Scripts\python.exe"
+  if (-not (Test-Path $BeamPython)) { throw "beam venv python not found: $BeamPython  (run: python -m venv apps/api/.venv_beam; .\apps\api\.venv_beam\Scripts\python -m pip install -r apps/api/dataflow/requirements.txt)" }
+  Push-Location (Join-Path $PSScriptRoot "apps\api")
+  try {
+    & $BeamPython "dataflow\launch_dataflow.py"
+    if ($LASTEXITCODE -ne 0) { throw "Dataflow launch failed (exit $LASTEXITCODE) - if the job already exists, re-run the launcher with --update" }
+  } finally { Pop-Location }
+  Ok "Dataflow streaming job submitted (check the Dataflow console for RUNNING state)"
 }
 
 Write-Host "`n=== Deploy complete. Hard-refresh the browser (Ctrl+Shift+R) ===" -ForegroundColor Green

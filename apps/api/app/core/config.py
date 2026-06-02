@@ -34,12 +34,17 @@ class Settings(BaseSettings):
     # 추천 사유 생성 모델. 비어 있으면 WP3 비활성화(=템플릿 폴백).
     GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     GEMINI_ENABLED: bool = False
-    GEMINI_TIMEOUT_SECONDS: float = 4.0
+    # 콜드 스타트(Cloud Run 스케일제로 후 첫 호출)는 모델 첫 추론이 4초를 넘겨 timeout→unknown 이 된다.
+    # 워밍업 후엔 ~1~2초라 평소 영향 없음. 첫 호출 안정성 위해 헤드룸 확보.
+    GEMINI_TIMEOUT_SECONDS: float = 8.0
 
     # --- BigQuery Settings (WP2) ---
     BQ_DATASET: str = "induspot"
     # 리전은 Vertex/Cloud Run과 통일(us-central1). BQML ARIMA_PLUS 지원 리전.
     BQ_LOCATION: str = "us-central1"
+    # 공유 BigQuery 헬퍼(core.bigquery)가 쓰는 테이블명. 스트리밍 인서트 싱크 + 예측 lookup.
+    BQ_CONGESTION_TABLE: str = "congestion_logs"
+    BQ_FORECAST_TABLE: str = "congestion_forecast_lookup"
 
     # --- Pub/Sub Settings (WP4) ---
     PUBSUB_TOPIC: str = "induspot-congestion"
@@ -53,6 +58,23 @@ class Settings(BaseSettings):
     # 8차원 선호 벡터를 user_id 로 저장/조회(KV). ADC 인증, 기본 DB 사용.
     FIRESTORE_DATABASE: str = "(default)"
     FIRESTORE_COLLECTION: str = "user_preference_vectors"
+
+    # --- 의미 검색 임베딩 (음성 필터 retrieval; RAG의 검색 단계) ---
+    # 식당 프로필(이름+종류+대표메뉴)을 Vertex 임베딩으로 벡터화해 Firestore 에 저장하고,
+    # 발화("짜장면 먹고싶어")를 임베딩해 코사인 최근접으로 후보를 좁힌다(Gemini=의도/대화 분리).
+    # 비어 있으면(False) 음성 필터는 Gemini match_ids 만 사용(임베딩 미사용).
+    EMBEDDING_ENABLED: bool = False
+    # Vertex 다국어 텍스트 임베딩 모델(한국어 지원, 768차원).
+    EMBEDDING_MODEL: str = "text-multilingual-embedding-002"
+    # 콜드 스타트 첫 임베딩 호출 헤드룸(모델 init 은 타임아웃 밖이지만 첫 RPC 가 느릴 수 있음).
+    EMBEDDING_TIMEOUT_SECONDS: float = 6.0
+    # 식당 문서 벡터 캐시 컬렉션. seed 스크립트가 채우고 런타임이 읽어 캐시한다.
+    FIRESTORE_EMBEDDING_COLLECTION: str = "facility_embeddings"
+    # 필터 선택 규칙: 절대 임계값이 아니라 '최고점 대비 margin' 안의 후보를 top_k 개까지.
+    # (다국어 임베딩 코사인은 0.6~0.82 로 압축돼 절대 임계값은 변별력이 없음 — 실측 보정값.
+    #  margin 0.04 = '고깃집' 확장검색이 실제 고깃집 2곳만 집고 닭갈비/곱창집은 배제하는 지점)
+    VOICE_VECTOR_MARGIN: float = 0.04
+    VOICE_VECTOR_TOPK: int = 3
 
     # Kakao Mobility Directions API (도보/차량 실거리·실시간 이동시간).
     # 비어 있으면 Haversine 직선거리 도보 환산으로 폴백(기본). 키가 있으면 실경로 호출.

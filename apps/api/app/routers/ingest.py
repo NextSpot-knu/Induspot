@@ -121,9 +121,9 @@ async def ingest_pubsub(request: Request):
     if payload.get("ts"):
         row["timestamp"] = payload["ts"]
 
-    try:
-        import asyncio
+    import asyncio
 
+    try:
         await asyncio.to_thread(
             supabase_client.table("congestion_logs").insert(row).execute
         )
@@ -132,6 +132,15 @@ async def ingest_pubsub(request: Request):
         # 5xx 를 주면 Pub/Sub 가 재전송 → 일시 장애엔 적절하나 영구 오류엔 폭주.
         # 여기서는 500 으로 재시도 유도. 멱등 마킹은 성공 후에만 하므로(아래) 재시도가 무력화되지 않는다.
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="적재 실패")
+
+    # WP2 GCP-native 듀얼라이트: Supabase 적재가 확정된 뒤, 동일 row 를 BigQuery 에도 best-effort 적재한다.
+    # BQ 실패는 200/멱등 의미에 절대 영향을 주지 않는다(로그만 남기고 무시). Supabase 가 진실원.
+    try:
+        from app.core.bigquery import insert_congestion_rows
+
+        await asyncio.to_thread(insert_congestion_rows, [row])
+    except Exception as e:
+        logger.warning("pubsub_bq_dualwrite_failed", error=str(e), facility_id=facility_id)
 
     # 적재가 확정된 뒤에만 messageId 를 '처리됨'으로 등록 → 일시 장애로 실패한 메시지의 영구 유실 방지.
     _mark_processed(message_id)

@@ -219,6 +219,7 @@ export async function parsePreference(text: string): Promise<ParsePreferenceResu
 export interface VoiceTurnCandidate {
   id: string;
   name: string;
+  cuisine?: string[] | string | null; // 식당 종류(한식/중식/일식/양식/분식 등) — Gemini 메뉴/종류 매칭용
   congestion?: number; // 0~1
   distanceM?: number;
 }

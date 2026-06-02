@@ -67,4 +67,13 @@ apps/api/deploy_vertex.log
 
 # supabase cli temp
 supabase/.temp/
-scratch/
+scratch/
+
+# GCP service-account key files (never commit plaintext SA keys).
+# Scoped to repo root so the broad dotted-JSON glob can't swallow nested config JSON that must stay tracked.
+/*-*.json
+/knudc-*.json
+
+# Stray env files beyond the committed .example templates (belt-and-suspenders; .env* already ignored above)
+*.env
+!*.env.example

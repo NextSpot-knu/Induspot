@@ -1,16 +1,15 @@
 """WP2 — Supabase `congestion_logs` → BigQuery `induspot.congestion_logs` 적재.
 
-스키마 매핑(중요): Supabase 실제 컬럼명과 BQ 목표 스키마가 다르다.
-  Supabase: facility_id, timestamp,          current_count, congestion_level, source
-  BigQuery: facility_id, ts(TIMESTAMP),       (드롭),         congestion(FLOAT64), source
-  + facilities 조인으로 facility_type(병합 규칙 적용) 추가.
-
-BQ 테이블 스키마:
-  facility_id STRING, facility_type STRING, ts TIMESTAMP, congestion FLOAT64, source STRING
+스키마(공유 계약과 일치 — app.core.bigquery.insert_congestion_rows / scripts/provision_bigquery.py
+/ scripts/_provision_infra.py 와 동일):
+  facility_id STRING, congestion_level FLOAT64, current_count INT64, source STRING, timestamp TIMESTAMP
+Supabase 컬럼명과 1:1 이므로 변환 없이 매핑한다. (과거의 ts/congestion/facility_type 변형 스키마는 폐기:
+세 스크립트가 같은 테이블을 서로 다른 스키마로 만들면 먼저 생성한 쪽이 고착돼 스트리밍 인서트와
+BQML 학습 SELECT(timestamp/congestion_level)가 깨졌다.)
 
 적재 모드:
   --mode full         : BQ 테이블을 비우고 전량 재적재 (기본)
-  --mode incremental  : BQ의 max(ts) 이후 신규 로그만 추가
+  --mode incremental  : BQ의 max(timestamp) 이후 신규 로그만 추가
 
 실행:
   cd apps/api
@@ -18,14 +17,13 @@ BQ 테이블 스키마:
 
 사전 셋업:
   gcloud services enable bigquery.googleapis.com
-  # SA 에 roles/bigquery.jobUser + roles/bigquery.dataEditor
-  # 데이터셋은 본 스크립트가 없으면 생성한다(리전 = settings.BQ_LOCATION).
+  # 실행 SA 에 roles/bigquery.jobUser + roles/bigquery.dataEditor
+  # 데이터셋/테이블은 없으면 본 스크립트가 생성한다(provision_bigquery.py 와 동일 계약 스키마).
 """
 
 import os
 import sys
 import argparse
-from datetime import datetime
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -41,27 +39,14 @@ from app.core.config import settings  # noqa: E402
 TABLE_NAME = "congestion_logs"
 
 
-def normalize_facility_type(facility_type: str) -> str:
-    if facility_type in ["restaurant", "cafe"]:
-        return "cafeteria"
-    elif facility_type == "gym":
-        return "loading_dock"
-    elif facility_type == "office":
-        return "meeting_room"
-    elif facility_type in ["rest_area", "lounge"]:
-        return "loading_dock"  # 휴게 공간 학습 버킷 = loading_dock
-    elif facility_type in ["cafeteria", "parking", "meeting_room", "loading_dock"]:
-        return facility_type
-    return facility_type
-
-
 def _bq_schema(bigquery):
+    """공유 계약 스키마. 스트리밍 인서트 호환을 위해 모두 NULLABLE."""
     return [
-        bigquery.SchemaField("facility_id", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("facility_type", "STRING", mode="NULLABLE"),
-        bigquery.SchemaField("ts", "TIMESTAMP", mode="REQUIRED"),
-        bigquery.SchemaField("congestion", "FLOAT64", mode="REQUIRED"),
+        bigquery.SchemaField("facility_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("congestion_level", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("current_count", "INT64", mode="NULLABLE"),
         bigquery.SchemaField("source", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("timestamp", "TIMESTAMP", mode="NULLABLE"),
     ]
 
 
@@ -83,11 +68,6 @@ def ensure_dataset_and_table(client, bigquery, table_ref):
         print(f"Created table {table_ref}")
 
 
-def fetch_facility_types(supabase) -> dict:
-    res = supabase.table("facilities").select("id, type").execute()
-    return {f["id"]: normalize_facility_type(f["type"]) for f in (res.data or [])}
-
-
 def fetch_supabase_logs(supabase, since_iso: str | None) -> list:
     rows = []
     limit = 1000
@@ -95,7 +75,7 @@ def fetch_supabase_logs(supabase, since_iso: str | None) -> list:
     while True:
         q = (
             supabase.table("congestion_logs")
-            .select("facility_id, timestamp, congestion_level, source")
+            .select("facility_id, timestamp, congestion_level, current_count, source")
         )
         if since_iso:
             q = q.gt("timestamp", since_iso)
@@ -111,16 +91,16 @@ def fetch_supabase_logs(supabase, since_iso: str | None) -> list:
 
 def get_bq_max_ts(client, table_ref) -> str | None:
     try:
-        query = f"SELECT MAX(ts) AS max_ts FROM `{table_ref}`"
+        query = f"SELECT MAX(`timestamp`) AS max_ts FROM `{table_ref}`"
         for row in client.query(query).result():
             if row["max_ts"] is not None:
                 return row["max_ts"].isoformat()
     except Exception as e:
-        print(f"max(ts) 조회 실패(테이블 비어있거나 신규일 수 있음): {e}")
+        print(f"max(timestamp) 조회 실패(테이블 비어있거나 신규일 수 있음): {e}")
     return None
 
 
-def to_bq_rows(logs: list, facility_types: dict) -> list:
+def to_bq_rows(logs: list) -> list:
     out = []
     for log in logs:
         fid = log.get("facility_id")
@@ -128,12 +108,13 @@ def to_bq_rows(logs: list, facility_types: dict) -> list:
         cong = log.get("congestion_level")
         if not fid or ts is None or cong is None:
             continue
+        cnt = log.get("current_count")
         out.append({
             "facility_id": fid,
-            "facility_type": facility_types.get(fid),
-            "ts": ts,
-            "congestion": float(cong),
+            "congestion_level": float(cong),
+            "current_count": int(cnt) if cnt is not None else None,
             "source": log.get("source"),
+            "timestamp": ts,
         })
     return out
 
@@ -159,30 +140,29 @@ def main():
 
     ensure_dataset_and_table(client, bigquery, table_ref)
 
+    if args.mode == "full":
+        # 전량 재적재: 기존 테이블(이전 세션의 구 스키마 ts/congestion/facility_type 일 수 있음)을 DROP 후
+        # 계약 스키마로 재생성한다. TRUNCATE 는 스키마를 유지하므로 구 스키마와 계약(timestamp/congestion_level)
+        # 이 충돌해 적재(400 Field ts is missing)와 BQML(Unrecognized name: congestion_level)이 깨진다.
+        client.query(f"DROP TABLE IF EXISTS `{table_ref}`").result()
+        client.create_table(bigquery.Table(table_ref, schema=_bq_schema(bigquery)))
+        print("RECREATE TABLE (full 모드: 계약 스키마로 재생성)")
+
     since_iso = None
     if args.mode == "incremental":
         since_iso = get_bq_max_ts(client, table_ref)
-        print(f"Incremental 모드: ts > {since_iso} 인 로그만 적재")
-
-    print("Fetching facility types...")
-    facility_types = fetch_facility_types(supabase)
-    print(f"  {len(facility_types)} facilities")
+        print(f"Incremental 모드: timestamp > {since_iso} 인 로그만 적재")
 
     print("Fetching congestion logs from Supabase...")
     logs = fetch_supabase_logs(supabase, since_iso)
     print(f"  {len(logs)} logs")
 
-    rows = to_bq_rows(logs, facility_types)
+    rows = to_bq_rows(logs)
     if not rows:
         print("적재할 행이 없습니다. 종료.")
         return
 
-    if args.mode == "full":
-        # 전량 재적재: 테이블 truncate 후 적재
-        client.query(f"TRUNCATE TABLE `{table_ref}`").result()
-        print("TRUNCATE 완료 (full 모드)")
-
-    # load_table_from_json: WRITE_APPEND
+    # load_table_from_json: WRITE_APPEND (full 모드는 위에서 DROP+재생성한 빈 테이블에, incremental 은 기존 테이블에 append)
     job_config = bigquery.LoadJobConfig(
         schema=_bq_schema(bigquery),
         write_disposition="WRITE_APPEND",

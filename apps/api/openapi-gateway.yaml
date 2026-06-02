@@ -158,6 +158,38 @@ paths:
       responses:
         204: { description: "No Content" }
 
+  /api/v1/forecast/congestion:
+    get:
+      summary: "BQML precomputed forecast for one facility"
+      operationId: "forecastCongestion"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/forecast/congestion"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "forecastCongestionOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/forecast/congestion"
+      responses:
+        204: { description: "No Content" }
+
+  /api/v1/forecast/heatmap:
+    get:
+      summary: "BQML precomputed forecast heatmap (all facilities)"
+      operationId: "forecastHeatmap"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/forecast/heatmap"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "forecastHeatmapOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/forecast/heatmap"
+      responses:
+        204: { description: "No Content" }
+
   /predict:
     post:
       summary: "Single congestion prediction"
