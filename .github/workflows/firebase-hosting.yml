@@ -22,9 +22,19 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Site
-        # CI는 webpack 으로 빌드: Next 16 기본 Turbopack 콜드 빌드가 러너에서 간헐 실패(배포 실패)하던
-        # 문제를 회피한다(로컬 개발은 그대로 Turbopack 기본 사용). 메모리 헤드룸도 부여.
-        run: npm run build --workspace=apps/web -- --webpack
+        # 배포 실패 원인: layout.tsx 의 next/font/google(Geist·Geist_Mono·Noto_Sans_KR)이 빌드 시
+        # 구글 폰트를 네트워크로 받는데 러너에서 그 fetch 가 간헐 실패 → 컴파일이 빠르게(약 11초) 깨짐
+        # (로컬은 캐시/정상 네트워크라 통과). 번들러 무관이라 최대 3회 재시도로 흡수한다.
+        run: |
+          for i in 1 2 3; do
+            echo "===== web build attempt $i ====="
+            if npm run web:build; then exit 0; fi
+            echo "attempt $i failed — clean .next, backoff, retry"
+            rm -rf apps/web/.next
+            sleep 8
+          done
+          echo "web build failed after 3 attempts"
+          exit 1
         env:
           NODE_OPTIONS: --max-old-space-size=6144
           NEXT_PUBLIC_API_GATEWAY_URL: "https://induspot-gateway-9t4vof78.uc.gateway.dev"
