@@ -22,18 +22,23 @@ jobs:
         run: npm ci
 
       - name: Build Next.js Static Site
-        # 배포 실패 원인: layout.tsx 의 next/font/google(Geist·Geist_Mono·Noto_Sans_KR)이 빌드 시
-        # 구글 폰트를 네트워크로 받는데 러너에서 그 fetch 가 간헐 실패 → 컴파일이 빠르게(약 11초) 깨짐
-        # (로컬은 캐시/정상 네트워크라 통과). 번들러 무관이라 최대 3회 재시도로 흡수한다.
+        # 빌드 실패 시 에러 핵심 라인을 ::error:: annotation 으로 내보낸다(로그 admin 권한 없이도
+        # check-run annotations API 로 실제 원인을 확인하기 위함). 폰트 fetch 등 일시 실패 대비 2회 시도.
         run: |
-          for i in 1 2 3; do
-            echo "===== web build attempt $i ====="
-            if npm run web:build; then exit 0; fi
-            echo "attempt $i failed — clean .next, backoff, retry"
+          set +e
+          attempt=0
+          while [ $attempt -lt 2 ]; do
+            attempt=$((attempt+1))
+            echo "===== web build attempt $attempt ====="
+            npm run web:build 2>&1 | tee build.log
+            code=${PIPESTATUS[0]}
+            [ $code -eq 0 ] && exit 0
             rm -rf apps/web/.next
-            sleep 8
           done
-          echo "web build failed after 3 attempts"
+          echo "=== build failed — emitting error annotations ==="
+          grep -niE "error|fail|cannot|not found|exceeded|heap|out of memory|Module not found|ENOENT|EACCES|killed|next/font" build.log | tail -12 | while IFS= read -r ln; do
+            echo "::error::$(echo "$ln" | tr -d '\r' | cut -c1-300)"
+          done
           exit 1
         env:
           NODE_OPTIONS: --max-old-space-size=6144
