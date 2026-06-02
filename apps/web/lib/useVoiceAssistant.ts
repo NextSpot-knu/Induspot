@@ -7,7 +7,6 @@
 // 정적 export(SSR) 안전: 모든 Web Speech 접근은 이벤트/이펙트 내부 + typeof window 가드.
 // 폴백 우선: TTS/STT 미지원·마이크 거부 시 graceful(데모 무중단).
 import { useEffect, useRef, useState } from "react";
-import { classifyIntent } from "./voiceIntent";
 
 // ── Google Cloud Text-to-Speech (REST) ──
 // 정적 프론트에서 리퍼러 제한 API 키로 직접 호출(백엔드 재배포 불필요). 키 미설정 시 비활성 →
@@ -36,6 +35,13 @@ async function synthesizeCloudTTS(text: string): Promise<string | null> {
 
 export type VoiceState = "idle" | "speaking" | "listening" | "thinking";
 
+/** 백엔드(Vertex Gemini)가 해석한 음성 1턴 결과 */
+export interface VoiceTurn {
+  action: string; // accept|next|reject|details|select|stop|unknown
+  targetId?: string | null; // select 일 때 고른 시설 id
+  spoken?: string | null; // Gemini 생성 한국어 응답
+}
+
 export interface VoiceAssistantOptions<T> {
   getName: (item: T) => string;
   getReason: (item: T) => string;
@@ -45,6 +51,10 @@ export interface VoiceAssistantOptions<T> {
   onAccept: (item: T) => void;
   /** "다음/별로" 의도 → 다음 카드(부모가 현재 카드를 교체) */
   onNext: (item: T) => void;
+  /** Gemini가 고른 시설로 전환(선호 매칭). spoken을 새 카드의 사유로 쓰면 자연스럽다. */
+  onSelect?: (id: string, spoken?: string) => void;
+  /** 사용자 발화를 Gemini로 해석(없으면 최소 키워드 폴백). 카드 정보로 후보를 만들어 백엔드 호출. */
+  interpret?: (utterance: string, item: T) => Promise<VoiceTurn>;
 }
 
 export interface VoiceAssistant<T> {
@@ -254,40 +264,70 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     }
   };
 
-  const handleIntent = (alts: string[]) => {
+  // 최소 키워드 폴백 — interpret(백엔드 Gemini) 미제공/네트워크 실패 시에만. 풍부한 분류는 Gemini가 한다.
+  const localAction = (text: string): string => {
+    const t = (text || "").toLowerCase();
+    if (/그만|됐어|중지|중단|스톱|멈춰/.test(t)) return "stop";
+    if (/별로|싫|다음|다른|넘|패스|스킵|말고/.test(t)) return "next";
+    if (/응|네|그래|좋|가자|갈래|여기|안내|수락|콜/.test(t)) return "accept";
+    if (/자세|정보|얼마|대기|거리|도보/.test(t)) return "details";
+    return "unknown";
+  };
+
+  // 사용자 발화 1턴을 처리. 1순위: 백엔드 Vertex Gemini(interpret) — 의도 분류 + 선호 매칭 select.
+  const handleIntent = async (alts: string[]) => {
     if (stateRef.current === "idle") return;
     const item = itemRef.current;
     if (!item) { finish(); return; }
     setVoiceState("thinking");
     repromptRef.current = 0;
     const o = optsRef.current;
-    const intent = classifyIntent(alts);
-    switch (intent) {
+    const utterance = alts[0] || "";
+
+    let turn: VoiceTurn;
+    try {
+      turn = o.interpret ? await o.interpret(utterance, item) : { action: localAction(utterance) };
+    } catch {
+      turn = { action: localAction(utterance) }; // 네트워크/Gemini 실패 폴백
+    }
+    if ((stateRef.current as VoiceState) === "idle") return; // 해석 대기(await) 중 취소/정지됐으면 중단
+    if (itemRef.current !== item) return; // 해석 중 카드가 바뀌었으면(새 카드 narrate 중) 이 턴 폐기(stale)
+
+    const action = (turn.action || "unknown").toLowerCase();
+    switch (action) {
+      case "stop":
       case "cancel":
-        finish("음성 안내를 마칠게요.");
+        finish(turn.spoken || "음성 안내를 마칠게요.");
         break;
       case "accept": {
-        const msg = "알겠어요, 여기로 안내할게요!";
+        const msg = turn.spoken || "알겠어요, 여기로 안내할게요!";
         setVoiceState("speaking"); setCaption(msg);
-        // 확인 멘트를 끝까지 들려준 뒤 길안내. 들려준 후 정리.
         speak(msg, () => { o.onAccept(item); finish(); });
         break;
       }
-      case "detail": {
-        const msg = (o.getDetail && o.getDetail(item)) || `${o.getName(item)} 정보를 다시 안내할게요. 여기로 안내할까요?`;
+      case "select":
+        // Gemini가 선호에 맞는 시설을 골랐다. onSelect가 카드를 바꾸면(또는 spoken을 사유로 갱신)
+        // notifyItem이 새 카드를 narrate. 별도 발화 안 함(이중 방지).
+        try { recRef.current?.abort?.(); } catch { /* noop */ }
+        if (turn.targetId && o.onSelect) o.onSelect(turn.targetId, turn.spoken || undefined);
+        else o.onNext(item);
+        break;
+      case "details": {
+        const msg = turn.spoken || (o.getDetail && o.getDetail(item)) || `${o.getName(item)} 정보를 다시 안내할게요. 여기로 안내할까요?`;
         setVoiceState("speaking"); setCaption(msg);
         speak(msg, () => scheduleListen());
         break;
       }
       case "next":
+      case "reject":
       case "negative":
-      case "rejectAll":
-        // 다음 카드로. onNext가 부모 상태를 바꾸면 notifyItem이 새 카드를 자동 발화한다(이중 발화 방지).
-        try { recRef.current?.abort?.(); } catch { /* noop */ } // 잔여 STT 정리(새 발화 전)
+        // 다음 카드로. notifyItem이 새 카드를 narrate(이중 발화 방지 — spoken 별도 발화 안 함).
+        try { recRef.current?.abort?.(); } catch { /* noop */ }
         o.onNext(item);
         break;
       default: // unknown
-        reprompt();
+        if (turn.spoken) { setVoiceState("speaking"); setCaption(turn.spoken); speak(turn.spoken, () => scheduleListen()); }
+        else reprompt();
     }
   };
 

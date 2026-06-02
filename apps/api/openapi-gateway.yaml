@@ -62,6 +62,22 @@ paths:
       responses:
         204: { description: "No Content" }
 
+  /api/v1/voice/turn:
+    post:
+      summary: "Interpret a voice-assistant turn (Vertex Gemini)"
+      operationId: "voiceTurn"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/voice/turn"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "voiceTurnOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/voice/turn"
+      responses:
+        204: { description: "No Content" }
+
   /api/v1/feedback:
     post:
       summary: "Submit recommendation feedback"

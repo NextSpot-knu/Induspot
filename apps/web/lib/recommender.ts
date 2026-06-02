@@ -118,52 +118,6 @@ export function scoreFacility(facility: any, opts: ScoreOpts): Tttv {
   };
 }
 
-const TYPE_KO: Record<string, string> = {
-  cafeteria: "식당",
-  parking: "주차장",
-  meeting_room: "회의실",
-  rest_area: "휴게실",
-  loading_dock: "휴게실",
-};
-
-// 그럴듯한 한국어 추천 사유(데모/폴백용). 백엔드 Gemini 사유와 어투를 맞춘다.
-export function buildReason(facility: any, tttv: Tttv): string {
-  const name = facility?.name || "이 시설";
-  const cong = facility?.congestionLevel ?? 0;
-  const congPct = Math.round(cong * 100);
-  const congLabel = cong >= 0.75 ? "혼잡" : cong >= 0.5 ? "보통" : cong >= 0.25 ? "여유" : "한산";
-
-  const bits: string[] = [];
-  bits.push(`도보 ${Math.max(1, Math.round(tttv.expectedTravel))}분`);
-  if (facility?.type === "parking") {
-    const cap = facility?.capacity ?? 0;
-    const cur = facility?.currentCount ?? Math.round(cap * cong);
-    bits.push(`빈자리 약 ${Math.max(0, cap - cur)}면`);
-  } else {
-    bits.push(`예상 대기 ${Math.round(tttv.expectedWait)}분`);
-  }
-  bits.push(`혼잡도 ${congPct}%(${congLabel})`);
-
-  // 혼잡(>=0.75)이면 이 시설을 추천하지 않고, 혼잡·대기를 솔직히 알리고 대안을 권한다.
-  let tail: string;
-  if (cong >= 0.75) {
-    tail =
-      facility?.type === "parking"
-        ? "지금은 자리가 거의 없어 다른 주차장을 살펴보는 게 좋아요."
-        : "지금은 붐벼 대기가 길 수 있으니 잠시 후 방문하거나 다른 곳을 살펴보세요.";
-  } else if (tttv.preferencePercent >= 70) {
-    tail = `취향 일치율 ${tttv.preferencePercent}%로 선호와 잘 맞아요.`;
-  } else if (cong < 0.25) {
-    tail = "지금이 가장 한산해 바로 이용하기 좋아요.";
-  } else if (facility?.type !== "parking" && tttv.expectedWait <= 5) {
-    tail = "대기 거의 없이 이용할 수 있어요.";
-  } else {
-    tail = "지금 균형이 가장 좋아 추천드려요.";
-  }
-
-  return `${name}: ${bits.join(", ")} 수준으로 ${tail}`;
-}
-
 export function compareTttv(a: any, b: any): number {
   const at = a.tttv,
     bt = b.tttv;
@@ -179,7 +133,7 @@ export function compareTttv(a: any, b: any): number {
 export function rankFacilities(facilities: any[], opts: ScoreOpts): any[] {
   const scored = facilities.map((f) => {
     const tttv = scoreFacility(f, opts);
-    return { ...f, tttv, reason: f.reason || buildReason(f, tttv) };
+    return { ...f, tttv, reason: f.reason || "" }; // 사유는 백엔드 Gemini(f.reason)만. 하드코딩 템플릿 제거.
   });
   scored.sort(compareTttv);
   return scored;

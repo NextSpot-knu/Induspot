@@ -3,7 +3,7 @@ import asyncio
 from typing import Literal
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 # 이 라우터는 인증된 사용자 컨텍스트에서 본인 소유 데이터만 다루는 서버→서버 신뢰 경로다.
 # recommendations/user_feedback 는 RLS 가 service_role/authenticated 만 INSERT 를 허용하는데,
 # anon 클라이언트는 요청별 JWT 를 PostgREST 로 싣지 않아 auth.uid()=null → RLS 거부가 된다.
@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.core.supabase import supabase_admin as supabase_client, get_current_user
 from app.services.preference_vector_service import preference_vector_service
 from app.services.reason_service import generate_reason
+from app.services.voice_intent_service import interpret_turn
 from app.services.tttv.score import calculate_tttv_score
 from app.services.tttv.travel import calculate_haversine_distance, WALKING_SPEED_M_PER_MIN
 from app.services.tttv.preference import CATEGORY_VECTORS, get_category_average_vector
@@ -331,6 +332,32 @@ async def recommend_by_type(
         )
         for idx, item in enumerate(top)
     ]
+
+
+# --- 음성 비서 1턴 해석(Vertex Gemini): 발화→의도 + 후보 선호매칭 선택 + 한국어 응답 ---
+# 무인증(텍스트/후보만 처리, 사용자 데이터 미접근). /predict 처럼 Cloud Run IAM + 게이트웨이가 보호.
+class VoiceTurnRequest(BaseModel):
+    # 무인증 엔드포인트 — 입력 크기 제한(과대 페이로드/프롬프트 비대화 방지). 출력은 _coerce 가 enum·후보 id 로 강제.
+    utterance: str = Field("", max_length=500)
+    facility_type: str = "cafeteria"
+    current_name: str | None = Field(None, max_length=120)
+    candidates: list[dict] = Field(default_factory=list, max_length=30)  # [{id, name, congestion(0~1), distance_m}]
+
+
+class VoiceTurnResponse(BaseModel):
+    action: str  # accept|next|reject|details|select|stop|unknown
+    target_facility_id: str | None = None  # select 일 때 후보 id
+    spoken: str | None = None  # Gemini 생성 한국어 응답(없으면 프런트가 자체 멘트)
+
+
+_VOICE_TYPE_KO = {"cafeteria": "식당", "parking": "주차장", "meeting_room": "회의실", "rest_area": "휴게실"}
+
+
+@router.post("/voice/turn", response_model=VoiceTurnResponse)
+async def voice_turn(req: VoiceTurnRequest):
+    type_ko = _VOICE_TYPE_KO.get(req.facility_type, "시설")
+    result = await interpret_turn(req.utterance, type_ko, req.current_name, req.candidates or [])
+    return VoiceTurnResponse(**result)
 
 
 @router.post("/feedback")

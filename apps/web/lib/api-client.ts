@@ -213,3 +213,37 @@ export interface ParsePreferenceResult {
 export async function parsePreference(text: string): Promise<ParsePreferenceResult> {
   return apiClient.post("/api/v1/preferences/parse", { text });
 }
+
+// --- 음성 비서 1턴 해석 (Vertex Gemini) ---
+
+export interface VoiceTurnCandidate {
+  id: string;
+  name: string;
+  congestion?: number; // 0~1
+  distanceM?: number;
+}
+
+export interface VoiceTurnResult {
+  action: string; // accept|next|reject|details|select|stop|unknown
+  targetFacilityId: string | null;
+  spoken: string | null; // Gemini 생성 한국어 응답(없으면 프런트 자체 멘트)
+}
+
+/**
+ * 음성 비서가 추천을 안내한 뒤 사용자의 자유발화 응답을 백엔드(Vertex Gemini)로 보내
+ * 의도(accept/next/reject/details/select/stop)를 분류하고, 선호 표현이면 후보 중 가장 맞는
+ * 시설(targetFacilityId)을 고르며, 한국어 응답(spoken)을 생성한다. 무인증 엔드포인트.
+ */
+export async function voiceTurn(
+  utterance: string,
+  facilityType: string,
+  currentName: string | null,
+  candidates: VoiceTurnCandidate[]
+): Promise<VoiceTurnResult> {
+  return apiClient.post("/api/v1/voice/turn", {
+    utterance,
+    facilityType,
+    currentName,
+    candidates,
+  });
+}

@@ -7,8 +7,8 @@ import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, 
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { createPublicClient } from '@/lib/supabase';
 import { getMarkerSvg } from '@/lib/utils';
-import { scoreFacility, compareTttv, rankFacilities, recToTttv, buildReason } from '@/lib/recommender';
-import { recommendByType } from '@/lib/api-client';
+import { scoreFacility, compareTttv, rankFacilities, recToTttv, haversineMeters } from '@/lib/recommender';
+import { recommendByType, voiceTurn } from '@/lib/api-client';
 import { useVoiceAssistant } from '@/lib/useVoiceAssistant';
 import VoiceAssistantOrb from '@/components/VoiceAssistantOrb';
 
@@ -449,7 +449,7 @@ export default function MainPage() {
               .map(r => {
                 const base = byId.get(r.facility.id);
                 const tttv = recToTttv(r);
-                return { ...base, tttv, reason: r.reason || buildReason(base, tttv) };
+                return { ...base, tttv, reason: r.reason || "" }; // 백엔드 Gemini 사유만
               });
           } catch (e) {
             console.warn("by-type 추천 실패 → 목업 미러로 폴백:", e);
@@ -592,7 +592,7 @@ export default function MainPage() {
           trafficStatus: fac.congestionLevel >= 0.75 ? 'orange' : fac.congestionLevel >= 0.50 ? 'yellow' : fac.congestionLevel >= 0.25 ? 'green' : 'blue',
           waitTime: `${tttv?.expectedWait || 0}분`,
           tttv: tttv,
-          reason: fac.reason || buildReason(fac, tttv)
+          reason: fac.reason || ""
         });
         localStorage.setItem('induspot_saved_facilities', JSON.stringify(bookmarks));
       }
@@ -663,7 +663,7 @@ export default function MainPage() {
   // 수락(응/가자)→handleAccept(길안내), 다음/별로→handleReject(폐기+다음), 자세히→상세 재안내, 그만→종료.
   const voice = useVoiceAssistant<any>({
     getName: (f) => f?.name ?? '이 장소',
-    getReason: (f) => f?.reason || buildReason(f, f?.tttv || calculateTTTV(f)),
+    getReason: (f) => f?.reason || '', // 백엔드 Gemini 사유만(없으면 이름만 안내) — 하드코딩 제거
     getDetail: (f) => {
       const t = f?.tttv || calculateTTTV(f);
       const parts: string[] = [];
@@ -674,6 +674,30 @@ export default function MainPage() {
     },
     onAccept: (f) => handleAccept(f),
     onNext: (f) => handleReject(f),
+    // Gemini가 선호('양식 먹고 싶어' 등)에 맞춰 고른 시설로 전환. spoken을 사유로 부여 → notifyItem이 읽어줌.
+    onSelect: (id, spoken) => {
+      const target = expandGroups(facilities).find((f: any) => f.id === id);
+      if (!target) return;
+      setSelectedFacility(spoken ? { ...target, reason: spoken } : target);
+      setIsCardHidden(false);
+      if (mapInstanceRef.current && typeof target.latitude === 'number') panToVisible(target.latitude, target.longitude);
+    },
+    // 사용자 발화를 백엔드 Vertex Gemini(/api/v1/voice/turn)로 해석. 현재 타입 후보 목록(이름/혼잡/거리)을 동봉.
+    interpret: async (utterance, f) => {
+      const filterMap: Record<string, string> = { '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area' };
+      const type = f?.type || filterMap[activeFilter] || 'cafeteria';
+      const cands = expandGroups(facilities)
+        .filter((x: any) => x.type === type && !rejectedIds.has(x.id) && !savedIds.has(x.id)) // 메인 추천과 동일 필터(저장/거절 제외)
+        .slice(0, 12)
+        .map((x: any) => ({
+          id: x.id,
+          name: x.name,
+          congestion: x.congestionLevel ?? 0,
+          distanceM: haversineMeters(userLocation.lat, userLocation.lng, x.latitude, x.longitude),
+        }));
+      const res = await voiceTurn(utterance, type, f?.name ?? null, cands);
+      return { action: res.action, targetId: res.targetFacilityId, spoken: res.spoken };
+    },
   });
 
   // 카드가 새로 뜨면(세션 활성 상태) Gemini 사유를 자동 발화, 카드가 사라지면 정지.
@@ -965,7 +989,7 @@ export default function MainPage() {
 
           const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
           // 사유: 자동 추천된 실 시설은 백엔드 Gemini 사유, 마커 직접 클릭/데모는 미러 사유로 폴백
-          const reason = selectedFacility.reason || buildReason(selectedFacility, tttv);
+          const reason = selectedFacility.reason || ""; // 백엔드 Gemini 사유만(하드코딩 제거)
           return (
             <div className="absolute bottom-[90px] w-full z-20 px-4 transition-all duration-300">
               {voice.ttsSupported && (
