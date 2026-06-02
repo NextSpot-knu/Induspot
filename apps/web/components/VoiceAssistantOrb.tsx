@@ -55,9 +55,9 @@ export default function VoiceAssistantOrb({
           className="max-w-[15rem] md:max-w-[17rem] border border-white/10 rounded-2xl px-3.5 py-2.5 shadow-xl bg-[#0b1022]/95 backdrop-blur"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <GeminiIcon size={13} />
+            <GeminiIcon size={18} />
             <span className="text-[10px] font-bold tracking-wide bg-gradient-to-r from-sky-400 to-purple-400 bg-clip-text text-transparent">
-              Gemini 음성 비서
+              NextSpot 음성비서
             </span>
           </div>
           <p className="text-[11px] leading-snug text-slate-200 min-h-[1.1rem]">
@@ -71,7 +71,6 @@ export default function VoiceAssistantOrb({
               ? caption || "추천을 안내하고 있어요. 끝나면 말씀해 주세요."
               : "음성으로 응답할 수 있어요."}
           </p>
-          <p className="text-[9px] text-slate-500 mt-1">응=수락 · 다음=넘기기 · 자세히 · 그만</p>
           {!sttSupported && (
             <p className="text-[9px] text-amber-300/90 mt-1">음성 응답 미지원 — 카드 버튼으로 응답해 주세요</p>
           )}
@@ -94,7 +93,7 @@ export default function VoiceAssistantOrb({
       >
         {!active && <span className="absolute inset-0 rounded-full border border-sky-400/40 animate-ping" />}
         {!active ? (
-          <GeminiIcon size={26} />
+          <GeminiIcon size={34} />
         ) : voiceState === "speaking" ? (
           <span className="flex items-end gap-0.5 h-5">
             {[0, 1, 2, 3].map((i) => (
@@ -121,13 +120,13 @@ export default function VoiceAssistantOrb({
         ) : voiceState === "thinking" ? (
           <span className="w-5 h-5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
         ) : (
-          <GeminiIcon size={24} />
+          <GeminiIcon size={32} />
         )}
       </button>
 
       {!active && (
         <span className="inline-flex items-center gap-1 text-[10px] text-slate-200 bg-black/60 border border-white/10 rounded-full px-2.5 py-1 animate-pulse whitespace-nowrap">
-          <GeminiIcon size={12} /> AI 음성 추천 듣기
+          <GeminiIcon size={15} /> AI 음성 추천 듣기
         </span>
       )}
     </div>
