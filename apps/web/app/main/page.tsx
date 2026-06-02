@@ -378,6 +378,11 @@ export default function MainPage() {
 
   const compareFacilities = compareTttv;
 
+  // 모음(그룹)은 추천/카드 랭킹에서 내부 sub로 펼친다 — 그룹 자체는 카드로 띄우지 않고
+  // 모음 안에서 '가장 최적의 개별 장소'를 추천한다(지도 마커는 그대로 모음으로 유지).
+  const expandGroups = (list: any[]) =>
+    list.flatMap((f: any) => (f.isGroup && Array.isArray(f.subFacilities)) ? f.subFacilities : [f]);
+
   // AI 추천 동기화: 실 DB 시설은 백엔드(/recommendations/by-type) 랭킹 + Gemini 사유,
   // 합성 그룹·시간대 시뮬(mockHour) 등 데모는 lib/recommender 미러(사유 포함)로 처리해 합친 뒤 #1을 표시.
   // (백엔드는 합성 시설/mockHour 를 모르므로 데모는 분리해 클라 미러로 점수를 매긴다.)
@@ -405,7 +410,9 @@ export default function MainPage() {
 
     const isDemo = (f: any) => f.isGroup || String(f.id).startsWith('dummy-');
     const realCands = candidates.filter(f => !isDemo(f));
-    const demoCands = candidates.filter(isDemo);
+    // 모음은 sub로 펼쳐 개별 장소를 랭킹(모음 자체는 카드로 안 띄움). 펼친 sub도 거절/저장 제외.
+    const demoCands = expandGroups(candidates.filter(isDemo))
+      .filter((f: any) => !rejectedIds.has(f.id) && !savedIds.has(f.id));
     const liveMode = mockHour === null; // 시간대 시뮬이 켜지면 데모(목업) 모드로 일관 처리
     const scoreOpts = { userLocation, preferredCategories, mockHour };
 
@@ -524,13 +531,12 @@ export default function MainPage() {
     // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
     const nextSavedIds = new Set(savedIds);
     nextSavedIds.add(fac.id);
-    let nextCandidates = facilities.filter(f =>
-      f.type === targetType && !rejectedIds.has(f.id) && !nextSavedIds.has(f.id)
-    );
-    
+    let nextCandidates = expandGroups(facilities.filter(f => f.type === targetType))
+      .filter((f: any) => !rejectedIds.has(f.id) && !nextSavedIds.has(f.id));
+
     // Loop back if all exhausted
     if (nextCandidates.length === 0) {
-      nextCandidates = facilities.filter(f => f.type === targetType);
+      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType));
     }
 
     if (nextCandidates.length > 0) {
@@ -595,13 +601,12 @@ export default function MainPage() {
     // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
     const nextRejectedIds = new Set(rejectedIds);
     nextRejectedIds.add(fac.id);
-    let nextCandidates = facilities.filter(f =>
-      f.type === targetType && !nextRejectedIds.has(f.id) && !savedIds.has(f.id)
-    );
-    
+    let nextCandidates = expandGroups(facilities.filter(f => f.type === targetType))
+      .filter((f: any) => !nextRejectedIds.has(f.id) && !savedIds.has(f.id));
+
     // Loop back if all exhausted
     if (nextCandidates.length === 0) {
-      nextCandidates = facilities.filter(f => f.type === targetType);
+      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType));
     }
 
     if (nextCandidates.length > 0) {
@@ -898,7 +903,8 @@ export default function MainPage() {
       {selectedFacility && !isCardHidden && (() => {
         try {
           const targetType = selectedFacility.type;
-          const activeCandidates = facilities.filter(f => f.type === targetType && !rejectedIds.has(f.id));
+          const activeCandidates = expandGroups(facilities.filter(f => f.type === targetType))
+            .filter((f: any) => !rejectedIds.has(f.id));
           const activeScored = activeCandidates.map(f => ({
             ...f,
             tttv: calculateTTTV(f)

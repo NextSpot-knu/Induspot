@@ -257,8 +257,8 @@ export function RecommendationCard({
           </div>
           <h3 className="text-xl font-bold text-white tracking-tight leading-tight">{title}</h3>
           
-          {/* Status Pills */}
-          {!isExpanded && facility && facility.congestionLevel !== undefined && (
+          {/* Status Pills — 펼쳐도(상세 표시 중에도) 혼잡도·잔여석은 항상 표시 */}
+          {facility && facility.congestionLevel !== undefined && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                 facility.congestionLevel >= 0.75
