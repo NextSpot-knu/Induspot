@@ -9,7 +9,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 const notoSansKr = Noto_Sans_KR({ variable: "--font-noto-sans-kr", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "NextSpot",
+  title: "InduSpot",
   description: "기다림 없는 스마트한 공단 생활",
 };
 
