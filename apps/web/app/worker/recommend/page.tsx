@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 const supabase = createPublicClient();
 import { getRecommendations, submitFeedback, parsePreference, RecommendationResponse } from "@/lib/api-client";
+import { toast } from "sonner";
 
 // Extend global Window
 declare global {
@@ -109,24 +110,7 @@ interface OriginalFacility {
   features: Record<string, any>;
 }
 
-// Custom Toast Notification Component
-interface ToastProps {
-  message: string;
-  onClose: () => void;
-}
 
-function Toast({ message, onClose }: ToastProps) {
-  useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-slate-100 border border-white/10 backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <span>{message}</span>
-    </div>
-  );
-}
 
 // The core content wrapper component that handles Search Params
 function RecommendContent() {
@@ -164,8 +148,6 @@ function RecommendContent() {
   // 빠른 더블클릭으로 인한 중복 피드백 전송 방지 — 리렌더 전에도 동기적으로 차단되는 가드
   const votedRef = useRef<Set<string>>(new Set());
 
-  // Toast message state
-  const [toast, setToast] = useState<string | null>(null);
 
   // 추천별 만족도 피드백(👍/👎) 기록 — 중복 전송 방지 + 버튼 선택 상태 표시
   const [feedbackVotes, setFeedbackVotes] = useState<Record<string, "up" | "down">>({});
@@ -545,7 +527,7 @@ function RecommendContent() {
   const startVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      setToast("이 브라우저는 음성 인식을 지원하지 않아요. 텍스트로 입력해 주세요.");
+      toast.error("이 브라우저는 음성 인식을 지원하지 않아요. 텍스트로 입력해 주세요.");
       return;
     }
     try {
@@ -560,14 +542,14 @@ function RecommendContent() {
       rec.onend = () => setIsListening(false);
       rec.onerror = () => {
         setIsListening(false);
-        setToast("음성 인식에 실패했어요. 텍스트로 입력해 주세요.");
+        toast.error("음성 인식에 실패했어요. 텍스트로 입력해 주세요.");
       };
       recognitionRef.current = rec;
       setIsListening(true);
       rec.start();
     } catch {
       setIsListening(false);
-      setToast("음성 인식을 시작할 수 없어요.");
+      toast.error("음성 인식을 시작할 수 없어요.");
     }
   };
 
@@ -583,7 +565,7 @@ function RecommendContent() {
   // 자연어 → Gemini 파싱 → 선호 벡터/카테고리 반영 (서버가 저장까지 수행)
   const handleNlAnalyze = async () => {
     if (!nlText.trim()) {
-      setToast("선호하는 시설이나 분위기를 말하거나 적어주세요.");
+      toast.info("선호하는 시설이나 분위기를 말하거나 적어주세요.");
       return;
     }
     setIsParsingNl(true);
@@ -594,7 +576,7 @@ function RecommendContent() {
         setSelectedOnboardingCats(result.preferredCategories);
       }
       setNlApplied(true);
-      setToast(result.isFallback ? "선호를 반영했어요 (키워드 분석)" : "AI가 선호를 반영했어요 🎯");
+      toast.success(result.isFallback ? "선호를 반영했어요 (키워드 분석)" : "AI가 선호를 반영했어요 🎯");
     } catch (err) {
       // 서버(Gemini) 연결 실패 시 클라이언트 키워드 폴백 — 데모가 끊기지 않게.
       console.warn("NL preference parse failed, client-side keyword fallback:", err);
@@ -612,9 +594,9 @@ function RecommendContent() {
         setSelectedOnboardingCats(cats);
         setNlSummary("AI 서버에 연결하지 못해 키워드로 분석했어요. 아래에서 조정할 수 있어요.");
         setNlApplied(true);
-        setToast("키워드로 선호를 반영했어요");
+        toast.success("키워드로 선호를 반영했어요");
       } else {
-        setToast("AI 분석에 실패했어요. 아래에서 직접 선택해 주세요.");
+        toast.error("AI 분석에 실패했어요. 아래에서 직접 선택해 주세요.");
       }
     } finally {
       setIsParsingNl(false);
@@ -659,7 +641,7 @@ function RecommendContent() {
       }
 
       setShowOnboarding(false);
-      setToast("선호 정보가 등록되었습니다! 맞춤 추천을 계산합니다.");
+      toast.success("선호 정보가 등록되었습니다! 맞춤 추천을 계산합니다.");
 
       // 2. Fetch recommendations (FastAPI will detect missing Pinecone vector,
       // load the updated DB categories, generate the average vector, upsert, and query).
@@ -712,7 +694,7 @@ function RecommendContent() {
     const newWindow = window.open("about:blank", "_blank");
     
     try {
-      setToast("선택 경로 수락 완료! 안내를 시작합니다.");
+      toast.success("선택 경로 수락 완료! 안내를 시작합니다.");
       
       // 1. Submit feedback accepted to FastAPI
       await submitFeedback(rec.recommendationId, "accepted");
@@ -723,7 +705,7 @@ function RecommendContent() {
       else if (rec.facility.type === "parking") greeting = "안전 주차 하세요!";
       else if (rec.facility.type === "rest_area") greeting = "푹 쉬세요!";
 
-      setToast(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
+      toast.success(`${greeting} 다음 추천이 더 정확해집니다 🎯`);
 
       // 3. Open Kakao Maps Directions (Hybrid approach)
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -811,10 +793,10 @@ function RecommendContent() {
       // 2. Fetch recommendations again to get the next best candidates
       const fresh = await getRecommendations(facilityId, { lat, lng });
       setRecommendations(fresh);
-      setToast("선호도를 조정하여 새로운 대안을 추천했습니다 🔍");
+      toast.success("선호도를 조정하여 새로운 대안을 추천했습니다 🔍");
     } catch (err) {
       console.error("Error during rejecting and refreshing:", err);
-      setToast("새 추천 대안을 불러오는 도중 오류가 발생했습니다.");
+      toast.error("새 추천 대안을 불러오는 도중 오류가 발생했습니다.");
     } finally {
       setIsRefreshing(false);
     }
@@ -1169,7 +1151,7 @@ function RecommendContent() {
       )}
 
       {/* Toast Notification */}
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      
     </main>
   );
 }
