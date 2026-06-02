@@ -236,8 +236,8 @@ export function RecommendationCard({
         </div>
       ) : (
         <>
-          {/* Top Header Row */}
-      <div className="flex justify-between items-start gap-3">
+          {/* Top Header Row — 클릭 시 상세(구체적 장소) 펼침/접기 */}
+      <div className="flex justify-between items-start gap-3 cursor-pointer" onClick={toggleExpand}>
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1.5">
             {rank ? (
@@ -261,13 +261,15 @@ export function RecommendationCard({
           {!isExpanded && facility && facility.congestionLevel !== undefined && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                facility.congestionLevel >= 0.7 
-                  ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                  : facility.congestionLevel >= 0.3
+                facility.congestionLevel >= 0.75
+                  ? 'bg-orange-500/10 border-orange-500/20 text-orange-400'
+                  : facility.congestionLevel >= 0.5
+                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                  : facility.congestionLevel >= 0.25
                   ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                   : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
               }`}>
-                혼잡도: {facility.congestionLevel >= 0.7 ? '혼잡' : facility.congestionLevel >= 0.3 ? '보통' : '여유'}
+                혼잡도: {facility.congestionLevel >= 0.75 ? '혼잡' : facility.congestionLevel >= 0.5 ? '보통' : facility.congestionLevel >= 0.25 ? '여유' : '한산'}
               </span>
               <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/5 border border-white/10 text-slate-300">
                 잔여: {Math.max(0, (facility.capacity || 0) - (facility.currentCount || 0))}자리 (총 {facility.capacity})
@@ -278,9 +280,8 @@ export function RecommendationCard({
 
         {/* Dynamic Badge (TTTV Score or match percentage) */}
         {hasTttvMetrics ? (
-          <div 
+          <div
             className="flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-2xl border border-purple-500/40 bg-gradient-to-b from-purple-500/20 to-purple-500/5 cursor-pointer shadow-lg shadow-purple-500/10"
-            onClick={toggleExpand}
           >
             <span className="text-[9px] text-purple-300 font-bold uppercase mb-0.5">TTTV 점수</span>
             <span className="text-white font-black text-xl leading-none">{Math.round(tttvScore || 0)}<span className="text-[10px] font-normal text-purple-200 ml-0.5">점</span></span>
@@ -297,14 +298,14 @@ export function RecommendationCard({
 
       {/* AI 추천 사유 (WP3 Gemini, 있을 때만) */}
       {reason && (
-        <p className="text-[13px] leading-relaxed text-sky-200/95 bg-sky-500/10 border border-sky-500/20 rounded-2xl px-3.5 py-2.5">
+        <p onClick={toggleExpand} className="text-[13px] leading-relaxed text-sky-200/95 bg-sky-500/10 border border-sky-500/20 rounded-2xl px-3.5 py-2.5 cursor-pointer">
           💡 {reason}
         </p>
       )}
 
       {/* TTTV Metric Grid (Only if metrics are provided) */}
       {hasTttvMetrics && facilityType !== 'rest_area' && (
-        <div className="flex flex-col gap-2 mt-1">
+        <div className="flex flex-col gap-2 mt-1 cursor-pointer" onClick={toggleExpand}>
           {facilityType === 'meeting_room' ? (
             <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-2xl p-2.5 border border-white/5 text-[11px]">
               <div className="text-center">
@@ -401,7 +402,7 @@ export function RecommendationCard({
 
       {/* 휴게실 특화 UI (TTTV 미사용) */}
       {facilityType === 'rest_area' && (
-        <div className="flex flex-col gap-2 mt-1">
+        <div className="flex flex-col gap-2 mt-1 cursor-pointer" onClick={toggleExpand}>
           {/* 예상 대기 — 혼잡도와 연관(혼잡↑ → 대기↑) */}
           <div className="flex justify-between items-center bg-white/5 rounded-2xl p-3 border border-white/10 text-xs">
             <span className="text-slate-300 font-medium">예상 대기</span>

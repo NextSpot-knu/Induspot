@@ -693,13 +693,14 @@ export default function MainPage() {
           sessionStorage.setItem('induspot_map_level', lvl.toString());
         });
 
-        // 빈 지도(마커 외) 클릭 시 열린 그룹 팝업 닫기 + 그룹 하이라이트 해제 — 일반 지도앱 UX
+        // 빈 지도(마커 외) 클릭 시 그룹 팝업 닫기 + 그룹 하이라이트 해제 + 추천 카드 선택해제 — 일반 지도앱 UX
         window.kakao.maps.event.addListener(map, 'click', () => {
           if (activeOverlayRef.current) {
             activeOverlayRef.current.setMap(null);
             activeOverlayRef.current = null;
           }
           setActiveGroupId(null);
+          setSelectedFacility(null);
         });
       });
     }
@@ -915,7 +916,7 @@ export default function MainPage() {
               <RecommendationCard
                 title={selectedFacility.name}
                 reason={reason}
-                description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.7 ? '혼잡' : selectedFacility.congestionLevel >= 0.3 ? '보통' : '여유'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
+                description={`실시간 혼잡도: ${selectedFacility.congestionLevel >= 0.75 ? '혼잡' : selectedFacility.congestionLevel >= 0.5 ? '보통' : selectedFacility.congestionLevel >= 0.25 ? '여유' : '한산'} · 수용현황: ${selectedFacility.currentCount}/${selectedFacility.capacity}명`}
                 onAccept={() => handleAccept(selectedFacility)}
                 onReject={() => handleReject(selectedFacility)}
                 onPutOff={() => handlePutOff(selectedFacility)}
