@@ -1,158 +1,330 @@
-# InduSpot 시스템 아키텍처 명세서
+# InduSpot 시스템 아키텍처 개요 (AS-IS)
 
-본 문서는 `induspot_gcp` 리포지토리에 구현된 소스 코드를 바탕으로 시스템 구조와 동작 로직을 객관적으로 기술한 문서입니다. 시스템은 Frontend, Proxy, Backend, Database 4개의 계층으로 구성되어 있습니다.
+## 개요
 
----
-
-## 1. Frontend Layer
-**위치:** `apps/web/`
-**스택:** Next.js 16 (App Router), React 19, Tailwind CSS 4, Kakao Maps SDK, Recharts
-**배포:** Vercel
-
-### 1-1. 주요 컴포넌트 및 페이지
-*   **지도 렌더링 ([CongestionMap.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/map/CongestionMap.tsx))**
-    *   Kakao Maps API를 사용하여 시설 위치 마커를 표시합니다.
-    *   혼잡도 수치에 따라 마커 색상을 분기합니다 (0.7 이상 Red, 0.3 이상 Yellow, 그 외 Green).
-    *   예상 대기 시간 클라이언트 연산 로직을 포함합니다: `혼잡도 * 평균 처리 시간 * 시간대 가중치`. (12~14시는 가중치 1.3배, 7시/15시는 1.2배 적용)
-*   **추천 UI ([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/worker/recommend/page.tsx))**
-    *   API로부터 수신된 대안 시설 목록을 렌더링하며, 각 대안 카드에 해당 추천이 전체 후보군 중 몇 번째 순위인지(`대안 Y개 중 X등` 배지) 실시간 시각화합니다.
-    *   Kakao Maps API 키가 mock 상태일 경우 CSS 기반의 시뮬레이션 UI(Twin Node Active 레이더 뷰)를 렌더링하도록 예외 처리되어 있습니다.
-    *   사용자의 수락/거절(accepted/rejected) 피드백 입력을 백엔드 API로 전송합니다.
-*   **AI 추천 카드 ([RecommendationCard.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/RecommendationCard.tsx))**
-    *   지도 상에서 선택된 시설의 TTTV 세부 지표(선호 일치율, 예상 대기, 예상 도보)와 총합 시간비용을 렌더링하는 슬라이드형 시트 카드입니다.
-    *   현재 추천 시설이 반경 내 전체 후보군 중 TTTV 스코어 기준으로 몇 등인지를 나타내는 순위 정보(`대안 Y개 중 X등` 배지)를 상단에 노출합니다.
-*   **API 클라이언트 ([api-client.ts](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/lib/api-client.ts))**
-    *   백엔드 통신 시, Supabase 세션에서 JWT를 추출하여 `Authorization` 헤더에 자동 주입합니다.
-    *   Python(snake_case)과 JS(camelCase) 간의 네이밍 컨벤션 차이를 처리하기 위해 요청 페이로드와 응답 데이터를 재귀적으로 파싱하여 키 값을 상호 변환하는 헬퍼 함수가 구현되어 있습니다.
-
-### 1-2. TTTV 추천 알고리즘 시뮬레이터
-*   **위치:** [TTTVSimulator.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/TTTVSimulator.tsx) 및 [page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/admin/simulator/page.tsx)
-*   **목적:** 데이터베이스 및 API 서버에 의존하지 않고, 가중치 조합(선호도 가중치, 시간 비용 가중치, 혼잡 분산 인센티브 가중치)에 따른 1,000개 모의 시설 대상 점수 변화 및 군집 상태를 시각화 분석하는 관제 화면을 제공합니다.
-*   **모의 시설 통계 분포 규칙:**
-    *   **선호도 일치율 ($P$):** 양봉 분포(Bimodal Distribution)를 사용합니다. 30% 확률로 취향 일치 시설($U[0.8, 1.0]$), 70% 확률로 취향 불일치 시설($U[0.0, 0.2]$)을 모사합니다.
-    *   **시간 비용 ($T$):** 비대칭 연속 분포(Asymmetric Continuous Skewed Distribution)를 사용합니다. 80% 확률로 인접 시설($U[0.1, 0.4]$), 20% 확률로 원거리 시설($U[0.4, 1.0]$)의 통근거리를 모사합니다.
-    *   **혼잡 분산 보너스 ($I$):** 0점 스파이크 분포(Zero-Spike Distribution)를 사용합니다. 60% 확률로 인센티브 없음(0점), 40% 확률로 한산 보너스 제공($U[0.2, 0.8]$)을 모사합니다.
-*   **가중치 자동 정규화 및 UI 연동:**
-    *   사용자가 특정 가중치 입력창이나 슬라이더를 변경하면, 나머지 두 개 항목에 대한 기존 비율을 유지하며 총합이 $100\%$가 되도록 동적으로 비례 배분 및 정규화(Auto-normalization)합니다.
-*   **점수 정규화 (Min-Max Scaling) 공식:**
-    *   시간 비용 패널티의 감산 요소로 인해 발생하는 원본 점수 편향(음수 값 유입 및 낮은 상한값 제한)을 수정하고자, 가중치 합을 반영한 정규화 방식을 적용하여 점수를 `[0, 100]` 스케일로 출력합니다:
-        $$Normalized\ Score = \max\left(0, \min\left(100, \frac{Raw\ Score + W_{time}}{W_{pref} + W_{time} + W_{inc}} \times 100\right)\right)$$
-    *   연산 결과는 Recharts `AreaChart` 히스토그램으로 실시간 렌더링되며, 불균형 상태(U자 양극화, 극단적 거리 필터링, 인센티브 지향 등)에 따라 실시간 텍스트 리포트 분석 정보를 생성합니다.
-
-### 1-3. 카카오맵 PC/모바일 하이브리드 길찾기 연동
-*   **모바일 디바이스:** 사용자 User-Agent 분석을 통해 모바일 기기로 확인 시, 카카오맵 네이티브 앱을 즉시 실행하기 위한 `kakaomap://route?sp={start_lat},{start_lng}&ep={end_lat},{end_lng}&by=CAR` 스킴으로 강제 리다이렉트합니다.
-*   **PC 환경:** 브라우저의 팝업 차단을 우회하기 위해 빈 탭을 선 생성한 후, 카카오 로컬 API `https://dapi.kakao.com/v2/local/geo/transcoord.json`를 호출하여 WGS84 좌표계를 카카오 내부의 `WCONGNAMUL` 좌표계로 변환합니다. 좌표 변환 성공 시 자동차 길안내 파라미터(`target=car`, `rt={sX},{sY},{eX},{eY}`)를 조립하여 카카오맵 웹으로 전송합니다. 좌표 변환 에러 및 API 장애 시, 명칭 매핑 방식(`https://map.kakao.com/?sName={start_name}&eName={end_name}`)으로 안전하게 폴백(Fallback)합니다.
-
-### 1-4. 커스텀 Toast 알림 시스템 구현
-*   기존 브라우저 네이티브 경고창(`alert`)을 대체하여 UI 방해 요소를 제거하고 비동기 피드백 가시성을 제고했습니다.
-*   [globals.css](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/globals.css) 내 `@keyframes toast-in-up` 및 `.animate-toast` 트랜지션을 사용하여 부드럽게 위로 올라오는 토스트 팝업을 설계했습니다.
-*   유저 페이지([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/main/page.tsx)), 저장 목록([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/saved/page.tsx)), 대안 추천 수락 화면([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/worker/recommend/page.tsx))에 마운트되어 추천 수락/삭제/설정 변경 등의 상태 피드백을 전달합니다.
-
-### 1-5. 프론트엔드 최적화 (성능 튜닝)
-*   **데이터 페이징 조율:** 관리자 메인 화면 차트 데이터 리스트([DashboardCharts.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/DashboardCharts.tsx)) 및 시설 관리 화면([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/admin/infrastructure/page.tsx))의 테이블 렌더링 리소스 점유를 해소하고자 페이지당 조회 항목 수를 기존 20개에서 10개로 수정(`itemsPerPage = 10`)하여 렌더링 부하를 줄였습니다.
-*   **초기 로드 데이터 축소:** 구미 음식점 원본 데이터셋([gumi_restaurants_grouped.csv](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/samples/gumi_restaurants_grouped.csv))을 대상으로 공간 좌표 정렬 후 고르게 샘플을 분산하여 샘플링하는 [shrink_restaurants.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/scratch/shrink_restaurants.py) 스크립트를 작성하여 적용했습니다. 이후 추가 감축을 통해 리스트 크기를 최종 103개 항목으로 경량화(약 1/12 이상 축소)함으로써 맵 컴포넌트 마운트 지연 시간 및 데이터 로딩 네트워크 대역폭을 단축했습니다.
-
-### 1-6. 데모 전용 피크타임 시뮬레이션 및 벡터 시각화
-*   **피크타임 스트레스 테스트 스위치 ([SimulatePeakButton.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/SimulatePeakButton.tsx)):**
-    *   관리자 대시보드([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/admin/dashboard/page.tsx))에 장착된 모의 피크 데이터 발생 제어 버튼입니다. 클릭 시 백엔드 API인 `POST /api/v1/admin/simulate-peak`를 비동기 호출하여 40개 모든 시설의 혼잡 로그를 실시간으로 발생 및 강제 갱신한 후, `router.refresh()`를 수행하여 대시보드 지표를 즉각 동기화합니다.
-*   **사용자 선호도 벡터 임베딩 시각화:**
-    *   마이페이지([page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/mypage/page.tsx)) 및 TTTV 시뮬레이터([TTTVSimulator.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/components/admin/TTTVSimulator.tsx))에서 로그인된 사용자의 8차원 취향 벡터 데이터(`GET /api/v1/users/me/vector`)를 비동기로 조회해 옵니다.
-    *   마이페이지에서는 D1~D8의 각 임베딩 차원을 그라데이션이 적용된 수직 막대 컴포넌트로 동적 렌더링하고, 시뮬레이터에서는 좌측 조작기 하단의 디버그 패널에 실시간 텍스트 및 미니 바 차트 형태로 디스플레이하여 사용자 액션(수락/거절)에 따른 선호도 실시간 강화학습 상태를 시각화합니다.
+InduSpot은 구미국가산업단지 근로자를 위한 공용 인프라(구내식당·주차장·회의실·휴게실) 실시간 혼잡 분산 추천 서비스입니다. 특정 시설이 혼잡할 때, 근로자의 개인 선호·이동 비용·혼잡 분산 효과를 종합한 TTTV(Time-To-Value) 점수로 도보권(150m) 대체 시설 최대 3곳을 추천하고, Gemini가 생성한 한국어 사유와 함께 제시합니다. 근로자는 추천 카드에서 만족도(👍/👎)를 남기며, 이 피드백은 Firestore의 8차원 선호 벡터를 즉시 보정해 다음 추천에 반영됩니다. GCP의 Vertex AI(혼잡 예측), BigQuery/BQML(시계열 예보), Pub/Sub(이벤트 수집), Firestore(선호 벡터)를 결합하되, 모든 외부 호출은 다단계 폴백(graceful degradation)을 적용해 외부 서비스가 불가용해도 데모/서비스가 멈추지 않도록 설계되었습니다. 핵심 가치는 (1) 산단 인프라 혼잡의 실시간 분산, (2) 개인화된 추천, (3) GCP 네이티브 ML 활용, (4) 회복탄력적(resilient) 아키텍처입니다.
 
 ---
 
-## 2. Proxy Layer
-**위치:** `apps/web/app/api/proxy/[[...path]]/route.ts`
-**배포:** Vercel Serverless Functions
+## 시스템 구성도
 
-*   프론트엔드 클라이언트와 GCP Cloud Run API 서버 간의 요청을 중계 및 중개합니다.
-*   **인증 및 토큰 중계 로직:**
-    1.  서버 환경 변수 `GCP_SERVICE_ACCOUNT_KEY` JSON 구조를 파싱합니다.
-    2.  `google-auth-library` 클라이언트를 구성하여 Cloud Run 리전별 백엔드 도메인을 대상으로 하는 GCP OIDC ID 토큰을 생성합니다.
-    3.  생성된 OIDC 토큰을 프록시 요청 헤더 `Authorization`에 매핑하여 Cloud Run의 외부 인바운드 IAM 인증(`Cloud Run Invoker`)을 무사히 통과합니다.
-    4.  클라이언트 웹 브라우저에서 전송했던 기존의 Supabase JWT 인증 헤더는 백엔드 서버에서 활용할 수 있도록 `X-Forwarded-Authorization` 헤더로 키 이름을 스위칭하여 안전하게 실어 보냅니다.
-    5.  `GET`, `POST`, `PUT`, `DELETE`, `PATCH` 등의 모든 REST API 메서드를 다이나믹하게 수용하며 Next.js 15+ 규격에 맞게 `params: Promise` 처리를 완료하였습니다.
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                 CLIENTS (Browser)                              │
+│   Worker App (/worker/*)                         Admin Dashboard (/admin/*)    │
+│   - 인증: Supabase JWT                            - 인증: Firebase ID Token     │
+└───────────────────────────────┬───────────────────────────┬───────────────────┘
+                                 │                           │
+                                 ▼                           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  FRONTEND — Firebase Hosting (Next.js 16.2.6 static export, apps/web/out)      │
+│  App Router · CongestionMap(Kakao) · RecommendationCard · 클라 TTTV mirror      │
+│  lib/api-client.ts (JWT 주입, camelCase↔snake_case) · lib/supabase.ts(anon,RLS)│
+└───────────────────────────────┬───────────────────────────────────────────────┘
+                                 │  HTTPS  (X-Supabase-Authorization / Firebase)
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  API GATEWAY (us-central1)  — openapi-gateway.yaml (Swagger 2.0)               │
+│  backend-auth SA 의 OIDC 로 비공개 Cloud Run 호출 · Supabase JWT 헤더 포워딩    │
+└───────────────────────────────┬───────────────────────────────────────────────┘
+                                 │  OIDC (private IAM)
+                                 ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  BACKEND — Cloud Run  (induspot-api, asia-northeast3, FastAPI/Python 3.11)     │
+│  routers: recommendations · preferences · predict · ingest · infrastructures   │
+│  services: tttv/{score,preference,wait_time,travel} · predict_service          │
+│            reason_service(Gemini) · preference_vector_service · *_nlp · bq_*    │
+└──┬─────────┬──────────┬─────────┬─────────┬──────────┬─────────┬──────────┬─────┘
+   │         │          │         │         │          │         │          │
+   ▼         ▼          ▼         ▼         ▼          ▼         ▼          ▼
+┌───────┐ ┌──────────┐ ┌───────┐ ┌────────┐ ┌──────┐ ┌────────┐ ┌──────┐ ┌─────────┐
+│Supabase│ │Firestore │ │Vertex │ │BigQuery│ │Pub/  │ │Dataflow│ │Secret│ │  GCS    │
+│Postgres│ │선호 벡터  │ │AI     │ │ +BQML  │ │Sub   │ │(stream)│ │Mgr   │ │model.pkl│
+│(RLS)  │ │8-dim KV  │ │Endpoint│ │ARIMA+  │ │congest│ │ →BQ    │ │secret│ │ joblib  │
+└───────┘ └──────────┘ └───────┘ └────────┘ └──────┘ └────────┘ └──────┘ └─────────┘
+                            │                              ▲
+                            ▼ (예측 실패 시 폴백)            │ (Cloud Scheduler */10)
+                     GCS→local→0.5                  Cloud Run Job: publish_congestion
 
----
-
-## 3. Backend Layer
-**위치:** `apps/api/`
-**스택:** Python 3.11, FastAPI, Uvicorn, Poetry
-**배포:** GCP Cloud Run (컨테이너 기반)
-
-### 3-1. 서버 구성 및 인프라 명세
-*   **Dockerfile:** Python 3.11-slim 베이스 이미지를 활용하며, 의존성 경량화를 위해 Poetry 빌드 도구를 멀티 스테이지 빌드 형태로 격리 구성했습니다. 내부 포트 8080을 개방하여 구동합니다.
-*   **환경 설정 관리 ([config.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/core/config.py)):** `pydantic-settings` 모듈을 이용하여 Supabase 접속 정보, JWT 대칭 키(`JWT_SECRET`), Pinecone API 키, GCS 모델 버킷 명칭 등 서버 실행 필수 파라미터들의 검증 및 바인딩을 강제합니다.
-
-### 3-2. TTTV (Total Time to Value) 추천 알고리즘
-*   **위치:** [score.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/services/tttv/score.py)
-*   **대상 설정:** 사용자 기준 반경 150m 이내의 지리적 대안 시설 후보군을 탐색 대상으로 설정합니다.
-*   **스코어 공식:**
-    $$Score = (0.45 \times Preference) - (0.25 \times Time\ Cost) + (0.30 \times Incentive)$$
-    *   **선호도 (Preference - w=0.45):** Pinecone 벡터 DB에서 로드한 사용자의 개인 선호 벡터와 대상 시설 카테고리 벡터 간의 코사인 유사도 점수입니다.
-    *   **시간 비용 (Time Cost - w=0.25):** `(대안 시설 예측 대기 시간 + 도보 이동 시간) / 60` 값으로, 60분을 최대 패널티로 상정하여 `[0.0, 1.0]` 범위로 정규화한 뒤 감산합니다.
-        *   **도착 시점 예측 로직:** 기존의 단순 실시간 혼잡도 대입 방식에서 벗어나, 사용자가 도보로 대안 시설까지 이동하는 시간(`travel_time_min`)을 먼저 계산한 뒤, **도착 예상 시점(현재 시각 + 이동 시간) 기준의 혼잡도 예측값**(`predict_congestion` 함수 실행 결과)을 Ridge Regression 모델에서 추출하여 예상 대기 시간(`predicted_wait`) 계산에 대입하는 구조를 갖추고 있습니다.
-    *   **혼잡 분산 인센티브 (Incentive - w=0.30):** `원본 시설 혼잡도 - 대안 시설 혼잡도`로 수치를 측정하여, 분산 효과가 큰 여유 공간으로 갈수록 높은 점수를 가산합니다.
-    *   종합 스코어는 최종적으로 `[0.0, 1.0]` 영역으로 클리핑 및 소수점 3자리 반올림되어 최종 결정됩니다.
-
-### 3-3. 벡터 업데이트 로직 ([pinecone_service.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/services/pinecone_service.py))
-사용자의 상호작용 피드백 데이터를 누적 반영하여 Pinecone 공간 내 8차원 사용자 선호도 벡터를 동적 갱신합니다.
-*   **수락 (accepted) 피드백 수신:** `새 벡터 = 기존 벡터 + 0.1 * (선택 시설 벡터 - 기존 벡터)`
-*   **거절/무시 (rejected/ignored) 피드백 수신:** `새 벡터 = 기존 벡터 - 0.05 * (선택 시설 벡터 - 기존 벡터)`
-*   연산 완료 후, 벡터 크기를 일정하게 통일하기 위한 L2 정규화(Normalization) 작업을 수행한 후 Pinecone Index에 최종 Upsert를 진행합니다.
-
-### 3-4. 혼잡도 예측 엔진 (Ridge Regression) 및 GCP GCS 연동
-*   **모델 학습 스크립트 ([train.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/scripts/train.py)):**
-    *   Supabase 데이터베이스에서 `facilities` 정보 및 `congestion_logs` 시계열 데이터 이력(총 140,004개 레코드)을 수집하여 가공합니다.
-    *   유사 카테고리 병합 규칙을 가동하여 분류 기준을 정돈합니다 (`restaurant`/`cafe` -> `cafeteria`, `gym` -> `loading_dock`, `office` -> `meeting_room`).
-    *   `scikit-learn` 패키지의 `OneHotEncoder`를 이용하여 `facility_type`, `hour`(0~23), `day_of_week`(0~6) 등의 핵심 변수들을 인코딩하며, 학습을 거쳐 예측 성능 $R^2 \approx 0.94$를 기록한 `sklearn.linear_model.Ridge(alpha=1.0)` 모델 객체 및 인코더를 `model.pkl` 직렬화 파일로 로컬에 추출합니다.
-*   **모델 업로드 스크립트 ([upload_model.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/scripts/upload_model.py)):**
-    *   로컬 개발 자격 증명(ADC) 파일(`application_default_credentials.json`) 내부를 읽어 GCP 프로젝트 ID(`knudc-henryseo711`)를 동적으로 추출합니다. GCS API를 매개하여 클라우드 버킷 `induspot-models-6757` 내부의 `models/model.pkl` 경로로 모델 바이너리 파일을 업로드합니다.
-*   **인메모리 예측 서비스 ([predict_service.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/services/predict_service.py)):**
-    *   FastAPI 인프라 구동 시 혹은 모듈 임포트 시, GCP GCS 서비스 계정 인증 흐름을 타며 GCS 버킷에 보관 중인 `models/model.pkl` 파일을 메모리 상으로 직접 로드하여 런타임 캐싱을 생성합니다. 만약 클라우드 연결 지연 및 단절 발생 시 로컬 파일 시스템 백업본으로 안전하게 스위칭되는 폴백 안정성이 기획되어 있습니다.
-    *   예측 연산 수행 시 학습 데이터 스펙에 포함되지 않는 예외적인 시설 타입이 조회되면 즉시 중간 혼잡 값(`0.5`)을 출력하도록 안전 예외 처리를 추가했으며, 모델 출력 스케일을 `[0.0, 1.0]` 범위 내로 상시 클리핑 제어합니다.
-*   **예측 전용 API 라우터 ([predict.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/routers/predict.py) 및 [main.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/main.py)):**
-    *   `POST /predict` 엔드포인트를 열어 시설 타입, 시각(Hour), 요일(Day of week) 인풋을 받아 예상 혼잡도 수치를 JSON 객체로 실시간 회신합니다.
-
-### 3-5. 데모 시뮬레이션 및 벡터 관리 API 엔드포인트
-*   **피크타임 모의 생성 API ([infrastructures.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/routers/infrastructures.py)):**
-    *   `POST /api/v1/admin/simulate-peak` 엔드포인트를 통해 데이터베이스의 `facilities` 정보를 로드하고 무작위 셔플 후, 여유 15개($0.05 \sim 0.28$), 보통 15개($0.35 \sim 0.65$), 혼잡 10개($0.72 \sim 0.95$) 비율로 가공한 새로운 혼잡도 로그 40건을 `congestion_logs` 테이블에 벌크 삽입합니다.
-*   **사용자 벡터 조회 API ([recommendations.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/api/app/routers/recommendations.py)):**
-    *   `GET /api/v1/users/me/vector` 엔드포인트를 통해 로그인한 사용자의 고유 UUID를 JWT 세션에서 추출하고, `pinecone_service.get_user_vector`를 호출하여 Pinecone 인덱스 내의 8차원 정규화된 선호 임베딩 실수 배열을 로드하여 반환합니다.
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  EXTERNAL                                                                       │
+│   Kakao (Maps SDK / Mobility Directions)  ·  Gemini (Vertex AI, 2.5-flash-lite)│
+│   Firebase Authentication (Identity Platform REST)                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 4. Database Layer
+## 1. Frontend 계층 (Firebase Hosting · Next.js static)
 
-*   **Supabase (PostgreSQL):** 
-    *   관계형 데이터 영역으로, 사용자 인적 정보(`users`), 실시간 하역장/회의실/식당/주차장 기초 좌표 메타데이터(`facilities`), 센서 수집 및 모의 주입을 통해 쌓이는 혼잡 정보 시계열 로그 테이블(`congestion_logs`)을 물리적으로 구동 및 제공합니다.
-*   **Pinecone (Vector DB):**
-    *   비정형 유사도 매칭 영역으로, 공단 노동자 개인 선호 및 각 시설 고유의 하드웨어 특성을 추상화한 8차원 공간 임베딩 벡터 데이터를 보관하고, 이를 토대로 코사인 유사도 검색을 보조합니다.
+### 책임
+- 근로자 앱(지도·추천)과 관리자 대시보드 UI 제공. 정적 익스포트(`output: 'export'`)로 서버 사이드 렌더링·Next.js API 라우트 없음 — 데이터 페칭은 서버 컴포넌트(빌드 시) 또는 클라이언트 `useEffect`에서 수행.
+- 두 인증 모델 분리: 근로자=Supabase JWT, 관리자=Firebase ID Token(localStorage `induspot_admin_fb`).
+- 백엔드 불가용 시 클라이언트 TTTV mirror + 목 시드 데이터로 데모 무중단.
+
+### 스택
+Next.js 16.2.6, React 19.2.4, App Router, Tailwind v4(`@tailwindcss/postcss`), `@supabase/supabase-js` 2.106.1, recharts 3.8.1, lucide-react, Kakao Maps SDK v2(`services,clusterer`), Firebase Auth REST.
+
+### 핵심 파일 (repo-relative)
+| 파일 | 역할 |
+|---|---|
+| `apps/web/app/layout.tsx` | 글로벌 레이아웃, Kakao Maps 스크립트 주입(`beforeInteractive`), 키 폴백 `NEXT_PUBLIC_KAKAO_MAPS_APP_KEY \| KAKAO_API_KEY \| KAKAO_MAP_KEY` |
+| `apps/web/app/page.tsx` | 3초 스플래시 → `/setup` 리다이렉트 |
+| `apps/web/app/worker/map/page.tsx` | 서버 컴포넌트, Supabase RLS 시설 목록+최신 혼잡 페칭, `MOCK_SEED_FACILITIES` 폴백, `revalidate=0` |
+| `apps/web/app/worker/recommend/page.tsx` | **핵심 기능.** 콜드스타트 온보딩, TTTV 추천 흐름, 만족도 피드백, 카카오 길안내(모바일 `kakaomap://` / PC 좌표변환) |
+| `apps/web/components/map/CongestionMap.tsx` | 전체 시설 카카오맵 시각화, 마커 클러스터링, 필터, 키 없으면 CSS 그리드 시뮬레이션 |
+| `apps/web/components/RecommendationCard.tsx` | 단일 대안 카드(TTTV 분해·Gemini 사유·만족도·드래그·회의실 예약 모달) |
+| `apps/web/app/admin/login/page.tsx` | Firebase REST 로그인, idToken/refreshToken localStorage 저장 |
+| `apps/web/app/admin/layout.tsx` | 클라이언트 가드, `getAdminIdToken()` 검사 후 미인증 시 `/admin/login` |
+| `apps/web/app/admin/dashboard/page.tsx` | KPI·히트맵·분포·이상알림, Supabase RLS 쿼리 + 클라 폴백 병합, CSV(BOM) 내보내기 |
+| `apps/web/components/admin/{DashboardCharts,FacilityTable,SimulatePeakButton}.tsx` | 차트/시설표/피크 시뮬레이션 |
+| `apps/web/lib/api-client.ts` | FastAPI HTTP 래퍼. `BASE_URL = NEXT_PUBLIC_API_GATEWAY_URL \| NEXT_PUBLIC_FASTAPI_URL \| /api/proxy`. JWT를 `Authorization`+`X-Supabase-Authorization`에 주입, camelCase↔snake_case 변환 |
+| `apps/web/lib/supabase.ts` | `createPublicClient()` 싱글톤(anon 키, RLS 강제, service_role 없음) |
+| `apps/web/lib/firebase-auth.ts` | 관리자 Firebase REST 인증, 만료 1분 전 자동 갱신(`securetoken.googleapis.com`) |
+| `apps/web/lib/recommender.ts` | **클라이언트 TTTV mirror.** 동일 가중치(0.45/0.25/0.30) 점수화, `CATEGORY_VECTORS`(8차원), Haversine, 시간대 혼잡 배수, `buildReason` 한국어 사유, `rankFacilities` |
+| `apps/web/lib/types.ts` / `apps/web/lib/utils.ts` | 테이블 인터페이스 / 마커 SVG(`getMarkerSvg`) |
+
+### 동작
+- 지도에서 시설 클릭 → 바텀시트 → "추천 받기" → `/worker/recommend?facilityId=X&lat=Y&lng=Z`.
+- 추천 페이지 마운트 → `supabase.auth.getSession()` → `userId`(없으면 목 폴백). 추천 이력 개수=0이면 콜드스타트 온보딩(카테고리 3+개 또는 자연어 입력).
+- 만족도 투표는 `votedRef.current`+`feedbackVotes`로 중복 방지, `mock-rec-id-*` 추천은 백엔드 호출 생략.
+- 대시보드는 KST(UTC±9h) 변환, 오늘 로그 5건 미만이면 합성 데이터로 패널 공백 방지.
 
 ---
 
-## 5. Congestion Logs Simulation & Seed Data
+## 2. API Gateway 계층 (OIDC)
 
-개발 테스트 환경 및 추천 정확도 검증 프로세스를 보조하기 위해 총 4가지 형태의 혼잡 시계열 가공 데이터 구축/제어 파이프라인을 운영하고 있습니다.
+### 책임
+브라우저 대상 단일 진입점(us-central1). `/api/v1/*` 및 `/predict`를 비공개 Cloud Run으로 라우팅하며, `backend-auth` 서비스 계정 OIDC로 백엔드를 호출하고 Supabase JWT를 `X-Supabase-Authorization` 헤더로 그대로 전달.
 
-### 5-1. SQL 마이그레이션 시드 데이터
-*   **위치:** [20250523120002_seed.sql](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/supabase/migrations/20250523120002_seed.sql)
-*   **특징:** DB 초기화 직후 구동되는 PostgreSQL `generate_series` 기반 적재 시스템으로, 시설 종류별 고유한 통계적 혼잡 패턴을 가진 7일간의 시간대별 데이터베이스 초기 레코드를 생성합니다.
-*   **카테고리별 핵심 패턴 상세:**
-    *   **식당 (`cafeteria`):** 점심식사(11~13시) 및 저녁 피크타임(17~19시)에 혼합 확률 모델 형태로 높은 혼잡 수치($0.50 \sim 0.95$) 설정, 주말 최소 트래픽 배정. (수집 데이터 소스 종류: `cctv` 임시 지정)
-    *   **주차장 (`parking`):** 평일 출근 직후 오전 피크타임(8~9시)에 임계 혼잡값 집중($0.75 \sim 0.95$), 평일 주간에는 업무 지속 유동 유지($0.65 \sim 0.80$), 심야시간대 감쇄. (수집 데이터 소스 종류: `iot_sensor`)
-    *   **회의실 (`meeting_room`):** 주말 차단($0.0$) 조치, 평일 정규 업무시간대(9~17시) 유기적 변동량 부여. (수집 데이터 소스 종류: `access_card`)
-    *   **하역장 (`loading_dock`):** 하적 차량 집중 시간대인 오전(8~11시, $0.60 \sim 0.95$) 및 오후(13~16시, $0.55 \sim 0.90$) 물류 혼잡 유도. (수집 데이터 소스 종류: `iot_sensor`)
+### 스택
+Swagger 2.0, `x-google-backend`, OIDC backend-auth, `disable_auth=true`(게이트웨이 자체는 공개, 인가는 백엔드 위임).
 
-### 5-2. Node.js 기반 벌크 로컬 시드 주입기
-*   **위치:** [seed.js](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/scripts/seed.js)
-*   **특징:** 로컬 및 스테이징 DB 환경 구축을 지원하는 스크립트 명령어로, 실행 시 과거 30일 범위의 로그 데이터를 벌크 데이터 형태로 대량 생성해 삽입합니다.
-*   **최적화 구조:** 데이터베이스 트랜잭션 과부하 방지를 목적으로 당일 24시간 동안은 1시간 단위의 정밀 샘플 데이터를 생성하며, 이전 29일 영역은 3시간 단위의 주요 일과시간대 스냅샷 데이터를 주입합니다. 관리자 경보 시스템 등의 테스트를 돕기 위해 특정 시간(체육관 18:30 이후, 식당 12:00 전후)에 의도적으로 $90\%$를 초과하는 이상치(Anomaly) 혼잡 데이터를 인위 주입하는 특징이 있습니다.
+### 핵심 파일
+- `apps/api/openapi-gateway.yaml` — 노출 경로: `/health`, `/api/v1/recommendations`, `/api/v1/feedback`, `/api/v1/preferences/parse`, `/api/v1/users/me/vector`, `/api/v1/infrastructures`, `/api/v1/admin/simulate-peak`, `/predict`.
 
-### 5-3. Python 기반 실시간 랜덤 혼잡 로그 생성기
-*   **위치:** [generate_logs.py](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/scratch/generate_logs.py)
-*   **특징:** 일회성 실행용 유틸리티로, 현재 시간 기준 무작위 비율(여유 15개소: $0.05 \sim 0.28$, 보통 15개소: $0.35 \sim 0.65$, 혼잡 10개소: $0.72 \sim 0.95$)로 40개 전체 시설의 혼잡도를 재배치하여 실시간 라이브 대시보드 마이그레이션을 돕습니다.
+### 동작
+- 게이트웨이는 us-central1에만 배포 가능(asia-northeast3 미지원). Cloud Run 백엔드는 지연을 위해 asia-northeast3 유지 — 교차 리전 호출 허용.
+- 배포 URL 예: `induspot-gateway-9t4vof78.uc.gateway.dev`. API Config 갱신 시 타임스탬프 접미사로 멱등 보장.
 
-### 5-4. 클라이언트 폴백 Mock 데이터 (Sandbox 모드)
-*   **위치:** [page.tsx](file:///c:/Users/hennr/Desktop/InduSpot/induspot_final/induspot_gcp/apps/web/app/worker/recommend/page.tsx)
-*   **특징:** DB 접근 및 API 통신이 지연되거나 개발용 격리 데모 환경 구동 시 프론트엔드가 중단되지 않도록 `MOCK_SEED_FACILITIES` 정적 객체를 보관하여 폴백을 구현합니다.
+---
+
+## 3. Backend 계층 (Cloud Run · FastAPI)
+
+### 책임
+혼잡 예측·시설 추천 엔진. 실시간 혼잡 데이터(Pub/Sub) 수집, TTTV 다요인 점수화, Vertex AI ML 예측, Gemini 사유 생성, Firestore 선호 벡터 관리. 모든 외부 의존성에 다단계 폴백 적용.
+
+### 스택
+FastAPI, Python 3.11, uvicorn, pydantic/`pydantic_settings`, structlog(JSON 로깅), supabase-py, PyJWT, `google-cloud-{aiplatform,pubsub,bigquery,firestore,storage,secretmanager}`, `google.oauth2.id_token`, vertexai(Gemini), httpx, asyncio.
+
+### 핵심 파일
+| 파일 | 역할 |
+|---|---|
+| `apps/api/app/main.py` | 앱 초기화, CORS(기본 와일드카드 / `ALLOWED_ORIGINS` 설정 시 strict), 라우터 등록. 헬스: `GET /`, `GET /health` |
+| `apps/api/app/core/config.py` | pydantic Settings. `.env` 또는 Secret Manager 지연 로드. `GCP_PROJECT_ID=knudc-henryseo711`, `VERTEX_LOCATION=us-central1`, `BQ_LOCATION=us-central1`, `PUBSUB_TOPIC=induspot-congestion` 등 |
+| `apps/api/app/core/supabase.py` | Supabase anon/service_role 클라이언트, Supabase JWT(HS256) 검증, Firebase 토큰 검증. `get_current_user`, `require_firebase_admin` 노출 |
+| `apps/api/app/core/logging.py` | structlog JSON + GCP severity 매핑 |
+| `apps/api/app/routers/recommendations.py` | `POST /api/v1/recommendations`(IDOR 보호 위치기반), `/recommendations/by-type`(타입 브라우징), `POST /api/v1/feedback`, `GET /api/v1/users/me/vector` |
+| `apps/api/app/routers/preferences.py` | `POST /api/v1/preferences/parse`(자연어→구조화, Firestore 업서트, `users.preferred_categories` 갱신) |
+| `apps/api/app/routers/predict.py` | `POST /predict`(무인증, Cloud Run IAM 보호): `{facility_type,hour,day_of_week}`→혼잡 |
+| `apps/api/app/routers/ingest.py` | `POST /ingest/pubsub`(OIDC 검증, base64 파싱, `congestion_logs` 삽입, OrderedDict LRU 멱등 max 5000) |
+| `apps/api/app/routers/infrastructures.py` | `GET /api/v1/infrastructures`(시설+최신 혼잡), `POST /api/v1/admin/simulate-peak`(Firebase 관리자 전용) |
+| `apps/api/app/services/tttv/score.py` | TTTV 합성 점수, Min-Max 정규화 |
+| `apps/api/app/services/tttv/preference.py` | 8차원 `CATEGORY_VECTORS`, 콜드스타트 평균, 코사인 유사도, 피처 가중(EV +0.3 idx6, vegetarian +0.2 idx4) |
+| `apps/api/app/services/tttv/wait_time.py` | 대기시간 = 혼잡 × 기본처리시간 × 피크배수(12–14h 1.3×, 7h/15h 1.2×) |
+| `apps/api/app/services/tttv/travel.py` | Haversine 직선거리 / Kakao Mobility Directions 폴백, 도보 66.67 m/min(4km/h) |
+| `apps/api/app/services/predict_service.py` | 혼잡 예측 4단계 폴백(Vertex→GCS→local→0.5), 시설타입 정규화, 더블체크 락 지연 로딩 |
+| `apps/api/app/services/reason_service.py` | Gemini(`gemini-2.5-flash-lite`) 한국어 사유, 환각 방지 시스템 지시, 4s 타임아웃·128토큰·temp 0.2, 120자 절단, 템플릿 폴백 |
+| `apps/api/app/services/preference_vector_service.py` | Firestore 선호 벡터 KV: `get/upsert/adjust_user_vector_on_feedback`(accepted +10%, rejected/ignored −5%), L2 정규화 |
+| `apps/api/app/services/preference_nlp_service.py` | 자연어→`{categories,attributes,summary,vector,is_fallback}`, Gemini JSON + 키워드 정규식 폴백 |
+| `apps/api/app/services/bq_forecast_service.py` | BQML `congestion_forecast_lookup`(ARIMA_PLUS) 조회(대시보드용, 실시간 미사용) |
+| `apps/api/app/jobs/publish_congestion.py` | Cloud Run Job, KST 시간대 인지 더미 혼잡 이벤트 생성→Pub/Sub 발행 |
+
+### 동작
+- 추천 시 후보 점수화·Gemini 사유·DB 저장을 모두 `asyncio.gather`로 병렬화. 동기 SDK는 `asyncio.to_thread`로 래핑.
+- 후보 필터링: 원시설 제외, 150m Haversine 반경, TTTV 상위 3개.
+- `by-type` 브라우징: 원시설 없음, 기준 혼잡 0.7로 인센티브 계산, `recommendations` 테이블에 미저장(합성 `bytype-{facility_id}`).
+
+---
+
+## 4. 추천 엔진 — TTTV (Time-To-Value)
+
+### 정확한 공식 및 가중치
+시설 후보의 원점수(raw)는 세 요인의 가중합:
+
+```
+raw = W1 · preference_similarity  −  W2 · time_cost  +  W3 · incentive
+
+     W1 = 0.45  (선호 일치도, preference)
+     W2 = 0.25  (시간 비용, time cost)
+     W3 = 0.30  (혼잡 분산 인센티브, congestion incentive)
+```
+
+Min-Max 정규화(출력 [0,1]로 클램프):
+
+```
+score = (raw + W2) / (W1 + W2 + W3)   →  clamp([0, 1])
+```
+
+가중치는 황금비(45:25:30)로 하드코딩되어 런타임 튜닝 불가.
+
+### 구성 요소 정의
+- **preference_similarity**: 사용자 8차원 벡터와 시설 벡터의 코사인 유사도(둘 다 L2 정규화), [0,1] 클램프. 기준 벡터 — cafeteria `[1,0,0,0,0.2,0.1,0,0]`, parking `[0,1,0,0,0,0,0.3,0.1]`, meeting_room `[0,0,1,0,0.1,0,0,0.2]`, rest_area `[0,0,0,1,0,0.2,0,0]`. 피처 가중: EV 충전 +0.3(dim6), 채식 +0.2(dim4), 조용함 +0.3(dim7).
+- **time_cost**: 도착 시점(UTC, `now + travel_time`) 예측 혼잡 기반 대기 + 이동 시간, `min(1.0, (wait+travel)/60)`.
+- **incentive**: `max(0, original_congestion − candidate_congestion)`. **현재** 혼잡 사용.
+- **의도적 시간 비대칭(설계 노트 `score.py`)**: time_cost는 **도착 시점 예측 혼잡**을, incentive는 **현재 혼잡**을 사용. 현재 떠날 동기(현재)와 미래 도착 조건(예측)을 균형.
+
+### Gemini 사유
+추천마다 `reason_service.generate_reason`가 Gemini(`gemini-2.5-flash-lite`)로 1–2문장 한국어 사유 생성. 시스템 지시로 "입력 수치만 사용, 새 숫자 생성 금지" 환각 가드. temperature 0.2, max 128토큰, 4s 타임아웃, 120자 절단. `GEMINI_ENABLED=False`(기본) 또는 타임아웃 시 결정적 템플릿(시설명+이동분+대기분+혼잡%) 폴백.
+
+### 피드백 학습 (Firestore 벡터 보정)
+사용자가 추천을 수락/거절/무시하면 `adjust_user_vector_on_feedback`이 Firestore 8차원 벡터를 즉시 보정:
+
+```
+accepted          : v_new = v_old + 0.10 × (v_facility − v_old)   (시설 쪽으로 +10%)
+rejected / ignored: v_new = v_old − 0.05 × (v_facility − v_old)   (시설 반대로 −5%)
+```
+
+연산 후 L2 정규화하여 단위 벡터로 재저장(시간 감쇠 없음). 캐시 무효화 없이 **다음 추천 요청이 즉시 갱신된 벡터를 반영**.
+
+### 콜드스타트
+Firestore 벡터가 없으면 `users.preferred_categories`의 `CATEGORY_VECTORS` 평균(L2 정규화)을 즉시 생성·업서트. 카테고리도 없으면 균일 벡터 `[1/√8]×8` 사용.
+
+---
+
+## 5. End-to-End 데이터 플로우 (시퀀스)
+
+### A. 추천 (Worker Recommendation)
+1. 프론트 `POST /api/v1/recommendations {userId, originalFacilityId, userLat, userLng}` + Supabase JWT(`X-Supabase-Authorization`).
+2. 게이트웨이 OIDC로 Cloud Run 호출 → `get_current_user`가 JWT(HS256, audience=authenticated) 검증, IDOR(body.userId == JWT sub) 확인.
+3. 사용자·원시설·전체 시설(1000건 페이지네이션) 병렬 페칭, 150m 반경 후보 필터.
+4. Firestore에서 사용자 선호 벡터 조회(없으면 콜드스타트).
+5. 후보별 병렬: 최신 `congestion_logs` 조회, Haversine 거리, 도착 시각(UTC) 산출, 도착 시점 혼잡 예측(Vertex→GCS→local→0.5), 대기시간 계산, `calculate_tttv_score`.
+6. TTTV 내림차순 상위 3 선택 → Gemini 사유 병렬 생성(4s, 템플릿 폴백).
+7. `recommendations` 행 병렬 삽입 → `recommendation_id`·사유·시설정보 반환.
+8. 프론트 3개 카드(미니맵·TTTV 분해·만족도·수락 CTA) 표시. 네트워크 오류 시 `buildMockRecommendations()` 폴백.
+
+### B. 피드백 (Feedback Loop)
+1. 👍/👎 또는 수락 CTA → `POST /api/v1/feedback {recommendationId, action}`.
+2. 백엔드 소유권 가드(rec.user_id == JWT sub).
+3. `user_feedback` 행 삽입. `accepted`면 `recommendations.accepted=True`.
+4. 추천 시설의 `facility_vector`(CATEGORY_VECTORS + 피처) 로드 → `adjust_user_vector_on_feedback`(+10%/−5%) → Firestore 업서트.
+5. 수락 시 카카오 길안내 오픈. "다른 옵션" 버튼은 3건 모두 `rejected` 제출 후 재추천(거절 시설 회피).
+
+### C. 자연어 선호 (NL Preference Parsing)
+1. 온보딩 모달 텍스트/음성 입력 → `POST /api/v1/preferences/parse {text}` + JWT.
+2. `parse_preference`가 Gemini 호출(JSON 강제, enum 제약) → `{categories, attributes, summary(한국어), vector}`. 4s 타임아웃 시 키워드 정규식 폴백.
+3. 환각 제거(enum coerce). 카테고리 평균 + 속성 차원 가중으로 8차원 벡터 구성.
+4. Firestore 업서트 + `users.preferred_categories` 갱신 → `{is_fallback, vector_updated, categories_saved}` 반환.
+5. 프론트 모달 닫고 새 벡터로 추천 재요청. 유효 속성 6종: vegetarian, convenience, ev_charger, quiet(차원 가중) / near, indoor(메타데이터만).
+
+### D. 혼잡 예측 / 예보 (Prediction & Forecast)
+1. TTTV 점수화 중 도착 시각 `now(UTC)+travel_time` → 도착 hour/dow 추출.
+2. `predict_congestion(facility_type, hour, dow)` (블로킹, `to_thread`): 시설타입 정규화(restaurant/cafe→cafeteria, gym/rest_area/lounge→loading_dock, office→meeting_room).
+3. 폴백 체인: (a) Vertex Endpoint(`VERTEX_ENDPOINT_ID` 설정 시, 5s 타임아웃, sklearn Pipeline OneHotEncoder→Ridge) → (b) GCS `models/model.pkl` 인메모리 → (c) local `model.pkl` → (d) 기본 0.5. 입력 불변식 `[norm_type, str(hour), str(dow)]`, source 로깅.
+4. 대기시간 = `predicted_congestion × avg_process_time × hour_multiplier`(처리시간: cafeteria 20·parking 5·meeting_room/rest_area 10·loading_dock 30분).
+5. **예보(배치)**: BQML ARIMA_PLUS가 48시간 예측을 `congestion_forecast_lookup`에 사전계산 → 관리자 대시보드 차트에서 조회(실시간 추천 경로에서는 절대 호출 안 함). `POST /predict`는 무인증(Cloud Run IAM)으로 대시보드·클라 데모 폴백 제공.
+
+### E. 데이터 수집 (Pub/Sub / Dataflow)
+1. 센서/CCTV/출입카드 → Pub/Sub 토픽 `induspot-congestion`에 base64 JSON `{facility_id, congestion, current_count, ts, source}` 발행.
+2. Cloud Scheduler(`*/10 * * * *`) → Cloud Run Job `publish_congestion`이 KST 시간대 인지 더미 이벤트 발행(데모 시뮬레이션).
+3. Push 구독 → `POST /ingest/pubsub` + OIDC Bearer 토큰.
+4. OIDC 검증(`PUBSUB_PUSH_SERVICE_ACCOUNT` 이메일·`PUBSUB_PUSH_AUDIENCE` audience 설정 시) → base64 디코드 → 필드 검증.
+5. LRU 멱등 검사(`_seen_message_ids` OrderedDict max 5000) → `congestion_logs` 삽입(service_role, RLS 우회) → 성공 후에만 processed 표시(일시 실패는 Pub/Sub 재전송). 4xx 반환 시 재시도 억제.
+6. (병행) Pub/Sub → BigQuery 스트리밍 인제스트(Dataflow 경로)로 `induspot.congestion_logs` 적재 → BQML 예보 학습 소스. 추천 경로는 즉시 새 `congestion_level`을 `fetch_latest_congestion`으로 반영.
+
+### F. Admin (대시보드 · 시뮬레이션)
+1. 관리자 `POST /accounts:signInWithPassword`(Firebase REST) → idToken/refreshToken localStorage → `/admin/dashboard`.
+2. 대시보드 로드: Supabase facilities(페이지네이션) + 오늘(KST) `congestion_logs` + 7일 `recommendations` + 오늘 `user_feedback` 병렬 페칭(anon SELECT, relax_dashboard_rls).
+3. 24시간 히트맵: 시설×시간별 BQML `congestion_forecast_lookup` 조회, 실패/부족 시 KST 시간대 기반 의사난수 폴백 생성.
+4. KPI(혼잡·수락률·DAU·이상알림) + 분포(30일) + 이상알림 렌더. 실데이터+합성 병합으로 패널 공백 방지.
+5. `POST /api/v1/admin/simulate-peak`(Firebase 가드): 전체 시설 셔플 후 15 easy(0.05–0.28)·15 medium(0.35–0.65)·나머지 hard(0.72–0.95) 버킷 할당, 10건 단위 배치 삽입.
+6. CSV 내보내기: 인메모리 생성, 한글 Excel용 BOM 접두.
+
+---
+
+## 6. 인증 · 보안
+
+| 항목 | 내용 |
+|---|---|
+| **근로자 인증** | Supabase JWT(HS256, audience=`authenticated`). 프론트는 `Authorization`+`X-Supabase-Authorization` 헤더로 전송. 백엔드 `get_current_user`는 `Authorization` → `X-Supabase-Authorization`(로컬) → `X-Forwarded-Authorization`(게이트웨이) 순으로 추출. JWT의 `sub`만 user_id로 사용, `role` 클레임은 무시. |
+| **관리자 인증** | Firebase Authentication / Identity Platform. ID 토큰을 `X-Admin-Authorization` 헤더로 전달, `require_firebase_admin`이 issuer=`securetoken.google.com/<GCP_PROJECT_ID>`, audience=`GCP_PROJECT_ID` 검증. 프로토타입에선 모든 Firebase 사용자를 관리자로 취급(세분 역할 없음). |
+| **Cloud Run 비공개** | Cloud Run `induspot-api`는 IAM 보호 비공개. 모든 클라 접근은 API Gateway 경유, `backend-auth` SA OIDC로만 호출. |
+| **IDOR 보호** | 추천 요청 body의 user_id가 JWT sub와 일치해야 함. 피드백도 `recommendation.user_id == current_user.id` 확인. |
+| **Secret Manager** | 키: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `GCS_BUCKET_NAME`. Cloud Run 런타임 SA에 `secretAccessor`. 부팅 시 지연 로드(`load_gcp_secrets()`), 미존재 키는 조용히 `.env` 폴백. |
+| **RLS** | Supabase Row-Level Security. `get_auth_user_info()`(SECURITY DEFINER, 재귀 방지)로 `users(role, company_name)` 조회. service_role=FOR ALL, authenticated=시설/혼잡 SELECT·본인 추천/피드백 INSERT/UPDATE, admin(`users.role='admin'`)=시설/로그 CRUD·동일회사 사용자 조회. anon(`20260602130000` 완화)=대시보드용 facilities/congestion_logs/recommendations/user_feedback SELECT 허용(프로토타입 양보). `congestion_logs` INSERT는 anon 차단 → ingest/simulate-peak는 service_role 사용. |
+| **Pub/Sub OIDC** | 선택적(`PUBSUB_PUSH_SERVICE_ACCOUNT`/`PUBSUB_PUSH_AUDIENCE` 비면 생략). Cloud Run IAM이 1차 방어. |
+| **CORS** | `ALLOWED_ORIGINS`=`['*']`/빈 값이면 와일드카드 + `allow_credentials=False`(CORS 표준 위반 방지). 명시 도메인이면 strict + credentials=True. |
+
+---
+
+## 7. 데이터 모델
+
+### Supabase PostgreSQL 15 (`supabase/migrations/`)
+| 테이블 | 주요 컬럼 | 비고 |
+|---|---|---|
+| `users` | id(UUID, refs auth.users), employee_id(UNIQUE), company_name, preferred_categories(JSONB), work_shift(CHECK morning/afternoon/night), role(CHECK worker/admin), created_at, updated_at | `updated_at` 트리거. role은 본인 수정 불가(권한상승 방지) |
+| `facilities` | id, name, type(CHECK cafeteria/parking/meeting_room/rest_area), latitude/longitude(double), capacity, operating_hours(JSONB), features(JSONB) | 시드 41개, 중심 36.1198/128.3471. current_count 컬럼 없음(로그에서 추론) |
+| `congestion_logs` | id, facility_id(FK), timestamp(UTC, now), current_count, congestion_level(double, CHECK 0–1), source(CHECK iot_sensor/cctv/access_card) | 복합 인덱스 (facility_id, timestamp DESC), Realtime publication |
+| `recommendations` | id, user_id(FK), original_facility_id·recommended_facility_id(FK, ON DELETE SET NULL), tttv_score, score_breakdown(JSONB: travel_time/wait_time/preference/incentive), accepted(bool) | 감사·학습 이력 |
+| `user_feedback` | id, user_id(FK), recommendation_id(FK ON DELETE CASCADE), action(CHECK accepted/rejected/ignored), timestamp(UTC) | 선호 학습 트리거 |
+| `inquiries` | id, user_id(NULLABLE), user_name, type, title, content, status(CHECK new/in_progress/resolved), created_at, updated_at | anon INSERT 허용, DELETE 정책 없음(기본 거부) |
+| `system_settings` | id(INT, CHECK id=1 단일행), maintenance_mode, notice_text, congestion_threshold(0–100), coldstart_weight(0–100), updated_at | 단일행 설계, upsert 패턴 |
+
+마이그레이션: `20250523120000_init.sql`, `20250523120001_rls.sql`, `20250523120002_seed.sql`(168시간×시설 패턴), `20260531220000_add_inquiries_table.sql`, `20260601120000_tighten_inquiries_rls.sql`, `20260602120000_add_system_settings.sql`, `20260602130000_relax_dashboard_rls.sql`.
+
+키 제약: enum은 CHECK(타입 미사용)로 마이그레이션 유연성 확보. JSONB는 알려진 키 가정(스키마 미강제). 정규 좌표 36.1198/128.3471 고정. `recommendations`는 ON DELETE SET NULL(이력 보존), `user_feedback`/`congestion_logs`는 CASCADE.
+
+### Firestore (`user_preference_vectors`)
+- 문서 키: `user_id`. 스키마: `{vector: float[8], type: 'user'}`.
+- 8차원 L2 정규화 벡터. KV 조회 전용(ANN 검색 아님 — 코사인 유사도는 `tttv/preference.py`에서 계산).
+- 피드백 학습(+10%/−5%)·콜드스타트 초기화. 불가용 시 graceful no-op(추천 차단 안 함).
+
+---
+
+## 8. 배포 · CI
+
+| 항목 | 내용 |
+|---|---|
+| **프로젝트 / 리전** | GCP 프로젝트 `knudc-henryseo711`. Cloud Run=asia-northeast3 / Vertex·BigQuery·Pub/Sub·API Gateway=us-central1(ML 정렬). |
+| **백엔드 배포** | Cloud Build `--source`로 컨테이너 빌드 → Cloud Run(`induspot-api`, 포트 8080). `apps/api/Dockerfile`은 Python 3.11, Poetry 2.4.1(`poetry-plugin-export`로 requirements.txt 생성) → pip 설치 흐름. |
+| **프론트 배포** | `.github/workflows/firebase-hosting.yml` — main 푸시 시 `npm ci` → `npm run web:build`(`NEXT_PUBLIC_API_GATEWAY_URL` 주입) → `firebase deploy --only hosting`. Node 20, npm 캐시. 정적 익스포트 `apps/web/out` → Firebase Hosting(`firebase.json`). |
+| **ML 배포 스크립트** | `apps/api/scripts/deploy_vertex.py`(Vertex Model Registry, prebuilt sklearn-cpu.1-3, n1-standard-2, GCS `induspot-models-6757`), `scripts/load_bq.py`·`_run_bqml.py`(BQML ARIMA_PLUS), `apps/api/sql/bqml_forecast.sql`(auto_arima·decompose·clean_spikes, 48h 예측), `scripts/setup_secrets.py`, `scripts/deploy_publisher_job.py`(Cloud Run Job + Cloud Scheduler `*/10`). |
+| **버전 스큐 위험** | prebuilt sklearn-cpu.1-3(numpy 1.x) vs 로컬 numpy 2.x → `_extract_coef.py`+`_rebuild_and_deploy.py` 폴백 포함. |
+
+---
+
+## 9. 외부 의존성 & 폴백 전략 (Graceful Degradation)
+
+핵심 설계 원칙: **단일 외부 서비스 장애가 추천을 차단하지 않는다.** 모든 사용자 대면 오류 메시지는 한국어(폴백 템플릿), 로그/코드는 영어(GCP 관측성).
+
+| 의존성 | 1차 | 폴백 체인 |
+|---|---|---|
+| **혼잡 예측** | Vertex AI Endpoint(5s 타임아웃) | → GCS `model.pkl` 인메모리 → local `model.pkl` → 기본 0.5 |
+| **사유 생성** | Gemini(`gemini-2.5-flash-lite`, 4s) | → 결정적 한국어 템플릿(시설명+이동분+대기분+혼잡%) |
+| **백엔드 추천** | FastAPI `/recommendations` | → 클라이언트 TTTV mirror(`recommender.ts`, 동일 가중치) + 목 시드 데이터 |
+| **타입 브라우징** | `/recommendations/by-type` | → 클라 mirror `rankFacilities` |
+| **이동시간** | Kakao Mobility Directions(키 설정 시, 2s) | → Haversine 직선거리 × 4km/h(66.67 m/min) |
+| **선호 벡터** | Firestore | → `get` None 반환, `upsert` no-op, 콜드스타트 `CATEGORY_VECTORS`로 계속 |
+| **선호 NLP** | Gemini JSON 추출 | → 키워드 정규식 폴백(`is_fallback=true`) |
+| **지도 SDK** | Kakao Maps SDK | → CSS 그리드 시뮬레이션(앱키 없거나 목일 때) |
+| **대시보드 데이터** | Supabase 실데이터 | → KST 시간대 기반 의사난수 합성(패널 공백 방지) |
+| **Secret 로드** | Secret Manager | → `.env` |
+| **예보** | BQML `congestion_forecast_lookup` | → None 반환 → 클라 의사난수 히트맵 |
+
+비-GCP 의존성: Supabase(facilities/users/auth/logs 단일 진실 원천, Tier3 Cloud SQL 마이그레이션 대상), Kakao(Maps SDK + Mobility), Firebase Auth. **Pinecone는 deprecated**(Firestore KV로 대체, 시그니처만 호환 유지 — `available` False 시 graceful).
+
+---
+
+## 10. 현황 · 제약 노트
+
+- **현황(2026-06-02 기준)**: Tier 0 + 일부 Tier 1. WP1(Vertex), WP2(BigQuery ARIMA), WP3(Gemini), WP4(Pub/Sub) 동작. API Gateway 배포 완료(`induspot-gateway-9t4vof78.uc.gateway.dev`). Firestore 코드 완성·라이브 전. Secret Manager 지원 코드 있으나 미투입(.env 폴백 동작).
+- **인증 분리 비용**: 근로자=Supabase / 관리자=Firebase 이중 모델 → 백엔드가 두 헤더 스타일 처리. Firebase 관리자는 Supabase user 레코드가 없어 `admin_update_settings` RLS(`users.role='admin'`)와 불일치(프로토타입 허용, 프로덕션은 커스텀 클레임/동기화 필요).
+- **멱등성**: Pub/Sub messageId LRU가 인스턴스 로컬(OrderedDict max 5000). 다중 인스턴스/재시작 시 중복 삽입 가능 → 프로덕션은 Firestore/Redis 권장.
+- **TTTV 가중치 불변**: 0.45/0.25/0.30 하드코딩, 런타임 튜닝 불가. 시설 4종 고정(cafeteria/parking/meeting_room/rest_area), Ridge 모델은 3피처 원-핫에 적합. loading_dock는 정규화로 rest_area 매핑.
+- **시간대**: 예측 모델 UTC 학습(Cloud Run 런타임 UTC), 대시보드는 KST 변환. `publish_congestion`은 KST 인지 분포.
+- **anon RLS 완화**: 대시보드용 읽기 허용은 프로토타입 양보 — 프로덕션은 강화 필요.
+- **정규 좌표 고정**: 모든 시드·CSV·프론트 기본 중심 36.1198/128.3471(구미). 회사별 시설셋은 스키마 재설계 필요.
+- **샘플 데이터**: `samples/gumi_facilities.csv`, `gumi_parking*.csv`, `gumi_restaurants_grouped.csv`(주차 9·식당 16·회의실 8·휴게 6) — 실제 구미산단 POI.
+
+> **GCP 최대화 로드맵은 `docs/ARCHITECTURE_GCP_TARGET.md` 를 참조하세요.**
