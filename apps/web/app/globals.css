@@ -76,3 +76,10 @@ body {
 .map-dark-tiles img:not([src^="data:"]) {
   filter: invert(90%) hue-rotate(180deg) brightness(80%) contrast(120%) grayscale(20%);
 }
+
+/* 사용자 위치 마커는 어떤 다크/invert 필터 레이어에도 눌리지 않도록 강제(흰 테두리가 검게 반전되던 문제 차단) */
+.user-loc-marker,
+.user-loc-marker * {
+  filter: none !important;
+  -webkit-filter: none !important;
+}

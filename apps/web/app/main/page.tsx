@@ -314,13 +314,13 @@ export default function MainPage() {
           100% { transform: scale(1.6); opacity: 0; }
         }
       </style>
-      <div style="position: relative; width: 100px; height: 100px; pointer-events: none;">
+      <div class="user-loc-marker" style="position: relative; width: 100px; height: 100px; pointer-events: none; filter: none; -webkit-filter: none;">
         <!-- Glow -->
         <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,0,0.8) 0%, rgba(255,255,0,0.4) 40%, rgba(255,255,0,0) 80%); animation: pulse-user-marker 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
-        <!-- Border -->
-        <div style="position: absolute; top: 50%; left: 50%; width: 28px; height: 28px; margin-top: -14px; margin-left: -14px; background: #ffffff; border-radius: 50%; box-shadow: 0 0 10px rgba(255,255,0,0.5);"></div>
+        <!-- White Border -->
+        <div style="position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; margin-top: -15px; margin-left: -15px; background: #ffffff; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.4);"></div>
         <!-- Core -->
-        <div style="position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; margin-top: -10px; margin-left: -10px; background: #ffff00; border-radius: 50%;"></div>
+        <div style="position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; margin-top: -9px; margin-left: -9px; background: #ffd400; border-radius: 50%;"></div>
       </div>
     `;
 
