@@ -1239,33 +1239,7 @@ export default function MainPage() {
 
 
 
-      {/* Bottom Navigation Bar */}
-      <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
-        {[
-          { id: 'Home', icon: Home, label: 'Home' },
-          { id: 'Saved', icon: Bookmark, label: 'Saved' },
-          { id: 'MyPage', icon: User, label: 'My Page' }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={`flex flex-col items-center justify-center transition-colors ${
-                isActive ? 'text-[#104bce]' : 'text-gray-500 hover:text-gray-400'
-              }`}
-            >
-              <div className={`p-2 rounded-xl mb-1 ${isActive ? 'bg-[#104bce]/10' : ''}`}>
-                <Icon size={24} className={isActive ? 'text-[#104bce]' : 'text-gray-500'} />
-              </div>
-              <span className={`text-xs font-medium ${isActive ? 'text-[#104bce]' : ''}`}>
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+
 
       {/* Toast Notification */}
       {toastMessage && (
