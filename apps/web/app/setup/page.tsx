@@ -16,11 +16,18 @@ export default function SetupPage() {
 
   const totalSteps = 3;
 
+  const stepKey = (step === 1 ? 'food' : step === 2 ? 'parking' : 'shift') as keyof typeof preferences;
+  const canProceed = !!preferences[stepKey];
+
   const handleNext = () => {
+    // 현재 단계 선택값이 비어 있으면 진행 차단(빈 온보딩으로 그대로 넘어가는 UX 결함 방지).
+    if (!canProceed) return;
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      console.log('User Preferences:', preferences);
+      // 데모 온보딩: 여기서 모은 값(메뉴종류/주차구역/근무조)은 추천 필터 기준인 facility category 와
+      // 의미가 달라 그대로 저장하지 않는다. 실제 선호 학습은 worker/recommend 온보딩(handleOnboardingSubmit)이
+      // Supabase users.preferred_categories 로 담당한다.
       router.push('/main');
     }
   };
@@ -175,7 +182,8 @@ export default function SetupPage() {
         <div className="mt-8 pb-8">
           <button
             onClick={handleNext}
-            className="w-full flex items-center justify-center py-4 rounded-xl bg-[#0a3d91] hover:bg-blue-700 text-white font-bold text-lg transition-colors"
+            disabled={!canProceed}
+            className="w-full flex items-center justify-center py-4 rounded-xl bg-[#0a3d91] hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-lg transition-colors"
           >
             {step === totalSteps ? '시작하기' : '다음'}
             {step !== totalSteps && <ArrowRight size={20} className="ml-2" />}

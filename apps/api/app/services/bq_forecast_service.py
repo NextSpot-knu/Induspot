@@ -41,7 +41,9 @@ def get_forecast_congestion(facility_id: str, timeout: float = 5.0) -> Optional[
                 bigquery.ScalarQueryParameter("facility_id", "STRING", facility_id)
             ]
         )
-        result = client.query(query, job_config=job_config).result(timeout=timeout)
+        # client.query 의 timeout 은 잡 제출 HTTP 호출, .result 의 timeout 은 잡 완료 폴링을 각각 bound 한다.
+        # (둘 다 줘야 '5초 안에 응답' 적시성이 양쪽 경로에서 보장된다.) 실패/타임아웃은 아래 except→None 폴백.
+        result = client.query(query, job_config=job_config, timeout=timeout).result(timeout=timeout)
         for row in result:
             return float(row["forecast_congestion"])
     except Exception as e:

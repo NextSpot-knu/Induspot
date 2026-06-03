@@ -95,17 +95,35 @@ export default function SupportPage() {
   const handleReply = async () => {
     if (!selectedTicket || !replyText.trim()) return;
 
+    // 데모 폴백 티켓(id 'demo-*')은 inquiries 테이블에 실제 행이 없어 0행 UPDATE 가 error 없이 통과 →
+    // 거짓 성공이 된다. DB 호출을 건너뛰고 화면 상태만 갱신하되, 실제 저장이 없음을 정직하게 안내(데모 무중단).
+    if (String(selectedTicket.id).startsWith('demo-')) {
+      setTickets(tickets.map(t => t.id === selectedTicket.id ? { ...t, status: 'resolved' as const } : t));
+      setSelectedTicket({ ...selectedTicket, status: 'resolved' });
+      setReplyText('');
+      alert('데모 모드: 답변이 화면에만 반영되었습니다(실제 저장 없음).');
+      return;
+    }
+
     try {
       const supabase = createPublicClient();
-      const { error } = await supabase
+      // .select() 로 영향 행을 확인한다(settings 페이지와 동일 패턴). update().eq() 만으론 0행 갱신도
+      // error 없이 통과해 무음 실패가 성공으로 표시된다.
+      const { data, error } = await supabase
         .from('inquiries')
         .update({ status: 'resolved' })
-        .eq('id', selectedTicket.id);
+        .eq('id', selectedTicket.id)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        // 0행 갱신(권한/RLS 로 행 미가시 또는 이미 삭제됨) → 무음 실패를 성공으로 단언하지 않는다.
+        alert('저장 대상 문의를 찾지 못했습니다(권한/RLS 또는 삭제됨). 상태가 변경되지 않았습니다.');
+        return;
+      }
 
-      // Update local state
-      const updatedTickets = tickets.map(t => 
+      // 실제 갱신 성공 시에만 로컬 상태 + 성공 알림.
+      const updatedTickets = tickets.map(t =>
         t.id === selectedTicket.id ? { ...t, status: 'resolved' as const } : t
       );
       setTickets(updatedTickets);

@@ -105,17 +105,18 @@ export function DashboardHeatmap({ heatmapData }: { heatmapData: any[] }) {
   // 0시 ~ 23시 순서대로 표시
   const hours = Array.from({length: 24}, (_, i) => i);
   
-  const getHeatmapColor = (value: number) => {
-    if (value === 0) return 'bg-slate-800'; // 데이터 없음
-    if (value < 0.3) return 'bg-emerald-100';
+  const getHeatmapColor = (value: number | null) => {
+    if (value == null) return 'bg-slate-800'; // 데이터 없음(실측 0%와 구분)
+    if (value < 0.3) return 'bg-emerald-100';  // 0(여유)도 여기로 — 더 이상 '데이터 없음'과 섞이지 않음
     if (value < 0.6) return 'bg-emerald-400';
     if (value < 0.8) return 'bg-amber-400';
     return 'bg-rose-500';
   };
 
-  const getHeatmapValue = (facility: string, hour: number) => {
+  const getHeatmapValue = (facility: string, hour: number): number | null => {
     const item = heatmapData.find(d => d.facility === facility && d.hour === hour);
-    return item ? item.value : 0;
+    // 셀이 없거나(미존재) 데이터 없음 센티넬(null)이면 null. 실측 0.00 은 0 그대로 반환된다.
+    return item ? item.value : null;
   };
 
   const handleCategoryChange = (catId: string) => {
@@ -168,9 +169,9 @@ export function DashboardHeatmap({ heatmapData }: { heatmapData: any[] }) {
                   {hours.map(h => {
                     const val = getHeatmapValue(fac, h);
                     return (
-                      <div 
+                      <div
                         key={`${fac}-${h}`}
-                        title={`${fac} ${h}시: ${(val * 100).toFixed(0)}%`}
+                        title={val == null ? `${fac} ${h}시: 데이터 없음` : `${fac} ${h}시: ${(val * 100).toFixed(0)}%`}
                         className={`flex-1 h-8 rounded-sm transition-colors hover:ring-2 hover:ring-blue-500 cursor-pointer ${getHeatmapColor(val)}`}
                       ></div>
                     );

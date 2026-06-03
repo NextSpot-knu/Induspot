@@ -9,11 +9,18 @@
 - 환각 방지: 모델 출력은 허용된 카테고리/속성 enum 으로만 강제하고, 코드가 다시 검증한다.
 - 결과 벡터는 기존 calculate_preference_similarity 가 그대로 쓰는 8차원 포맷이라
   추천 점수에 즉시 반영된다.
+
+Gemini 통합 최적화(품질·신뢰성):
+- response_schema(JSON Schema)로 enum/타입/필수키를 디코딩 단계에서 강제 → 파싱 취약성 제거.
+- few-shot 예시 + 빈 결과 규칙으로 1차 추출 정확도 향상.
+- 비-dict/펜스/잡텍스트에 견고한 파서(_safe_json_loads) + dict 가드(AttributeError 크래시 방지).
+- safety_settings(BLOCK_ONLY_HIGH)로 한국어 정상 입력 과차단 방지.
 """
 
 import asyncio
 import json
 import math
+import re
 from typing import Optional
 
 import structlog
@@ -43,6 +50,33 @@ ATTR_DIM = {
 }
 VALID_ATTRIBUTES = list(ATTR_DIM.keys()) + ["near", "indoor"]  # near/indoor 는 벡터 보정 없이 요약/메타에만 사용
 
+_SYSTEM_INSTRUCTION = (
+    "당신은 산업단지 근로자의 자연어 선호 발화를 구조화하는 분석기입니다. "
+    "오직 입력 문장에 드러난 의도만 추출하고, 없는 사실은 추가하지 마세요. "
+    "facility 카테고리는 반드시 [cafeteria, parking, meeting_room, rest_area] 중에서만 고르세요. "
+    "속성은 반드시 [vegetarian, convenience, ev_charger, quiet, near, indoor] 중에서만 고르세요. "
+    "출력은 지정된 JSON 객체 하나뿐이며, 코드펜스(```)·앞뒤 설명을 붙이지 마세요. "
+    "summary 에 혼잡도·거리·시간 같은 숫자나 시설 이름을 지어내지 마세요."
+)
+
+# response_schema: enum/타입/필수키를 모델 디코딩 단계에서 강제(파싱 취약성 제거). _coerce 는 이중 안전망으로 유지.
+_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "preferred_categories": {
+            "type": "array",
+            "items": {"type": "string", "enum": VALID_CATEGORIES},
+        },
+        "attributes": {
+            "type": "array",
+            "items": {"type": "string", "enum": VALID_ATTRIBUTES},
+        },
+        "summary": {"type": "string"},
+    },
+    "required": ["preferred_categories", "attributes", "summary"],
+    "propertyOrdering": ["preferred_categories", "attributes", "summary"],
+}
+
 # 폴백용 한국어 키워드 규칙
 _CATEGORY_KEYWORDS = {
     "cafeteria": ["식당", "밥", "점심", "끼니", "먹", "구내식당", "카페테리아", "메뉴", "한식", "중식", "양식", "분식"],
@@ -59,15 +93,20 @@ _ATTR_KEYWORDS = {
     "indoor": ["실내", "지하", "비 안", "비안", "실내주차"],
 }
 
-_SYSTEM_INSTRUCTION = (
-    "당신은 산업단지 근로자의 자연어 선호 발화를 구조화하는 분석기입니다. "
-    "오직 입력 문장에 드러난 의도만 추출하고, 없는 사실은 추가하지 마세요. "
-    "facility 카테고리는 반드시 [cafeteria, parking, meeting_room, rest_area] 중에서만 고르세요. "
-    "속성은 반드시 [vegetarian, convenience, ev_charger, quiet, near, indoor] 중에서만 고르세요."
+# few-shot: 한국어 발화→구조 매핑과 '단서 없으면 빈 배열' 규칙을 모델에 각인.
+_FEW_SHOT = (
+    "예시1) 발화: \"조용한 회의실이랑 전기차 충전되는 주차장이 좋아요\"\n"
+    '   → {"preferred_categories":["meeting_room","parking"],"attributes":["quiet","ev_charger"],"summary":"조용한 회의실과 전기차 충전이 되는 주차장을 선호하시는군요."}\n'
+    "예시2) 발화: \"근처에서 빨리 먹을 수 있는 채식 식당\"\n"
+    '   → {"preferred_categories":["cafeteria"],"attributes":["near","convenience","vegetarian"],"summary":"가까운 곳에서 빠르게 이용할 수 있는 채식 식당을 찾으시는군요."}\n'
+    "예시3) 발화: \"음 그냥 아무거나\"\n"
+    '   → {"preferred_categories":[],"attributes":[],"summary":"특별한 선호가 드러나지 않았어요."}\n'
 )
 
 _model = None
 _model_init_attempted = False
+_gen_config = None       # GenerationConfig (lazy)
+_safety_settings = None  # list[SafetySetting] (lazy)
 
 
 def _normalize(vec: list[float]) -> list[float]:
@@ -134,7 +173,7 @@ def _coerce(parsed: dict) -> dict:
 
 
 def _get_model():
-    global _model, _model_init_attempted
+    global _model, _model_init_attempted, _gen_config, _safety_settings
     if _model_init_attempted:
         return _model
     _model_init_attempted = True
@@ -142,12 +181,38 @@ def _get_model():
         return None
     try:
         import vertexai
-        from vertexai.generative_models import GenerativeModel
+        from vertexai.generative_models import (
+            GenerativeModel,
+            GenerationConfig,
+            HarmBlockThreshold,
+            HarmCategory,
+            SafetySetting,
+        )
 
         vertexai.init(project=settings.GCP_PROJECT_ID, location=settings.VERTEX_LOCATION)
+        # 분류·추출은 창의성 0 → 완전 결정성(temperature 0.0 + top_p/top_k). response_schema 로 구조 강제.
+        _gen_config = GenerationConfig(
+            temperature=0.0,
+            top_p=1.0,
+            top_k=1,
+            candidate_count=1,
+            max_output_tokens=256,
+            response_mime_type="application/json",
+            response_schema=_RESPONSE_SCHEMA,
+        )
+        _safety_settings = [
+            SafetySetting(category=c, threshold=HarmBlockThreshold.BLOCK_ONLY_HIGH)
+            for c in (
+                HarmCategory.HARM_CATEGORY_HARASSMENT,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            )
+        ]
         _model = GenerativeModel(settings.GEMINI_MODEL, system_instruction=[_SYSTEM_INSTRUCTION])
         logger.info("pref_nlp_model_initialized", model=settings.GEMINI_MODEL)
     except Exception as e:
+        # response_schema 등 미지원 SDK 면 여기서 잡혀 _model=None → 키워드 폴백(데모 안전).
         logger.warning("pref_nlp_model_init_failed", error=str(e))
         _model = None
     return _model
@@ -155,29 +220,63 @@ def _get_model():
 
 def _build_prompt(text: str) -> str:
     return (
-        "다음 근로자 발화에서 선호를 추출해 JSON 으로만 답하세요.\n"
+        "다음 근로자 발화에서 '명시적으로 드러난' 선호만 추출해 JSON 으로만 답하세요.\n"
         '형식: {"preferred_categories": [...], "attributes": [...], "summary": "한국어 한 문장"}\n'
-        "preferred_categories 는 [cafeteria, parking, meeting_room, rest_area] 중에서만, "
-        "attributes 는 [vegetarian, convenience, ev_charger, quiet, near, indoor] 중에서만 고르세요.\n"
-        "발화에 없는 항목은 넣지 마세요. summary 는 입력 내용만으로 1문장.\n\n"
+        "규칙:\n"
+        "- preferred_categories 는 [cafeteria, parking, meeting_room, rest_area] 중에서만.\n"
+        "- attributes 는 [vegetarian, convenience, ev_charger, quiet, near, indoor] 중에서만.\n"
+        "- 발화에 단서가 없으면 해당 배열을 빈 배열([])로 두세요(억지로 채우지 말 것).\n"
+        "- summary 는 입력에 드러난 내용만으로 1문장. 혼잡도·거리·시간 같은 숫자나 시설 이름을 절대 지어내지 마세요.\n\n"
+        f"{_FEW_SHOT}\n"
         f"발화: \"{text}\""
     )
 
 
+def _safe_json_loads(raw: str) -> Optional[dict]:
+    """마크다운 펜스/앞뒤 잡텍스트/부분 JSON 에 견고한 파서. dict 가 아니면 None(환각·크래시 방지)."""
+    if not raw:
+        return None
+    s = raw.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*", "", s)
+        s = re.sub(r"\s*```$", "", s).strip()
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        pass
+    i, j = s.find("{"), s.rfind("}")
+    if 0 <= i < j:
+        try:
+            obj = json.loads(s[i:j + 1])
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            return None
+    return None
+
+
 def _generate_sync(model, prompt: str) -> Optional[dict]:
     try:
-        resp = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.1,
+        kwargs = {
+            "generation_config": _gen_config
+            if _gen_config is not None
+            else {
+                "temperature": 0.0,
                 "max_output_tokens": 256,
                 "response_mime_type": "application/json",
             },
-        )
+        }
+        if _safety_settings:
+            kwargs["safety_settings"] = _safety_settings
+        resp = model.generate_content(prompt, **kwargs)
         raw = (getattr(resp, "text", "") or "").strip()
         if not raw:
+            logger.warning("pref_nlp_empty_response")  # 안전필터/토큰절단 의심
             return None
-        return json.loads(raw)
+        parsed = _safe_json_loads(raw)
+        if parsed is None:
+            logger.warning("pref_nlp_parse_failed", raw_len=len(raw))
+        return parsed
     except Exception as e:
         logger.warning("pref_nlp_generate_failed", error=str(e))
         return None
@@ -195,18 +294,24 @@ async def parse_preference(text: str) -> dict:
 
     model = _get_model()
     if model is not None and text:
-        try:
-            raw = await asyncio.wait_for(
-                asyncio.to_thread(_generate_sync, model, _build_prompt(text)),
-                timeout=settings.GEMINI_TIMEOUT_SECONDS,
-            )
-            if raw:
-                parsed = raw
-                is_fallback = False
-        except asyncio.TimeoutError:
-            logger.warning("pref_nlp_timeout", timeout=settings.GEMINI_TIMEOUT_SECONDS)
-        except Exception as e:
-            logger.warning("pref_nlp_unexpected_error", error=str(e))
+        prompt = _build_prompt(text)
+        for attempt in range(2):  # 1차 + (빠른 일시실패에 한해) 1회 재시도. 타임아웃은 재시도 안 함(지연 폭증 방지).
+            try:
+                raw = await asyncio.wait_for(
+                    asyncio.to_thread(_generate_sync, model, prompt),
+                    timeout=settings.GEMINI_TIMEOUT_SECONDS,
+                )
+                if raw:
+                    parsed = raw
+                    is_fallback = False
+                    break
+            except asyncio.TimeoutError:
+                logger.warning("pref_nlp_timeout", attempt=attempt, timeout=settings.GEMINI_TIMEOUT_SECONDS)
+                break  # 예산 이미 소진 → 재시도 없이 폴백
+            except Exception as e:
+                logger.warning("pref_nlp_unexpected_error", attempt=attempt, error=str(e))
+            if attempt == 0:
+                await asyncio.sleep(0.2)
 
     model_summary = None
     if parsed is not None:

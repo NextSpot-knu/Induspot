@@ -184,6 +184,9 @@ function RecommendContent() {
   const activeRecIndexRef = useRef(0);
   const mutedRef = useRef(false);
   const recommendationsRef = useRef<RecommendationResponse[]>([]);
+  // 원시설 type 을 ref 로도 보관 — Effect2 deps 에서 originalFacility 객체를 빼도(이중 fetch 경합 제거)
+  // 폴백 카테고리를 stale 클로저 없이 최신값으로 읽기 위함.
+  const originalFacilityTypeRef = useRef<string | null>(null);
   const repromptCountRef = useRef(0);
   const startingRef = useRef(false);
 
@@ -236,6 +239,10 @@ function RecommendContent() {
   useEffect(() => {
     setActiveRec(0);
     quietAssistant();
+    // 새 추천 세트엔 이전 세트의 만족도 상태가 무의미하다. 목업은 고정 id(mock-rec-id-N)를 재사용하므로
+    // 초기화하지 않으면 '다른 대안 보기'·NL 재요청으로 같은 id 가 다시 와 새 카드의 👍/👎 가 잠긴다.
+    votedRef.current = new Set();
+    setFeedbackVotes({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recommendations]);
 
@@ -510,6 +517,7 @@ function RecommendContent() {
             congestionLevel: level,
             features: originalData.features || {},
           });
+          originalFacilityTypeRef.current = originalData.type;
 
           const defaultTimes: Record<string, number> = {
             cafeteria: 20,
@@ -538,6 +546,7 @@ function RecommendContent() {
             congestionLevel: fallbackObj.congestion_logs[0].congestion_level,
             features: fallbackObj.features,
           });
+          originalFacilityTypeRef.current = fallbackObj.type;
           setOriginalWaitTime("17.5");
         }
       } finally {
@@ -551,6 +560,7 @@ function RecommendContent() {
   // Check Cold Start & Fetch Recommendations
   useEffect(() => {
     if (!userId || !facilityId) return;
+    let cancelled = false;  // in-flight 가드: lat/lng 늦은 갱신 등으로 인한 잔여 응답 경합 방지
 
     async function checkHistoryAndFetch() {
       setLoadingRecommendations(true);
@@ -560,6 +570,7 @@ function RecommendContent() {
           .select("id", { count: "exact", head: true })
           .eq("user_id", userId);
 
+        if (cancelled) return;
         if (!error && count === 0) {
           setShowOnboarding(true);
           setLoadingRecommendations(false);
@@ -567,14 +578,16 @@ function RecommendContent() {
         }
 
         const recommendationsList = await getRecommendations(facilityId, { lat, lng });
+        if (cancelled) return;
         setRecommendations(recommendationsList);
       } catch (err) {
+        if (cancelled) return;
         console.warn("Error calling FastAPI, using demo fallback recommendations:", err);
-        
-        // Demo Fallback Recommendations
+
+        // Demo Fallback Recommendations — 원시설 type 은 deps 에서 originalFacility 객체를 뺀 대신 ref 로 읽는다.
         const filteredMock = MOCK_SEED_FACILITIES
-          .filter(f => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"));
-        
+          .filter(f => f.id !== facilityId && f.type === (originalFacilityTypeRef.current || "cafeteria"));
+
         const fallbacks: RecommendationResponse[] = filteredMock
           .slice(0, 3)
           .map((f, i) => ({
@@ -601,15 +614,19 @@ function RecommendContent() {
             rank: i + 1,
             totalCandidates: filteredMock.length
           }));
-        
+
         setRecommendations(fallbacks);
       } finally {
-        setLoadingRecommendations(false);
+        if (!cancelled) setLoadingRecommendations(false);
       }
     }
 
     checkHistoryAndFetch();
-  }, [userId, facilityId, lat, lng, originalFacility]);
+    return () => { cancelled = true; };
+    // originalFacility 를 deps 에서 제거: 매번 새 객체로 세팅돼 추천을 이중 fetch 시키던 경합의 원인이었다.
+    // 폴백 카테고리는 originalFacilityTypeRef 로 최신값을 읽는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, facilityId, lat, lng]);
 
   // 추천 API 실패 시 데모용 목업 추천 생성 (회복탄력성)
   const buildMockRecommendations = (): RecommendationResponse[] => {
@@ -900,14 +917,22 @@ function RecommendContent() {
     quietAssistant(); // 음성 비서 진행 중이면 정리(수동/음성 새로고침 공통)
     setIsRefreshing(true);
     try {
-      // 1. Call submitFeedback for all displayed recommendations as rejected
-      await Promise.all(
-        recommendations.map((rec) => submitFeedback(rec.recommendationId, "rejected"))
+      // 1. 실제 추천만 rejected 전송 — 목업(mock-rec-id)은 DB 기록이 없어 404 이므로 스킵하고,
+      //    개별 실패도 allSettled 로 삼켜 한 건 실패가 전체를 깨뜨리지 않게 한다(handleSatisfactionFeedback 과 대칭).
+      await Promise.allSettled(
+        recommendations
+          .filter((rec) => !rec.recommendationId.startsWith("mock-"))
+          .map((rec) => submitFeedback(rec.recommendationId, "rejected"))
       );
 
-      // 2. Fetch recommendations again to get the next best candidates
-      const fresh = await getRecommendations(facilityId, { lat, lng });
-      setRecommendations(fresh);
+      // 2. 새 추천 시도, 실패 시 목업 폴백(데모 무중단). 기존엔 폴백이 없어 데모 경로에서 항상 에러 토스트만 떴다.
+      try {
+        const fresh = await getRecommendations(facilityId, { lat, lng });
+        setRecommendations(fresh);
+      } catch (e) {
+        console.warn("refresh fetch failed, mock fallback:", e);
+        setRecommendations(buildMockRecommendations());
+      }
       toast.success("선호도를 조정하여 새로운 대안을 추천했습니다 🔍");
     } catch (err) {
       console.error("Error during rejecting and refreshing:", err);

@@ -13,11 +13,11 @@ import { createPublicClient } from '@/lib/supabase';
 
 const supabase = createPublicClient();
 
-// KST 시간대 보정 헬퍼
+// KST 시간대 보정 헬퍼. Date.now()는 이미 UTC epoch 이므로 +9h 후 getUTCHours()만 하면 KST 벽시계 시(時)다.
+// (기존엔 getTimezoneOffset 까지 더해 KST 브라우저에서 KST 가 아닌 UTC 시를 반환하는 이중보정 버그가 있었음.
+//  같은 파일 line 263 히트맵 집계가 쓰는 검증된 idiom 과 일치시킴.)
 function getKstHours() {
-  const now = new Date();
-  const utcTime = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
-  return new Date(utcTime + (9 * 60 * 60 * 1000)).getUTCHours();
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
 }
 
 // 클라이언트 단의 실시간 Fallback 데이터 생성기
@@ -274,7 +274,8 @@ async function fetchRealDashboard(supabaseClient: any) {
           facility: name,
           facilityType: typeOf[name],
           hour: h,
-          value: c && c.n ? Math.round((c.sum / c.n) * 100) / 100 : 0,
+          // 로그 없는 시간대는 null(데이터 없음 센티넬). 실측 0.00 과 구분돼 '여유 0%'가 회색으로 묻히지 않는다.
+          value: c && c.n ? Math.round((c.sum / c.n) * 100) / 100 : null,
         });
       }
     }
@@ -377,7 +378,9 @@ export default function DashboardPage() {
               real.hasLogs && real.anomalyCount != null ? real.anomalyCount : fallback.kpi.anomalyCount,
           },
           // 오늘자 로그가 있으면 실측 히트맵, 없으면 합성 히트맵.
-          heatmap: real.heatmap ?? fallback.heatmap,
+          // (?? 는 빈 배열 []을 통과시키므로 length 검사 — anomalies 병합과 동일 패턴. 조인 이름이 전부 null 이라
+          //  heatmap=[]가 되는 경계에서 빈 히트맵이 그대로 렌더되는 것을 막는다.)
+          heatmap: real.heatmap && real.heatmap.length ? real.heatmap : fallback.heatmap,
           // 30일 수요 분산 효과는 장기 A/B 추이라 일관된 합성 추이를 유지(데모 가독성).
           distribution: fallback.distribution,
           // 실측 이상 알림이 있으면 그것을, 없으면 합성 알림으로 패널이 비지 않게.
@@ -424,7 +427,7 @@ export default function DashboardPage() {
       lines.push('시설명,유형,시간(시),혼잡도(%)');
       for (const c of heatmap as any[]) {
         const name = String(c.facility).replace(/[",\n]/g, ' ');
-        lines.push(`${name},${c.facilityType},${c.hour},${Math.round(c.value * 100)}`);
+        lines.push(`${name},${c.facilityType},${c.hour},${Math.round((c.value ?? 0) * 100)}`);
       }
       const csv = '﻿' + lines.join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

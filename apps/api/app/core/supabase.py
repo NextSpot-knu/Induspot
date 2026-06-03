@@ -1,18 +1,31 @@
 # pyrefly: ignore [missing-import]
 import jwt
+import structlog
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # pyrefly: ignore [missing-import]
 from supabase import create_client, Client
 from app.core.config import settings
 
+_logger = structlog.get_logger()
+
+
+def _create_client(url: str, key: str, *, role: str) -> Client:
+    """Supabase 클라이언트 생성. 시크릿 부재/URL 형식오류 등으로 실패하면 원인을 구조화 로깅 후 재발생.
+    (정상 시크릿 환경에선 동작 동일 — 진단 가능한 부팅 실패를 위한 래퍼.)"""
+    try:
+        return create_client(url, key)
+    except Exception as e:
+        _logger.error("supabase_client_init_failed", role=role, error=str(e))
+        raise
+
 # 1. Supabase Python Client 초기화 (BFF 및 백엔드 직접 DB 조회/CUD용)
-supabase_client: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+supabase_client: Client = _create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, role="anon")
 
 # 1-1. 서버→서버 신뢰 경로용 클라이언트(WP4 Pub/Sub 적재 등).
 #      service_role 키가 있으면 RLS 를 우회해 congestion_logs 에 insert 할 수 있다.
 #      (없으면 anon 으로 폴백 — 기존 동작과 동일.)
-supabase_admin: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+supabase_admin: Client = _create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY, role="service_role")
 
 # 2. HTTP Bearer 인증 체계 정의 (프록시 상황에서 누락 에러 방지를 위해 auto_error=False 설정)
 security = HTTPBearer(auto_error=False)
@@ -72,7 +85,9 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="만료된 JWT 토큰입니다.",
         )
-    except jwt.InvalidTokenError as e:
+    except jwt.PyJWTError as e:
+        # InvalidTokenError 뿐 아니라 InvalidKeyError(빈 JWT_SECRET 시 'HMAC key must not be empty')도 포섭.
+        # (좁게 InvalidTokenError 만 잡으면 빈 시크릿이 미처리 예외→500 으로 새어나간다.)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"유효하지 않은 JWT 토큰입니다: {str(e)}",

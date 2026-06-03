@@ -90,8 +90,10 @@ def deploy(cfg) -> None:
         "--command=python",
         "--args=-m,app.jobs.publish_congestion",
         f"--set-env-vars=GCP_PROJECT_ID={cfg.project},PUBSUB_TOPIC={cfg.topic}",
-        # Secret Manager(#7) 준비 시:
-        "--set-secrets=SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest",
+        # config.Settings 의 필수 필드(SUPABASE_URL/SUPABASE_ANON_KEY/JWT_SECRET)를 전부 주입해야 한다.
+        # 누락 시 publish_congestion import 단계에서 Settings() ValidationError(또는 supabase create_client
+        # 빈 키 에러)로 잡이 죽어, main() 의 graceful 폴백조차 못 타고 Scheduler 가 실패로 기록한다.
+        "--set-secrets=SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,JWT_SECRET=JWT_SECRET:latest",
         "--max-retries=1",
     ], check=True)
 
@@ -113,7 +115,8 @@ def deploy(cfg) -> None:
     print("\n=== 완료 ===")
     print(f"수동 1회 실행 테스트: gcloud run jobs execute {cfg.job} --region={cfg.region} --project={cfg.project}")
     print(f"스케줄: {cfg.schedule} (KST 무관 UTC 기준 cron — 필요시 --schedule 조정)")
-    print("주의: Secret Manager(#7) 미설정이면 --set-secrets 줄을 빼고 SUPABASE_* 를 --set-env-vars 로 주입.")
+    print("주의: Secret Manager(#7) 미설정이면 --set-secrets 줄을 빼고 SUPABASE_URL/SUPABASE_ANON_KEY/"
+          "SUPABASE_SERVICE_ROLE_KEY/JWT_SECRET 를 --set-env-vars 로 주입(전부 필수 — 누락 시 import 크래시).")
     print("PUBLISHER_JOB_OK")
 
 

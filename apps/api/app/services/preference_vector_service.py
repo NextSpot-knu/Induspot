@@ -68,6 +68,10 @@ class PreferenceVectorStore:
                 vec = data.get("vector")
                 if vec and len(vec) == 8:
                     return [float(x) for x in vec]
+                if vec:
+                    # 문서는 있으나 차원 불일치(외부 오염/스키마 변경). 상위가 콜드스타트로 조용히 덮어쓰기 전에
+                    # 가시화한다(관측성만 추가 — 복구 동작은 그대로 두는 게 안전).
+                    logger.warning("firestore_vector_dim_mismatch", user_id=user_id, dim=len(vec))
         except Exception as e:
             logger.warning("firestore_get_user_vector_failed", user_id=user_id, error=str(e))
         return None

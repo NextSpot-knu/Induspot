@@ -77,26 +77,32 @@ def main() -> int:
         logger.info("publisher_no_facilities")
         return 0
 
-    publisher = pubsub_v1.PublisherClient()
-    topic_path = publisher.topic_path(settings.GCP_PROJECT_ID, settings.PUBSUB_TOPIC)
+    try:
+        publisher = pubsub_v1.PublisherClient()
+        topic_path = publisher.topic_path(settings.GCP_PROJECT_ID, settings.PUBSUB_TOPIC)
 
-    # KST 시각(브라우저TZ 무관하게 UTC+9)
-    kst_hour = (datetime.now(timezone.utc) + timedelta(hours=9)).hour
-    now_iso = datetime.now(timezone.utc).isoformat()
+        # KST 시각(브라우저TZ 무관하게 UTC+9)
+        kst_hour = (datetime.now(timezone.utc) + timedelta(hours=9)).hour
+        now_iso = datetime.now(timezone.utc).isoformat()
 
-    futures = []
-    for f in facilities:
-        ftype = f.get("type", "")
-        congestion = _random_congestion(kst_hour, ftype)
-        capacity = f.get("capacity") or 100
-        payload = {
-            "facility_id": f["id"],
-            "congestion": congestion,
-            "current_count": int(capacity * congestion),
-            "ts": now_iso,
-            "source": _source_for(ftype),
-        }
-        futures.append(publisher.publish(topic_path, json.dumps(payload).encode("utf-8")))
+        futures = []
+        for f in facilities:
+            ftype = f.get("type", "")
+            congestion = _random_congestion(kst_hour, ftype)
+            capacity = f.get("capacity") or 100
+            payload = {
+                "facility_id": f["id"],
+                "congestion": congestion,
+                "current_count": int(capacity * congestion),
+                "ts": now_iso,
+                "source": _source_for(ftype),
+            }
+            futures.append(publisher.publish(topic_path, json.dumps(payload).encode("utf-8")))
+    except Exception as e:
+        # PublisherClient 생성(자격/gRPC 채널)·topic_path·publish 큐잉의 동기 예외도 정상 종료(exit 0)로
+        # 흡수한다 — 주석이 약속한 'demo-safe 정상 종료'를 실제로 성립시켜 Scheduler 재시도 폭주를 막는다.
+        logger.warning("publisher_setup_failed", error=str(e))
+        return 0
 
     published = 0
     for fut in futures:

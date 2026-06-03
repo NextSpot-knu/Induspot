@@ -123,7 +123,8 @@ def query_forecast(facility_id: Optional[str] = None, hours: int = 48) -> list[d
             ORDER BY facility_id, forecast_timestamp
         """
         job_config = bigquery.QueryJobConfig(query_parameters=params)
-        result = client.query(query, job_config=job_config).result(timeout=10.0)
+        # 잡 제출 RPC(client.query)와 잡 완료 폴링(.result) 양쪽에 타임아웃을 걸어 적시성 보장(실패 시 except→[]).
+        result = client.query(query, job_config=job_config, timeout=10.0).result(timeout=10.0)
 
         out: list[dict] = []
         for row in result:

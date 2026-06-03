@@ -472,7 +472,6 @@ export default function CongestionMap({ initialFacilities }: CongestionMapProps)
             const markerSvg = getMarkerSvg(f.type, f.congestionLevel, f.features);
             const isPrivateParking = f.type === "parking" && (f.features?.is_private === true || f.features?.parking_type === "사내");
             const translateClass = isPrivateParking ? "-translate-x-1/2 -translate-y-1/2" : "-translate-x-1/2 -translate-y-[85%]";
-            const imgClass = isPrivateParking ? "w-9 h-9" : "w-9 h-115"; // h-11.5 equivalent for viewBox aspect ratio
 
             return (
               <button

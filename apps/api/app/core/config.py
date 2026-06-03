@@ -97,16 +97,38 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
+    @field_validator("JWT_SECRET")
+    @classmethod
+    def _nonempty_jwt_secret(cls, v: str) -> str:
+        # 빈 JWT_SECRET 은 모든 워커 인증을 깨뜨린다(빈 HMAC 키 → 정상 토큰도 검증 실패).
+        # 런타임 401/500 으로 미루지 말고 부팅 시점에 명확히 실패시켜 설정 누락을 조기 발견한다.
+        if not v or not v.strip():
+            raise ValueError("JWT_SECRET must be a non-empty secret")
+        return v
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )
 
+
+def _resolve_adc_path() -> str:
+    """ADC(Application Default Credentials) 파일 경로를 크로스플랫폼으로 해석한다.
+    CLOUDSDK_CONFIG 우선, 없으면 Windows=%APPDATA%/gcloud, 그 외=~/.config/gcloud.
+    (기존엔 APPDATA 만 봐 리눅스/맥 빌드에서 항상 폴백되던 footgun 제거.)"""
+    base = os.environ.get("CLOUDSDK_CONFIG") or (
+        os.path.join(os.environ.get("APPDATA", ""), "gcloud")
+        if os.name == "nt"
+        else os.path.expanduser("~/.config/gcloud")
+    )
+    return os.path.join(base, "application_default_credentials.json")
+
+
 def load_gcp_secrets():
     # Only load if we can resolve GCP project ID or fallback to standard project
     project_id = "knudc-henryseo711"
-    adc_path = os.path.join(os.environ.get("APPDATA", ""), "gcloud", "application_default_credentials.json")
+    adc_path = _resolve_adc_path()
     if os.path.exists(adc_path):
         try:
             with open(adc_path, "r", encoding="utf-8") as f:

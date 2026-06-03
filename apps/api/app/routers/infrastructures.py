@@ -25,31 +25,38 @@ class InfrastructureItem(BaseModel):
     features: dict | None
     congestion: CongestionInfo | None
 
-async def fetch_latest_congestion_for_all(facility_ids: list[str]) -> dict:
-    if not facility_ids:
-        return {}
+async def _fetch_latest_one(fid: str) -> tuple[str, dict | None]:
+    """시설 1건의 최신 혼잡 로그를 .limit(1) 로 조회(시설별 1쿼리)."""
     try:
         res = await asyncio.to_thread(
             supabase_client.table("congestion_logs")
-            .select("facility_id, congestion_level, current_count, timestamp")
-            .in_("facility_id", facility_ids)
+            .select("congestion_level, current_count, timestamp")
+            .eq("facility_id", fid)
             .order("timestamp", desc=True)
             .order("id", desc=True)  # 동일 timestamp 동률 시 결정적 정렬(시설별 최신 1건 선택 안정화)
+            .limit(1)
             .execute
         )
-        latest: dict = {}
-        for row in res.data:
-            fid = row["facility_id"]
-            if fid not in latest:
-                latest[fid] = {
-                    "level": row["congestion_level"],
-                    "current_count": row["current_count"],
-                    "timestamp": row["timestamp"],
-                }
-        return latest
+        if res.data:
+            row = res.data[0]
+            return fid, {
+                "level": row["congestion_level"],
+                "current_count": row["current_count"],
+                "timestamp": row["timestamp"],
+            }
     except Exception as e:
-        logger.warning("congestion_fetch_failed", error=str(e))
+        logger.warning("congestion_fetch_one_failed", facility_id=fid, error=str(e))
+    return fid, None
+
+
+async def fetch_latest_congestion_for_all(facility_ids: list[str]) -> dict:
+    # 시설별 .limit(1) 을 병렬 조회. 단일 IN 쿼리 + timestamp desc 는 PostgREST 기본 행수 캡(예: 1000)에
+    # 걸려, 다른 시설 로그가 캡을 채우면 특정 시설 최신 로그가 윈도우 밖으로 밀려 congestion=None 으로
+    # 조용히 누락될 수 있다. 시설별 limit(1) 은 캡과 무관하게 항상 각 시설의 최신 1건을 보장한다.
+    if not facility_ids:
         return {}
+    results = await asyncio.gather(*[_fetch_latest_one(fid) for fid in facility_ids])
+    return {fid: data for fid, data in results if data is not None}
 
 @router.get("/infrastructures", response_model=list[InfrastructureItem])
 async def get_infrastructures(

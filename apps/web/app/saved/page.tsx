@@ -294,7 +294,7 @@ export default function SavedPage() {
             expectedWait={selectedBookmark.tttv?.expectedWait ?? parseInt(selectedBookmark.waitTime) ?? 0}
             expectedTravel={selectedBookmark.tttv?.expectedTravel ?? 0}
             timeToService={selectedBookmark.tttv?.timeToService ?? parseInt(selectedBookmark.waitTime) ?? 0}
-            facilityType={selectedBookmark.category === '식당' ? 'cafeteria' : selectedBookmark.category === '휴게실' ? 'loading_dock' : 'meeting_room'}
+            facilityType={selectedBookmark.category === '식당' ? 'cafeteria' : selectedBookmark.category === '주차장' ? 'parking' : selectedBookmark.category === '회의실' ? 'meeting_room' : selectedBookmark.category === '휴게실' ? 'rest_area' : 'cafeteria'}
             facility={{
               congestionLevel: selectedBookmark.trafficStatus === 'orange' ? 0.85 : selectedBookmark.trafficStatus === 'yellow' ? 0.6 : selectedBookmark.trafficStatus === 'green' ? 0.4 : 0.1,
               capacity: 100,

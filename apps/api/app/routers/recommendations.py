@@ -210,12 +210,23 @@ async def get_recommendations(
             }).execute
         )
 
-    db_results = await asyncio.gather(*[_persist(item) for item in top_3])
+    # return_exceptions=True: INSERT 1건이 일시 DB 오류로 실패해도 정상 처리된 나머지 추천까지 버리지 않는다.
+    # 실패 항목은 mock-rec-id 로 강등하되 '제거'하지 않는다 — top_3/reasons[idx] 인덱스 정렬을 유지해
+    # 사유가 엉뚱한 시설에 붙는 것을 막는다.
+    db_results = await asyncio.gather(*[_persist(item) for item in top_3], return_exceptions=True)
 
     response_items = []
     total_count = len(recommendation_results)
     for idx, (item, db_res) in enumerate(zip(top_3, db_results)):
-        rec_id = db_res.data[0]["id"] if db_res.data else "mock-rec-id"
+        if isinstance(db_res, Exception):
+            logger.warning(
+                "recommendation_persist_failed",
+                error=str(db_res),
+                recommended_facility_id=item["facility"]["id"],
+            )
+            rec_id = "mock-rec-id"
+        else:
+            rec_id = db_res.data[0]["id"] if db_res.data else "mock-rec-id"
 
         response_items.append(RecommendItem(
             recommendation_id=rec_id,
@@ -400,7 +411,7 @@ async def submit_feedback(
 
     # 1. 기존 추천 이력 조회
     rec_res = await asyncio.to_thread(
-        supabase_client.table("recommendations").select("*, recommended_facility:facilities(*)").eq("id", req.recommendation_id).execute
+        supabase_client.table("recommendations").select("*, recommended_facility:facilities!recommended_facility_id(*)").eq("id", req.recommendation_id).execute
     )
     if not rec_res.data:
         raise HTTPException(status_code=404, detail="해당 추천 기록을 찾을 수 없습니다.")

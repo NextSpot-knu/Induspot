@@ -68,9 +68,13 @@ MACHINE_TYPE = os.environ.get("VERTEX_MACHINE_TYPE", "n1-standard-2")
 
 def _resolve_project_id() -> str:
     project_id = settings.GCP_PROJECT_ID
-    adc_path = os.path.join(
-        os.environ.get("APPDATA", ""), "gcloud", "application_default_credentials.json"
+    # ADC 경로 크로스플랫폼 해석(CLOUDSDK_CONFIG 우선, Windows=%APPDATA%/gcloud, 그 외=~/.config/gcloud).
+    _base = os.environ.get("CLOUDSDK_CONFIG") or (
+        os.path.join(os.environ.get("APPDATA", ""), "gcloud")
+        if os.name == "nt"
+        else os.path.expanduser("~/.config/gcloud")
     )
+    adc_path = os.path.join(_base, "application_default_credentials.json")
     if os.path.exists(adc_path):
         try:
             with open(adc_path, "r", encoding="utf-8") as f:

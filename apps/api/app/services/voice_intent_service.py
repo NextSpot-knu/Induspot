@@ -9,10 +9,18 @@
 
 설계 원칙(프로젝트 공통): 타임아웃 + 폴백. GEMINI_ENABLED=False/실패/타임아웃 시 최소 키워드
 규칙으로 action 만 분류해 데모가 안 멈추게 한다(사유 문장은 하드코딩하지 않는다).
+
+Gemini 통합 최적화(품질·신뢰성):
+- response_schema(JSON Schema)로 action enum/타입/필수키를 디코딩 단계에서 강제 → 파싱 취약성 제거.
+- 견고한 텍스트 추출(_extract_text: 안전필터 차단/빈 Part 시 .text ValueError 흡수 + candidates parts)
+  + 펜스/잡텍스트/부분 JSON 복구 파서(_parse_json) + 비-dict 가드(AttributeError 크래시 방지).
+- system_instruction 번호 규칙 강화 + few-shot 으로 filter↔select↔details 경계·환각 억제.
+- safety_settings(BLOCK_ONLY_HIGH)로 한국어 정상 발화 과차단 방지.
 """
 
 import asyncio
 import json
+import re
 from typing import Optional
 
 import structlog
@@ -28,16 +36,49 @@ _SYSTEM_INSTRUCTION = (
     "당신은 한국어 음성 비서의 의도 해석기입니다. 사용자가 추천받은 시설에 대해 말한 응답을 "
     "정확히 하나의 action 으로 분류하세요. 사용자가 메뉴·종류·분위기 같은 선호(예: '짜장면 먹고싶어', "
     "'고깃집', '양식', '조용한 곳')를 말하면 select 가 아니라 filter 로 분류하세요 — 어떤 후보가 맞는지는 "
-    "시스템이 의미검색으로 정합니다. 특정 한 곳을 콕 집을 때만(예: '저 식당', '두 번째 거') select 입니다. "
-    "반드시 주어진 후보 목록과 사용자 발화만 사용하고, 없는 시설·수치를 지어내지 마세요."
+    "시스템이 의미검색으로 정합니다. 특정 한 곳을 콕 집을 때만(예: '저 식당', '두 번째 거') select 입니다.\n"
+    "[엄격한 규칙]\n"
+    "1. 출력은 지정된 JSON 객체 '하나'뿐. 코드펜스(```)·주석·앞뒤 설명을 절대 붙이지 마세요.\n"
+    "2. 후보 목록에 없는 시설명·id·가격·영업시간·평점 등 어떤 수치/사실도 만들지 마세요. "
+    "목록에 있는 종류·대표메뉴·혼잡도·도보시간만 사용하세요.\n"
+    "3. target_facility_id 와 match_ids 는 반드시 주어진 후보 id 중에서만 고르세요(없으면 null/빈 배열).\n"
+    "4. 발화 의도가 불명확하면 추측하지 말고 action 을 'unknown' 으로 두세요.\n"
+    "5. 모든 한국어 출력은 정중한 '~요/습니다' 체 1~2문장으로, 영어·이모지·마크다운 없이 작성하세요.\n"
+    "6. details 의 spoken 은 빈말 금지 — 위 후보의 실제 데이터(종류·대표메뉴·혼잡도·도보)를 근거로 답하세요."
+)
+
+# response_schema: action enum/타입/필수키를 디코딩 단계에서 강제. _coerce 는 유효 id 매칭 등 이중 안전망으로 유지.
+_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "enum": VALID_ACTIONS},
+        "target_facility_id": {"type": "string", "nullable": True},
+        "match_ids": {"type": "array", "items": {"type": "string"}},
+        "search_query": {"type": "string"},
+        "spoken": {"type": "string"},
+    },
+    "required": ["action", "spoken"],
+}
+
+# few-shot: filter↔select↔details 경계와 search_query 확장을 모델에 각인(형식 참고용 — id 는 실제 목록 것으로 대체).
+_FEW_SHOT = (
+    "\n예시(형식 참고용, 후보 id 는 실제 목록의 것으로 대체):\n"
+    '발화 "두 번째 거" → {"action":"select","target_facility_id":"<2번째 후보 id>","match_ids":[],"search_query":"","spoken":"네, 그곳으로 안내할게요."}\n'
+    '발화 "양식 먹고싶어" → {"action":"filter","target_facility_id":null,"match_ids":[],"search_query":"파스타 스테이크 피자 양식","spoken":"양식으로 찾아볼게요."}\n'
+    '발화 "거기 메뉴 뭐 있어?" → {"action":"details","target_facility_id":null,"match_ids":[],"search_query":"","spoken":"<해당 시설의 실제 대표메뉴/혼잡/도보를 1~2문장으로>"}\n'
+    '발화 "가자" → {"action":"accept","target_facility_id":null,"match_ids":[],"search_query":"","spoken":"네, 길 안내를 시작할게요."}\n'
+    '발화 "별로" → {"action":"reject","target_facility_id":null,"match_ids":[],"search_query":"","spoken":"알겠습니다, 다른 곳을 볼게요."}\n'
+    '발화 "그만" → {"action":"stop","target_facility_id":null,"match_ids":[],"search_query":"","spoken":"안내를 종료할게요."}'
 )
 
 _model = None
 _model_init_attempted = False
+_gen_config = None       # GenerationConfig (lazy)
+_safety_settings = None  # list[SafetySetting] (lazy)
 
 
 def _get_model():
-    global _model, _model_init_attempted
+    global _model, _model_init_attempted, _gen_config, _safety_settings
     if _model_init_attempted:
         return _model
     _model_init_attempted = True
@@ -45,12 +86,38 @@ def _get_model():
         return None
     try:
         import vertexai
-        from vertexai.generative_models import GenerativeModel
+        from vertexai.generative_models import (
+            GenerativeModel,
+            GenerationConfig,
+            HarmBlockThreshold,
+            HarmCategory,
+            SafetySetting,
+        )
 
         vertexai.init(project=settings.GCP_PROJECT_ID, location=settings.VERTEX_LOCATION)
+        # 의도분류·검색어확장은 '같은 발화→같은 분류'가 바람직 → 결정성. details/filter 출력이 길어
+        # MAX_TOKENS 절단→빈 .text 가 되지 않도록 max_output_tokens 헤드룸(512) 확보.
+        _gen_config = GenerationConfig(
+            temperature=0.0,
+            top_p=0.95,
+            candidate_count=1,
+            max_output_tokens=512,
+            response_mime_type="application/json",
+            response_schema=_RESPONSE_SCHEMA,
+        )
+        _safety_settings = [
+            SafetySetting(category=c, threshold=HarmBlockThreshold.BLOCK_ONLY_HIGH)
+            for c in (
+                HarmCategory.HARM_CATEGORY_HARASSMENT,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            )
+        ]
         _model = GenerativeModel(settings.GEMINI_MODEL, system_instruction=[_SYSTEM_INSTRUCTION])
         logger.info("voice_intent_model_initialized", model=settings.GEMINI_MODEL)
     except Exception as e:
+        # response_schema 등 미지원 SDK 면 여기서 잡혀 _model=None → unknown 폴백(데모 안전).
         logger.warning("voice_intent_model_init_failed", error=str(e))
         _model = None
     return _model
@@ -99,6 +166,7 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         "후보에 없는 메뉴라도 상식으로 확장하면 됩니다. "
         "정확한 매칭은 이 search_query 로 시스템이 의미검색해 정하므로, match_ids 는 비워 두어도 됩니다(보조용). "
         "spoken 에는 사용자 선호를 받아들이는 한국어 1문장을 담으세요."
+        f"{_FEW_SHOT}"
     )
 
 
@@ -108,20 +176,65 @@ def _fallback() -> dict:
     return {"action": "unknown", "target_facility_id": None, "match_ids": [], "search_query": None, "spoken": None}
 
 
+_JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _extract_text(resp) -> str:
+    """resp.text 는 후보가 안전필터로 차단되거나(SAFETY/RECITATION/MAX_TOKENS) 빈 Part 면 ValueError 를
+    던진다. candidates→parts 를 직접 순회해 부분 응답도 안전하게 모으고, 실패 시 .text 를 가드 접근한다."""
+    try:
+        for cand in (getattr(resp, "candidates", None) or []):
+            content = getattr(cand, "content", None)
+            parts = getattr(content, "parts", None) or []
+            buf = "".join(getattr(p, "text", "") or "" for p in parts)
+            if buf.strip():
+                return buf.strip()
+    except Exception:
+        pass
+    try:
+        return (getattr(resp, "text", "") or "").strip()
+    except Exception:
+        return ""
+
+
+def _parse_json(raw: str) -> Optional[dict]:
+    """펜스/앞뒤 잡텍스트/부분 JSON 에 견고. dict 가 아니면 None(비-dict 응답에 의한 크래시 방지)."""
+    if not raw:
+        return None
+    s = raw.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*\s*", "", s)
+        s = re.sub(r"\s*```$", "", s).strip()
+    try:
+        obj = json.loads(s)
+    except Exception:
+        m = _JSON_OBJ_RE.search(s)
+        if not m:
+            return None
+        try:
+            obj = json.loads(m.group(0))
+        except Exception:
+            return None
+    return obj if isinstance(obj, dict) else None
+
+
 def _generate_sync(model, prompt: str) -> Optional[dict]:
     try:
-        resp = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.1,
-                "max_output_tokens": 256,
+        kwargs = {
+            "generation_config": _gen_config
+            if _gen_config is not None
+            else {
+                "temperature": 0.0,
+                "max_output_tokens": 512,
                 "response_mime_type": "application/json",
             },
-        )
-        raw = (getattr(resp, "text", "") or "").strip()
-        return json.loads(raw) if raw else None
+        }
+        if _safety_settings:
+            kwargs["safety_settings"] = _safety_settings
+        resp = model.generate_content(prompt, **kwargs)
+        return _parse_json(_extract_text(resp))
     except Exception as e:
-        logger.warning("voice_intent_generate_failed", error=str(e))
+        logger.warning("voice_intent_generate_failed", error_type=type(e).__name__, error=str(e))
         return None
 
 
@@ -167,19 +280,30 @@ async def interpret_turn(
     if model is None or not (utterance or "").strip():
         return _fallback()
 
-    try:
-        raw = await asyncio.wait_for(
-            asyncio.to_thread(_generate_sync, model, _build_prompt(utterance, facility_type_ko, current_name, candidates or [])),
-            timeout=settings.GEMINI_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        logger.warning("voice_intent_timeout", timeout=settings.GEMINI_TIMEOUT_SECONDS)
-        raw = None
-    except Exception as e:
-        logger.warning("voice_intent_unexpected_error", error=str(e))
-        raw = None
+    prompt = _build_prompt(utterance, facility_type_ko, current_name, candidates or [])
+    raw = None
+    for attempt in range(2):  # 1차 + (빠른 일시실패에 한해) 1회 재시도. 타임아웃은 재시도 안 함(음성 UX 지연 방지).
+        try:
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(_generate_sync, model, prompt),
+                timeout=settings.GEMINI_TIMEOUT_SECONDS,
+            )
+            if raw:
+                break
+        except asyncio.TimeoutError:
+            logger.warning("voice_intent_timeout", attempt=attempt, timeout=settings.GEMINI_TIMEOUT_SECONDS)
+            raw = None
+            break  # 예산 이미 소진 → 재시도 없이 폴백
+        except Exception as e:
+            logger.warning("voice_intent_unexpected_error", attempt=attempt, error=str(e))
+            raw = None
+        if attempt == 0:
+            await asyncio.sleep(0.2)
 
-    if not raw:
+    # 견고 파서가 dict|None 만 돌려주지만, 방어적으로 isinstance 가드(비-dict 면 unknown 폴백).
+    if not isinstance(raw, dict):
+        if raw is None:
+            logger.info("gemini_fallback_used", service="voice_intent")
         return _fallback()
 
     result = _coerce(raw, valid_ids)

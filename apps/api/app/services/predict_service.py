@@ -21,7 +21,7 @@ from typing import Optional, Tuple, Any
 
 import structlog
 
-from app.core.config import settings
+from app.core.config import settings, _resolve_adc_path
 
 logger = structlog.get_logger()
 
@@ -46,9 +46,7 @@ def _resolve_project_id() -> str:
     로컬에선 ADC json의 quota_project_id를 우선 사용(기존 동작 계승)."""
     project_id = settings.GCP_PROJECT_ID
     if os.environ.get("ENV") != "production":
-        adc_path = os.path.join(
-            os.environ.get("APPDATA", ""), "gcloud", "application_default_credentials.json"
-        )
+        adc_path = _resolve_adc_path()
         if os.path.exists(adc_path):
             try:
                 with open(adc_path, "r", encoding="utf-8") as f:
@@ -137,7 +135,17 @@ def _load_local_artifacts() -> Optional[Tuple[Any, Any]]:
 def _predict_with_artifacts(artifacts: Tuple[Any, Any], norm_type: str, hour: int, dow: int) -> Optional[float]:
     """GCS/로컬 공통 인메모리 추론. 미학습 타입이면 None(상위에서 0.5 처리)."""
     model, encoder = artifacts
-    if not hasattr(encoder, "categories_") or norm_type not in encoder.categories_[0]:
+    # norm_type 과 대칭으로 hour/dow 도 학습 카테고리 멤버십을 검증한다. OneHotEncoder(handle_unknown='ignore')는
+    # 미학습 hour/dow 를 0벡터로 만들어 '절편-only(평균) 예측'을 source=gcs/local '성공'처럼 반환하므로,
+    # 미학습 시점은 None 으로 내려 0.5 폴백이 되게 한다(의미 없는 평균을 신뢰값으로 반환하지 않음).
+    # len<3 가드는 다른 피처 수의 인코더가 들어왔을 때의 IndexError 방지.
+    if (
+        not hasattr(encoder, "categories_")
+        or len(encoder.categories_) < 3
+        or norm_type not in encoder.categories_[0]
+        or str(hour) not in encoder.categories_[1]
+        or str(dow) not in encoder.categories_[2]
+    ):
         return None
     try:
         # train.py의 OneHotEncoder가 fit된 포맷: [norm_type, hour_str, dow_str]

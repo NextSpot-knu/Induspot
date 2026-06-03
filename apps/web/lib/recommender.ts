@@ -86,7 +86,9 @@ export function scoreFacility(facility: any, opts: ScoreOpts): Tttv {
     loading_dock: 30,
   };
   const avgProcess = facility.features?.average_processing_time ?? defaultTimes[facility.type] ?? 15;
-  const hour = opts.mockHour !== null && opts.mockHour !== undefined ? opts.mockHour : new Date().getHours();
+  // 라이브 폴백 시각은 백엔드(score.py/wait_time.py)가 UTC arrival_hour 로 피크 배수를 판정하는 것과
+  // 정합되도록 getUTCHours() 를 쓴다(getHours()=브라우저 로컬=KST 면 9시간 어긋남). mockHour(데모 시뮬값)는 그대로.
+  const hour = opts.mockHour !== null && opts.mockHour !== undefined ? opts.mockHour : new Date().getUTCHours();
   let mult = 1.0;
   if (hour >= 12 && hour < 14) mult = 1.3;
   else if (hour === 7 || hour === 15) mult = 1.2;

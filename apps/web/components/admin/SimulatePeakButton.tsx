@@ -2,12 +2,10 @@
 
 import React, { useState } from 'react';
 import { Play } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { getAdminToken } from '@/lib/admin-auth';
 
 export function SimulatePeakButton() {
-  const router = useRouter();
   const [isSimulating, setIsSimulating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -24,8 +22,9 @@ export function SimulatePeakButton() {
         idToken ? { headers: { 'X-Admin-Authorization': `Bearer ${idToken}` } } : undefined
       );
       setMessage('24시간 모의 데이터 생성 완료! 대시보드를 새로고침합니다.');
-      router.refresh();
-      setTimeout(() => setMessage(null), 4000);
+      // 정적 export(output:'export')에선 router.refresh()가 대시보드의 useEffect([]) loadData 를 재실행하지
+      // 않아 화면이 갱신되지 않는다(거짓 성공). 전체 리로드로 페이지를 리마운트해 실데이터를 재조회한다.
+      setTimeout(() => window.location.reload(), 1200);
     } catch (err: any) {
       setMessage(`시뮬레이션 실패: ${err?.message || '알 수 없는 오류'}`);
       setTimeout(() => setMessage(null), 5000);

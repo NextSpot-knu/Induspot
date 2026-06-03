@@ -40,7 +40,7 @@ function genDemoChart(seedStr: string): ChartDataPoint[] {
   let seed = 0;
   for (let i = 0; i < seedStr.length; i++) seed += seedStr.charCodeAt(i);
   const out: ChartDataPoint[] = [];
-  const nowH = new Date().getHours();
+  const nowH = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours(); // KST(브라우저 로컬 TZ 무관)
   for (let h = 8; h <= Math.max(9, nowH); h++) {
     const noise = ((seed * (h + 1)) % 100) / 100;
     let base = 30 + noise * 25;
@@ -158,23 +158,26 @@ export default function InfrastructurePage() {
       return;
     }
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // KST '오늘' 00:00 의 UTC 경계(브라우저 로컬 TZ 무관). 로컬 자정으로 자르면 비-KST 브라우저에서 어긋난다.
+      const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const kstMidnightUtc = new Date(
+        Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate()) - 9 * 60 * 60 * 1000
+      );
 
       const { data, error: cError } = await supabase
         .from('congestion_logs')
         .select('timestamp, congestion_level')
         .eq('facility_id', facilityId)
-        .gte('timestamp', today.toISOString())
+        .gte('timestamp', kstMidnightUtc.toISOString())
         .order('timestamp', { ascending: true });
 
       if (cError) throw cError;
 
       const formatted = (data || []).map(log => {
-        const date = new Date(log.timestamp);
-        // 한국 시간대(KST) 시간 포맷팅: HH:MM
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
+        // 한국 시간대(KST) 시간 포맷팅: HH:MM (UTC epoch +9h 후 getUTC* — 브라우저 로컬 TZ 무관)
+        const k = new Date(new Date(log.timestamp).getTime() + 9 * 60 * 60 * 1000);
+        const hours = String(k.getUTCHours()).padStart(2, '0');
+        const minutes = String(k.getUTCMinutes()).padStart(2, '0');
         return {
           time: `${hours}:${minutes}`,
           demand: Math.round(log.congestion_level * 100)
