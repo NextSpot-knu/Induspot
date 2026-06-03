@@ -43,7 +43,6 @@ export default function MainPage() {
   // 그룹(모음) 마커 하이라이트 id — 카드 선택(selectedFacility)과 분리해 마커 확대/색상변경만 적용
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [isCardHidden, setIsCardHidden] = useState(false);
   const [isMockLocationMinimized, setIsMockLocationMinimized] = useState(true);
   const [isMockTimeMinimized, setIsMockTimeMinimized] = useState(true);
   const [mockHour, setMockHour] = useState<number | null>(null);
@@ -325,12 +324,12 @@ export default function MainPage() {
         }
       </style>
       <div class="user-loc-marker" style="position: relative; width: 100px; height: 100px; pointer-events: none; filter: none; -webkit-filter: none;">
-        <!-- Glow (흰색 펄스) -->
-        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.35) 40%, rgba(255,255,255,0) 80%); animation: pulse-user-marker 2.5s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
-        <!-- White Border -->
-        <div style="position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; margin-top: -15px; margin-left: -15px; background: #ffffff; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.45);"></div>
-        <!-- Core (다른 마커 로고와 동일한 #ffffff 흰색) -->
-        <div style="position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; margin-top: -9px; margin-left: -9px; background: #ffffff; border-radius: 50%;"></div>
+        <!-- Glow (푸른빛 펄스) -->
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: radial-gradient(circle, rgba(59,130,246,0.6) 0%, rgba(59,130,246,0.2) 50%, rgba(59,130,246,0) 80%); animation: pulse-user-marker 1.2s infinite cubic-bezier(0.2, 0, 0.2, 1);"></div>
+        <!-- White Border (Thick) -->
+        <div style="position: absolute; top: 50%; left: 50%; width: 28px; height: 28px; margin-top: -14px; margin-left: -14px; background: #ffffff; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>
+        <!-- Core (Blue dot) -->
+        <div style="position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; margin-top: -7px; margin-left: -7px; background: #3b82f6; border-radius: 50%;"></div>
       </div>
     `;
 
@@ -791,9 +790,9 @@ export default function MainPage() {
   // 카드가 새로 뜨면(세션 활성 상태) Gemini 사유를 자동 발화, 카드가 사라지면 정지.
   // deps에 reason 포함 — 같은 시설이라도 mockHour/혼잡 변화로 사유가 바뀌면 새로 안내(id만 보면 놓침).
   useEffect(() => {
-    voice.notifyItem(selectedFacility && !isCardHidden ? selectedFacility : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFacility?.id, selectedFacility?.reason, isCardHidden]);
+    // Notify the voice assistant about the current recommendation context (for interruption/correction)
+    voice.notifyItem(selectedFacility ? selectedFacility : null);
+  }, [selectedFacility?.id, selectedFacility?.reason]);
 
   // Initialize map if Kakao Maps script is already loaded
   useEffect(() => {
@@ -958,7 +957,7 @@ export default function MainPage() {
             btn.onclick = () => {
               setActiveGroupId(null);
               setSelectedFacility(sub);
-              setIsCardHidden(false);
+              setSelectedFacility(sub);
               if (activeOverlayRef.current) {
                 activeOverlayRef.current.setMap(null);
                 activeOverlayRef.current = null;
@@ -981,7 +980,7 @@ export default function MainPage() {
         } else {
           setActiveGroupId(null);
           setSelectedFacility(f);
-          setIsCardHidden(false);
+          setSelectedFacility(f);
           panToVisible(f.latitude, f.longitude);
         }
       });
@@ -1072,7 +1071,7 @@ export default function MainPage() {
       </div>
 
       {/* AI Recommendation Card (Floating Bottom Sheet) */}
-      {selectedFacility && !isCardHidden && (() => {
+      {selectedFacility && (() => {
         try {
           const targetType = selectedFacility.type;
           // 순위 = handleAdvanceRank 와 동일한 '안정 랭킹 풀'에서의 위치.
@@ -1112,7 +1111,6 @@ export default function MainPage() {
                 onAccept={() => handleAccept(selectedFacility)}
                 onReject={() => handleReject(selectedFacility)}
                 onPutOff={() => handlePutOff(selectedFacility)}
-                onClose={() => setIsCardHidden(true)}
                 tttvScore={tttv.score}
                 preferencePercent={tttv.preferencePercent}
                 expectedWait={tttv.expectedWait}
@@ -1248,18 +1246,7 @@ export default function MainPage() {
         </div>
       </div>
 
-      {/* Restore Card Trigger Button when hidden */}
-      {selectedFacility && isCardHidden && (
-        <div className="absolute bottom-[160px] right-4 z-20">
-          <button
-            onClick={() => setIsCardHidden(false)}
-            className="flex items-center gap-2 px-4 py-3 bg-[#111622]/90 hover:bg-[#1b2336] text-white border border-blue-500/30 hover:border-blue-400 rounded-full font-bold text-xs shadow-lg shadow-blue-500/10 active:scale-95 transition-all pointer-events-auto"
-          >
-            <Sparkles size={14} className="text-cyan-400 animate-pulse" />
-            <span>AI 추천 열기</span>
-          </button>
-        </div>
-      )}
+
 
       {/* Bottom Navigation Bar */}
       <div className="absolute bottom-0 w-full z-30 bg-[#0b101e]/90 backdrop-blur-xl border-t border-white/10 px-6 py-4 pb-8 flex justify-around items-center">
