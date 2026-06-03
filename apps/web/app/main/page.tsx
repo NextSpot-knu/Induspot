@@ -506,7 +506,6 @@ export default function MainPage() {
         }
         const top = all[0];
         setSelectedFacility(top);
-        setIsCardHidden(false);
         if (mapInstanceRef.current && typeof top.latitude === 'number') {
           panToVisible(top.latitude, top.longitude);
         }
@@ -602,7 +601,6 @@ export default function MainPage() {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
       nextScored.sort(compareFacilities);
       setSelectedFacility(nextScored[0]);
-      setIsCardHidden(false);
       if (mapInstanceRef.current) {
         panToVisible(nextScored[0].latitude, nextScored[0].longitude);
       }
@@ -610,7 +608,6 @@ export default function MainPage() {
       setSelectedFacility(null);
     }
     // ★ Force card open so the next recommendation is visible
-    setIsCardHidden(false);
 
     setSavedIds(prev => {
       const next = new Set(prev);
@@ -673,7 +670,6 @@ export default function MainPage() {
       const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
       nextScored.sort(compareFacilities);
       setSelectedFacility(nextScored[0]);
-      setIsCardHidden(false);
       if (mapInstanceRef.current) {
         panToVisible(nextScored[0].latitude, nextScored[0].longitude);
       }
@@ -681,7 +677,6 @@ export default function MainPage() {
       setSelectedFacility(null);
     }
     // ★ Force card open so the next recommendation is visible
-    setIsCardHidden(false);
 
     setRejectedIds(prev => {
       const next = new Set(prev);
@@ -712,7 +707,6 @@ export default function MainPage() {
     const curIdx = pool.findIndex(f => f.id === fac.id);
     const next = pool[curIdx < 0 ? 0 : (curIdx + 1) % pool.length]; // 폐기 안 함 — 순위 순서대로 다음, 끝이면 처음
     setSelectedFacility(next);
-    setIsCardHidden(false);
     if (mapInstanceRef.current && typeof next.latitude === 'number') panToVisible(next.latitude, next.longitude);
   };
 
@@ -742,7 +736,6 @@ export default function MainPage() {
       const target = expandGroups(facilities).find((f: any) => f.id === id);
       if (!target) return;
       setSelectedFacility(spoken ? { ...target, reason: spoken } : target);
-      setIsCardHidden(false);
       if (mapInstanceRef.current && typeof target.latitude === 'number') panToVisible(target.latitude, target.longitude);
     },
     // Gemini가 선호로 후보를 좁힘(예: '양식 먹고 싶어'→양식 식당 id들). 추천 풀을 실시간 필터링해 재랭킹.
@@ -758,7 +751,6 @@ export default function MainPage() {
       applyVoiceFilter(set); // ref+state 동시 갱신(effect는 이후 재실행 시 ref로 읽음)
       const ranked = pool.map((f: any) => ({ ...f, tttv: calculateTTTV(f) })).sort(compareFacilities);
       setSelectedFacility(spoken ? { ...ranked[0], reason: spoken } : ranked[0]);
-      setIsCardHidden(false);
       if (mapInstanceRef.current && typeof ranked[0].latitude === 'number') panToVisible(ranked[0].latitude, ranked[0].longitude);
     },
     // 사용자 발화를 백엔드 Vertex Gemini(/api/v1/voice/turn)로 해석. 현재 타입 후보 목록(이름/혼잡/거리)을 동봉.
@@ -1044,7 +1036,6 @@ export default function MainPage() {
                 key={filter.id}
                 onClick={() => {
                   setActiveFilter(filter.id);
-                  setIsCardHidden(false);
                   setActiveGroupId(null);
                   applyVoiceFilter(null); // 카테고리 전환 시 음성 선호 필터(예: 양식) 해제(ref+state)
                   // 필터(섹션) 전환 시 열려있던 모둠 팝업도 닫기
