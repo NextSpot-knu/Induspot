@@ -56,8 +56,8 @@ _TAXONOMY = [
                  ["곱창,막창"],                     "곱창 막창 대창 양깃머리 곱창전골 막창구이"),
     ("족발보쌈", ["족발", "보쌈"],
                  ["족발,보쌈"],                     "족발 보쌈 수육 막국수"),
-    ("순댓국",   ["순대", "순댓"],
-                 ["순대"],                          "순대국밥 순대 머릿고기 돼지국밥 순댓국"),
+    ("순댓국",   ["순댓국", "순대국"],
+                 ["순대"],                          "순대 순댓국 순대국밥 머릿고기 수육 순대볶음"),
     ("닭갈비찜닭", ["닭갈비", "찜닭", "닭볶음", "백숙", "삼계탕", "닭한마리"],
                  ["닭요리"],                        "닭갈비 찜닭 닭볶음탕 백숙 삼계탕"),
     ("갈비집",   ["왕갈비", "생갈비", "갈비", "갈빗"],
@@ -91,24 +91,41 @@ _TAXONOMY = [
 _TYPE_KO = {"cafeteria": "식당", "parking": "주차장", "meeting_room": "회의실",
             "loading_dock": "하역장", "rest_area": "휴게실"}
 
+# 음주 중심 업장 신호(태그/타입). 음식 메뉴를 주지 않아 '고기/국밥/피자' 같은 음식 검색에서 자연히 밀린다.
+# (꾸버찌·이자카야진 등 bar 가 음식 후보로 섞여 추천을 오염시키는 문제 방지 — 삭제 대신 분류로 강등.)
+_BAR_TAGS = {"술집", "호프", "호프,요리주점", "오뎅바", "실내포장마차", "일본식주점", "포차", "선술집"}
+
 
 def _resolve_category(name, tags, ftype):
     """이름·태그를 한국 외식 택소노미의 **단일 분류**로 귀착. (분류명, 대표메뉴 or None).
 
-    이름신호 우선(상호에 박힌 전문 메뉴가 가장 신뢰도 높음) → 태그신호(구체적 분류 먼저) → 한식 기본.
-    음식 아닌 시설(주차장 등, 태그 없음)은 한국어 타입명을 분류로, 메뉴는 None.
+    **태그 우선**(CSV cuisine_tags 는 구체적·고신뢰): 구체 태그(육류,고기 / 국밥 / 피자 …)를 먼저 보고,
+    구체 태그가 없을 때만(예: '한식'만 있을 때) 상호 이름신호로 보강한다. 이전엔 이름신호를 먼저 봐
+    '삼겹당순대당'(태그=육류,고기)이 이름 '순대' 때문에 순댓국으로 오분류되어 '국밥' 검색을 오염시켰다.
+    음식 아닌 시설(주차장 등)·술집은 음식 메뉴 없이 분류만 둔다.
     """
     nm = name or ""
     tagset = set(tags or [])
+    # 0) 음주 업장은 음식 메뉴 없이 '술집'으로 강등(음식 검색에서 밀림). bar 타입 또는 음주 태그.
+    if (ftype or "").lower() == "bar" or (tagset & _BAR_TAGS):
+        return "술집", "안주 소주 맥주 골뱅이 노가리 오뎅"
     if tagset:
-        for label, name_sigs, _tag_sigs, menu in _TAXONOMY:   # 1) 이름신호
-            if any(sig in nm for sig in name_sigs):
-                return label, menu
-        for label, _name_sigs, tag_sigs, menu in _TAXONOMY:   # 2) 태그신호(구체적 우선)
+        # 1) 태그신호 우선(구체적 분류부터). '한식'은 폴백으로 미뤄 구체 분류가 항상 이긴다.
+        for label, _name_sigs, tag_sigs, menu in _TAXONOMY:
+            if label == "한식":
+                continue
             if any(t in tagset for t in tag_sigs):
                 return label, menu
-        return "한식", "백반 한정식 비빔밥 제육볶음 김치찌개"   # 3) 분류불명 음식점 기본
-    # 이름신호만으로도 음식점으로 보이면 분류(태그 없는 식당 대비)
+        # 2) 구체 태그가 없으면(예: '한식'만) 상호 이름신호로 보강(예: '큰집막창'→곱창집).
+        for label, name_sigs, _tag_sigs, menu in _TAXONOMY:
+            if any(sig in nm for sig in name_sigs):
+                return label, menu
+        # 3) '한식' 태그 폴백
+        for label, _name_sigs, tag_sigs, menu in _TAXONOMY:
+            if label == "한식" and any(t in tagset for t in tag_sigs):
+                return label, menu
+        return "한식", "백반 한정식 비빔밥 제육볶음 김치찌개"   # 4) 분류불명 음식점 기본
+    # 태그 없음: 이름신호로만 분류(태그 없는 식당 대비)
     for label, name_sigs, _tag_sigs, menu in _TAXONOMY:
         if any(sig in nm for sig in name_sigs):
             return label, menu

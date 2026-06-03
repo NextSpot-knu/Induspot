@@ -25,9 +25,9 @@ export default function SetupPage() {
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      // 데모 온보딩: 여기서 모은 값(메뉴종류/주차구역/근무조)은 추천 필터 기준인 facility category 와
-      // 의미가 달라 그대로 저장하지 않는다. 실제 선호 학습은 worker/recommend 온보딩(handleOnboardingSubmit)이
-      // Supabase users.preferred_categories 로 담당한다.
+      // 온보딩 음식 선호(food)를 '음식 의도'로 저장 → main 추천의 선호 일치율이 음식종류를 반영한다(localStorage).
+      // (facility type 카테고리 학습은 worker/recommend 온보딩이 Supabase users.preferred_categories 로 별도 담당.)
+      try { localStorage.setItem('induspot_setup_prefs', JSON.stringify(preferences)); } catch { /* noop */ }
       router.push('/main');
     }
   };

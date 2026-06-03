@@ -31,6 +31,59 @@ export interface ScoreOpts {
   userLocation: { lat: number; lng: number };
   preferredCategories?: string[];
   mockHour?: number | null;
+  // 음식 의도(음성 발화 '고기/국밥/피자' 또는 온보딩 선호). 있으면 선호%를 음식종류 매칭으로 산출.
+  cuisineIntent?: string | null;
+}
+
+// 음식 의도 키워드 → 관련 cuisine_tag 토큰. 의도와 시설 cuisine_tags 매칭으로 선호%를 결정한다.
+const CUISINE_INTENT_MAP: { keys: string[]; tags: string[] }[] = [
+  { keys: ["곱창", "막창", "대창"], tags: ["곱창,막창"] },
+  { keys: ["국밥", "해장", "돼지국밥"], tags: ["국밥"] },
+  { keys: ["순대", "순댓"], tags: ["순대"] },
+  { keys: ["족발", "보쌈"], tags: ["족발,보쌈"] },
+  { keys: ["피자", "파스타", "스테이크", "양식", "햄버거", "버거", "리조또", "스파게티"], tags: ["양식", "피자", "햄버거"] },
+  { keys: ["칼국수", "국수", "냉면", "수제비", "막국수"], tags: ["국수", "칼국수", "수제비"] },
+  { keys: ["치킨", "통닭", "닭강정"], tags: ["치킨"] },
+  { keys: ["닭갈비", "찜닭", "백숙", "삼계탕"], tags: ["닭요리"] },
+  { keys: ["중식", "짜장", "짬뽕", "탕수육", "마라"], tags: ["중식", "중국요리"] },
+  { keys: ["초밥", "스시", "사시미", "돈까스", "우동", "라멘", "일식"], tags: ["일식", "돈까스,우동"] },
+  { keys: ["물회", "해물", "생선", "조개", "복어", "수산"], tags: ["해물,생선", "회", "조개", "복어"] },
+  { keys: ["분식", "떡볶이", "김밥", "토스트", "라볶이"], tags: ["분식", "간식"] },
+  { keys: ["찌개", "전골", "부대찌개", "김치찌개", "된장찌개"], tags: ["찌개,전골"] },
+  { keys: ["쌀국수", "베트남", "태국", "팟타이", "분짜"], tags: ["베트남음식", "동남아음식", "아시아음식"] },
+  { keys: ["갈비"], tags: ["갈비", "육류,고기"] },
+  // '고기/구이'는 갈비·곱창보다 뒤에 둬 더 구체적인 분류가 우선되게 한다.
+  { keys: ["고기", "육류", "삼겹", "목살", "소고기", "돼지", "숯불", "구이", "한우"], tags: ["육류,고기", "갈비", "삼겹살"] },
+  { keys: ["한식", "백반", "가정식", "집밥", "한정식"], tags: ["한식", "한정식"] },
+  { keys: ["채식", "비건", "샐러드"], tags: ["채식"] },
+];
+const _BAR_TAGS_FE = ["술집", "호프", "오뎅바", "실내포장마차", "일본식주점", "호프,요리주점"];
+const _HANSIK_SPECIFIC = ["육류,고기", "국밥", "순대", "찌개,전골", "갈비", "곱창,막창", "족발,보쌈", "국수", "칼국수", "닭요리", "해물,생선", "한식", "한정식"];
+
+function _facilityCuisineTokens(facility: any): string[] {
+  const raw = facility?.features?.cuisine_tags ?? facility?.features?.cuisine ?? facility?.cuisine;
+  if (Array.isArray(raw)) return raw.map((x) => String(x));
+  if (typeof raw === "string") return [raw];
+  return [];
+}
+
+// 음식 의도와 시설의 매칭도(0~1). 의도가 없거나 인식 불가면 null → 호출측에서 카테고리 선호로 폴백.
+export function cuisineMatch(facility: any, intent: string | null | undefined): number | null {
+  if (!intent) return null;
+  const it = String(intent).toLowerCase();
+  const targetTags = new Set<string>();
+  for (const grp of CUISINE_INTENT_MAP) {
+    if (grp.keys.some((k) => it.includes(k.toLowerCase()))) grp.tags.forEach((t) => targetTags.add(t));
+  }
+  if (targetTags.size === 0) return null; // 인식 못한 의도 → 카테고리 선호 폴백
+  const tags = _facilityCuisineTokens(facility);
+  const name = String(facility?.name || "");
+  if (tags.some((t) => _BAR_TAGS_FE.includes(t))) return 0.12; // 술집은 음식 의도에 거의 안 맞음
+  if (tags.some((t) => targetTags.has(t))) return 0.95; // cuisine_tag 정확 일치
+  // 상호 이름에 타깃 메뉴가 박힌 경우(예: '윤쉐프의고기집')
+  if (CUISINE_INTENT_MAP.some((g) => g.tags.some((t) => targetTags.has(t)) && g.keys.some((k) => name.includes(k)))) return 0.85;
+  if (tags.includes("한식") && [...targetTags].some((t) => _HANSIK_SPECIFIC.includes(t))) return 0.45; // 같은 대분류(한식) 약한 점수
+  return 0.18; // 무관
 }
 
 const WALK_M_PER_MIN = 66.67; // 백엔드 WALKING_SPEED_M_PER_MIN 와 동일
@@ -76,7 +129,9 @@ function preferenceMatch(facility: any, preferredCategories: string[]): number {
 export function scoreFacility(facility: any, opts: ScoreOpts): Tttv {
   if (!facility) return { score: 0, preferencePercent: 0, expectedWait: 0, expectedTravel: 0, timeToService: 0 };
 
-  const pref = preferenceMatch(facility, opts.preferredCategories || []);
+  // 음식 의도(음성/온보딩)가 있으면 선호 = 음식종류 매칭(식당별로 변동), 없으면 기존 카테고리 선호.
+  const cMatch = cuisineMatch(facility, opts.cuisineIntent);
+  const pref = cMatch !== null ? cMatch : preferenceMatch(facility, opts.preferredCategories || []);
 
   const defaultTimes: Record<string, number> = {
     cafeteria: 20,

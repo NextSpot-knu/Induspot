@@ -2,9 +2,10 @@
   InduSpot deploy automation (PowerShell)
 
   Usage (from repo root):
-    .\deploy.ps1                 # all (backend + gateway + frontend)
+    .\deploy.ps1                 # all (backend + gateway + frontend). Backend RE-SEEDS facility embeddings first.
     .\deploy.ps1 -Frontend       # frontend only (most changes)
-    .\deploy.ps1 -Backend        # Cloud Run backend only
+    .\deploy.ps1 -Backend        # Cloud Run backend only (re-seeds facility embeddings -> deploy)
+    .\deploy.ps1 -Backend -SkipReseed  # backend deploy WITHOUT re-seeding embeddings (faster routine redeploy)
     .\deploy.ps1 -Backend -Gateway   # backend + gateway (when openapi changed)
     .\deploy.ps1 -Backend -Provision  # one-time idempotent GCP setup: IAM+secrets+Firestore+BQ (pre-deploy) -> deploy -> Pub/Sub (post-deploy, needs the image)
     .\deploy.ps1 -WithStreaming  # OPTIONAL heavier step: launch/refresh the Dataflow streaming job (separate from the Cloud Run image)
@@ -20,6 +21,7 @@ param(
   [switch]$Frontend,
   [switch]$Provision,
   [switch]$WithStreaming,
+  [switch]$SkipReseed,
   [string]$Gcloud = "C:\Users\samsung-user\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd",
   [string]$SaKey  = "C:\Users\samsung-user\Desktop\Google_Challenge\knudc-henryseo711-775e5ed806b7.json"
 )
@@ -116,6 +118,28 @@ if ($Provision) {
 
 # (a) Cloud Run (backend)
 if ($Backend) {
+  # (a0) Re-seed facility embeddings (cuisine taxonomy + menu -> Firestore facility_embeddings) so the voice
+  #      menu semantic search reflects the latest taxonomy (e.g. 삼겹당순대당->고깃집, 열정국밥->국밥, bars->술집).
+  #      Runs BEFORE the deploy so the new revision's instances cache fresh vectors on first request.
+  #      Non-fatal: on failure the voice filter keeps prior embeddings / Gemini match_ids fallback.
+  #      Uses the gcloud USER ADC (has Vertex aiplatform.user + Firestore + Secret Manager), NOT the firebase
+  #      SA key (which lacks aiplatform.user) -> temporarily clear GOOGLE_APPLICATION_CREDENTIALS for this step.
+  if (-not $SkipReseed) {
+    Step "(a0) Re-seed facility embeddings (taxonomy -> facility_embeddings) [skip with -SkipReseed]"
+    $savedAdc = $env:GOOGLE_APPLICATION_CREDENTIALS
+    Remove-Item Env:\GOOGLE_APPLICATION_CREDENTIALS -ErrorAction SilentlyContinue
+    Push-Location apps/api
+    try {
+      & $VenvPy scripts/seed_facility_embeddings.py
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "  WARN seed_facility_embeddings.py failed (exit $LASTEXITCODE) - voice keeps prior embeddings / Gemini fallback" -ForegroundColor Yellow
+      } else { Ok "facility_embeddings re-seeded" }
+    } finally {
+      Pop-Location
+      if ($savedAdc) { $env:GOOGLE_APPLICATION_CREDENTIALS = $savedAdc }
+    }
+  }
+
   Step "(a) Cloud Run deploy ($Service) - merges AI/OIDC env + Secret Manager secrets (other env preserved)"
   # --update-env-vars (NOT --set-env-vars) merges these keys without wiping existing env:
   #   VERTEX_ENDPOINT_ID  -> flips congestion prediction from GCS-pickle fallback to a real Vertex online RPC
@@ -205,6 +229,10 @@ if ($WithStreaming) {
   Step "(d) Dataflow streaming job (induspot-congestion-windowing) - optional, billed continuously"
   $BeamPython = Join-Path $PSScriptRoot "apps\api\.venv_beam\Scripts\python.exe"
   if (-not (Test-Path $BeamPython)) { throw "beam venv python not found: $BeamPython  (run: python -m venv apps/api/.venv_beam; .\apps\api\.venv_beam\Scripts\python -m pip install -r apps/api/dataflow/requirements.txt)" }
+  # DataflowRunner submits the job via ADC. The provisioning step set GOOGLE_APPLICATION_CREDENTIALS to the
+  # firebase SA key (which lacks dataflow.jobs.create); clear it so submission uses the gcloud user ADC
+  # (editor: has dataflow.jobs.create + actAs on the compute worker SA). The job still RUNS as the compute SA.
+  Remove-Item Env:\GOOGLE_APPLICATION_CREDENTIALS -ErrorAction SilentlyContinue
   Push-Location (Join-Path $PSScriptRoot "apps\api")
   try {
     & $BeamPython "dataflow\launch_dataflow.py"

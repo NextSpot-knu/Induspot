@@ -38,6 +38,8 @@ export default function MainPage() {
   const [voiceFilterIds, setVoiceFilterIds] = useState<Set<string> | null>(null);
   const voiceFilterIdsRef = useRef<Set<string> | null>(null);
   const applyVoiceFilter = (s: Set<string> | null) => { voiceFilterIdsRef.current = s; setVoiceFilterIds(s); };
+  // 음식 의도(음성 발화 '고기/국밥/피자' 또는 온보딩 food 선호). 선호 일치율을 음식종류 매칭으로 산출하는 데 쓴다.
+  const cuisineIntentRef = useRef<string | null>(null);
   // 그룹(모음) 마커 하이라이트 id — 카드 선택(selectedFacility)과 분리해 마커 확대/색상변경만 적용
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -379,10 +381,21 @@ export default function MainPage() {
     }
   }, []);
 
+  // 온보딩(setup)에서 고른 음식 선호를 '음식 의도' 기본값으로 로드(음성 발화가 있으면 그쪽이 덮어씀).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('induspot_setup_prefs');
+      if (raw) {
+        const food = String(JSON.parse(raw)?.food || '').trim();
+        if (food) cuisineIntentRef.current = food === '간편식' ? '분식 김밥 떡볶이' : food;
+      }
+    } catch { /* noop */ }
+  }, []);
+
   // 추천 점수·정렬·사유 로직은 lib/recommender(백엔드 TTTV 미러)로 분리.
   // CATEGORY_VECTORS·점수 계산·거리(haversine)는 모듈에 있고, 아래는 호출부 유지를 위한 얇은 위임 래퍼다.
   const calculateTTTV = (facility: any) =>
-    scoreFacility(facility, { userLocation, preferredCategories, mockHour });
+    scoreFacility(facility, { userLocation, preferredCategories, mockHour, cuisineIntent: cuisineIntentRef.current });
 
   const compareFacilities = compareTttv;
 
@@ -440,7 +453,7 @@ export default function MainPage() {
     const demoCands = expandGroups(candidates.filter(isDemo))
       .filter((f: any) => !rejectedIds.has(f.id) && !savedIds.has(f.id));
     const liveMode = mockHour === null; // 시간대 시뮬이 켜지면 데모(목업) 모드로 일관 처리
-    const scoreOpts = { userLocation, preferredCategories, mockHour };
+    const scoreOpts = { userLocation, preferredCategories, mockHour, cuisineIntent: cuisineIntentRef.current };
 
     let cancelled = false;
     (async () => {
@@ -466,6 +479,13 @@ export default function MainPage() {
                   const tttv = recToTttv(r);
                   return { ...base, tttv, reason: r.reason || "" }; // 백엔드 Gemini 사유만
                 });
+              // 음식 의도(음성/온보딩)가 있으면 선호%·점수를 음식종류 매칭으로 재산출해 표시·랭킹을 의도와 일치시킨다.
+              // (백엔드 선호는 시설타입 4종 벡터라 식당별로 고정 → 의도가 있을 땐 미러로 음식종류 반영. 사유는 백엔드 유지.)
+              if (cuisineIntentRef.current) {
+                realRanked = realRanked
+                  .map((f: any) => ({ ...f, tttv: scoreFacility(f, scoreOpts) }))
+                  .sort(compareTttv);
+              }
             } catch (e) {
               console.warn("by-type 추천 실패 → 목업 미러로 폴백:", e);
               realRanked = [];
@@ -748,15 +768,18 @@ export default function MainPage() {
       const type = f?.type || filterMap[activeFilter] || 'cafeteria';
       const cands = expandGroups(facilities)
         .filter((x: any) => x.type === type && !rejectedIds.has(x.id) && !savedIds.has(x.id)) // 메인 추천과 동일 필터(저장/거절 제외)
-        .slice(0, 12)
         .map((x: any) => ({
           id: x.id,
           name: x.name,
           cuisine: x.features?.cuisine_tags ?? x.features?.cuisine ?? null, // Gemini가 양식/짜장면 등 매칭에 사용
           congestion: x.congestionLevel ?? 0,
           distanceM: haversineMeters(userLocation.lat, userLocation.lng, x.latitude, x.longitude),
-        }));
+        }))
+        .sort((a, b) => a.distanceM - b.distanceM) // 가까운 순 — 전문점(고기/국밥/피자)이 상위 N 밖으로 밀려 누락되지 않게
+        .slice(0, 16);                              // 12→16: 의미검색이 도달할 후보 폭 확대(백엔드 입력 상한 30 이내)
       const res = await voiceTurn(utterance, type, f?.name ?? null, cands);
+      // 음식 선호 발화(filter)면 그 발화를 음식 의도로 저장 → 이어지는 재랭킹/선호%가 음식종류를 반영.
+      if (res.action === 'filter') cuisineIntentRef.current = utterance;
       return { action: res.action, targetId: res.targetFacilityId, matchIds: res.matchIds, spoken: res.spoken };
     },
   });
