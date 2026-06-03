@@ -47,6 +47,12 @@ _SYSTEM_INSTRUCTION = (
     "6. details 의 spoken 은 빈말 금지 — 위 후보의 실제 데이터(종류·대표메뉴·혼잡도·도보)를 근거로 답하세요."
 )
 
+# 시드 정밀분류(seed_facility_embeddings._TAXONOMY 라벨)와 '정확히' 일치해야 filter_candidates 의 category 부스트가 동작.
+_INTENT_CATEGORIES = [
+    "고깃집", "곱창집", "갈비집", "족발보쌈", "순댓국", "국밥집", "찌개전골", "샤브샤브", "닭갈비찜닭",
+    "치킨집", "횟집", "일식", "중식", "양식", "분식", "국수칼국수", "해물", "아시안", "카페", "술집", "한식",
+]
+
 # response_schema: action enum/타입/필수키를 디코딩 단계에서 강제. _coerce 는 유효 id 매칭 등 이중 안전망으로 유지.
 _RESPONSE_SCHEMA = {
     "type": "object",
@@ -55,6 +61,7 @@ _RESPONSE_SCHEMA = {
         "target_facility_id": {"type": "string", "nullable": True},
         "match_ids": {"type": "array", "items": {"type": "string"}},
         "search_query": {"type": "string"},
+        "intent_category": {"type": "string", "nullable": True},
         "spoken": {"type": "string"},
     },
     "required": ["action", "spoken"],
@@ -148,7 +155,11 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         '"target_facility_id":"<select일 때 후보 id 하나, 아니면 null>",'
         '"match_ids":["<filter일 때 선호에 맞는 후보 id들(여럿 가능), 아니면 빈 배열>"],'
         '"search_query":"<filter일 때 의미검색용 한국어 검색어, 아니면 빈 문자열>",'
+        '"intent_category":"<filter일 때 아래 분류 중 정확히 하나, 아니면 빈 문자열>",'
         '"spoken":"<사용자에게 말할 한국어 1문장(없는 수치 지어내지 말 것)>"}\n'
+        "intent_category 후보(filter일 때만, 발화 의도에 맞는 하나를 '정확히' 그대로): "
+        "고깃집/곱창집/갈비집/족발보쌈/순댓국/국밥집/찌개전골/샤브샤브/닭갈비찜닭/치킨집/횟집/일식/중식/양식/분식/국수칼국수/해물/아시안/카페/술집/한식. "
+        "예: '국밥'→국밥집, '부대찌개'→찌개전골, '고기'→고깃집, '피자'→양식, '곱창'→곱창집, '짜장면'→중식. 모르면 빈 문자열.\n"
         "분류 규칙: 수락/가자/길안내 의사=accept. 다른 거/넘기기=next. 별로/싫어=reject. "
         "자세히/정보/메뉴/혼잡/얼마나 걸려 같은 질문=details. 그만/취소/중지=stop. "
         "details 일 때는 spoken 에 빈말('알려드릴게요') 대신 해당 시설의 '실제 데이터'를 담아 1~2문장으로 "
@@ -180,7 +191,7 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
 def _fallback() -> dict:
     """Gemini 미사용/실패 시 — 하드코딩 키워드 분류는 하지 않는다(의도/필터는 Gemini 전담).
     항상 unknown 을 반환해 프런트가 '다시 말씀해 주세요'로 재질문하게 한다(엉뚱한 동작 방지)."""
-    return {"action": "unknown", "target_facility_id": None, "match_ids": [], "search_query": None, "spoken": None}
+    return {"action": "unknown", "target_facility_id": None, "match_ids": [], "search_query": None, "intent_category": None, "spoken": None}
 
 
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -269,9 +280,13 @@ def _coerce(parsed: dict, valid_ids: set) -> dict:
     # search_query: filter 일 때 임베딩 의미검색에 쓸 확장 검색어(고깃집→삼겹살·갈비…). 그 외엔 None.
     sq = parsed.get("search_query")
     sq = sq.strip()[:200] if isinstance(sq, str) and sq.strip() else None
+    # intent_category: 시드 정밀분류 enum 과 정확히 일치할 때만 통과(filter_candidates 의 category 부스트용).
+    ic = parsed.get("intent_category")
+    ic = ic.strip() if isinstance(ic, str) and ic.strip() in _INTENT_CATEGORIES else None
     if action != "filter":
         sq = None
-    return {"action": action, "target_facility_id": tid, "match_ids": match_ids, "search_query": sq, "spoken": spoken}
+        ic = None
+    return {"action": action, "target_facility_id": tid, "match_ids": match_ids, "search_query": sq, "intent_category": ic, "spoken": spoken}
 
 
 async def interpret_turn(

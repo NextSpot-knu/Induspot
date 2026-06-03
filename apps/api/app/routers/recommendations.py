@@ -383,7 +383,8 @@ async def voice_turn(req: VoiceTurnRequest):
     if result["action"] == "filter":
         query = result.get("search_query") or req.utterance
         try:
-            vids = await vector_filter_candidates(query, candidates)
+            # Gemini 가 정한 정밀분류(intent_category)를 함께 넘겨, 시드 category 일치 후보를 소프트 부스트(국밥→국밥집).
+            vids = await vector_filter_candidates(query, candidates, intent_category=result.get("intent_category"))
         except Exception:
             vids = []
         match = vids or result.get("match_ids") or []  # 벡터 우선, Gemini match_ids 가 폴백

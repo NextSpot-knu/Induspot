@@ -7,12 +7,22 @@ import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, 
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { createPublicClient } from '@/lib/supabase';
 import { getMarkerSvg } from '@/lib/utils';
-import { scoreFacility, compareTttv, rankFacilities, recToTttv, haversineMeters } from '@/lib/recommender';
+import { scoreFacility, compareTttv, rankFacilities, recToTttv, haversineMeters, cuisineMatch, rescoreWithPreference } from '@/lib/recommender';
+import { findLandmark } from '@/lib/landmarks';
 import { recommendByType, voiceTurn } from '@/lib/api-client';
 import { useVoiceAssistant } from '@/lib/useVoiceAssistant';
 import VoiceAssistantOrb from '@/components/VoiceAssistantOrb';
 
 const supabase = createPublicClient();
+
+// 술집(bar)은 라이브 DB 에 type=cafeteria 로 적재돼 '식당' 추천을 오염시킨다(데이터 한계).
+// cuisine_tags 로 술집을 식별해 식당 추천 후보에서만 제외(지도 마커로는 계속 표시 — 삭제 아님).
+const _BAR_TAGS_MAIN = ['술집', '호프', '오뎅바', '실내포장마차', '일본식주점', '호프,요리주점', '포차', '선술집'];
+function isBarFacility(f: any): boolean {
+  const raw = f?.features?.cuisine_tags ?? f?.features?.cuisine;
+  const tags = Array.isArray(raw) ? raw.map((x: any) => String(x)) : (typeof raw === 'string' ? [raw] : []);
+  return tags.some((t: string) => _BAR_TAGS_MAIN.includes(t));
+}
 
 declare global {
   interface Window {
@@ -40,6 +50,8 @@ export default function MainPage() {
   const applyVoiceFilter = (s: Set<string> | null) => { voiceFilterIdsRef.current = s; setVoiceFilterIds(s); };
   // 음식 의도(음성 발화 '고기/국밥/피자' 또는 온보딩 food 선호). 선호 일치율을 음식종류 매칭으로 산출하는 데 쓴다.
   const cuisineIntentRef = useRef<string | null>(null);
+  // 랜드마크 상대거리 정렬 기준점(예: '구미세무서 가까운 주차장' → 세무서 좌표). null이면 사용자 위치 기준.
+  const rankingOriginRef = useRef<{ lat: number; lng: number } | null>(null);
   // 그룹(모음) 마커 하이라이트 id — 카드 선택(selectedFacility)과 분리해 마커 확대/색상변경만 적용
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -394,7 +406,7 @@ export default function MainPage() {
   // 추천 점수·정렬·사유 로직은 lib/recommender(백엔드 TTTV 미러)로 분리.
   // CATEGORY_VECTORS·점수 계산·거리(haversine)는 모듈에 있고, 아래는 호출부 유지를 위한 얇은 위임 래퍼다.
   const calculateTTTV = (facility: any) =>
-    scoreFacility(facility, { userLocation, preferredCategories, mockHour, cuisineIntent: cuisineIntentRef.current });
+    scoreFacility(facility, { userLocation: rankingOriginRef.current ?? userLocation, preferredCategories, mockHour, cuisineIntent: cuisineIntentRef.current });
 
   const compareFacilities = compareTttv;
 
@@ -435,11 +447,12 @@ export default function MainPage() {
     };
     const targetType = filterMap[activeFilter];
 
+    const typeOk = (f: any) => f.type === targetType && !(targetType === 'cafeteria' && isBarFacility(f)); // 식당 추천에서 술집 제외
     let candidates = facilities.filter(
-      f => f.type === targetType && !rejectedIds.has(f.id) && !savedIds.has(f.id)
+      f => typeOk(f) && !rejectedIds.has(f.id) && !savedIds.has(f.id)
     );
     if (candidates.length === 0) {
-      candidates = facilities.filter(f => f.type === targetType);
+      candidates = facilities.filter(typeOk);
     }
     if (candidates.length === 0) {
       setSelectedFacility(null);
@@ -452,7 +465,8 @@ export default function MainPage() {
     const demoCands = expandGroups(candidates.filter(isDemo))
       .filter((f: any) => !rejectedIds.has(f.id) && !savedIds.has(f.id));
     const liveMode = mockHour === null; // 시간대 시뮬이 켜지면 데모(목업) 모드로 일관 처리
-    const scoreOpts = { userLocation, preferredCategories, mockHour, cuisineIntent: cuisineIntentRef.current };
+    if (targetType !== 'parking') rankingOriginRef.current = null; // 랜드마크 기준점은 주차 쿼리에서만 유지(식당 등으로 전환 시 리셋)
+    const scoreOpts = { userLocation: rankingOriginRef.current ?? userLocation, preferredCategories, mockHour, cuisineIntent: cuisineIntentRef.current };
 
     let cancelled = false;
     (async () => {
@@ -481,8 +495,13 @@ export default function MainPage() {
               // 음식 의도(음성/온보딩)가 있으면 선호%·점수를 음식종류 매칭으로 재산출해 표시·랭킹을 의도와 일치시킨다.
               // (백엔드 선호는 시설타입 4종 벡터라 식당별로 고정 → 의도가 있을 땐 미러로 음식종류 반영. 사유는 백엔드 유지.)
               if (cuisineIntentRef.current) {
+                // 백엔드 TTTV(예측 대기·이동·incentive) 보존 + 선호항만 cuisineMatch 로 교체해 재점수.
+                // 비식당/미인식(cm=null)은 백엔드 tttv 그대로 유지 → 통째 재계산이 사유·수치를 어긋나게 하던 문제 해소.
                 realRanked = realRanked
-                  .map((f: any) => ({ ...f, tttv: scoreFacility(f, scoreOpts) }))
+                  .map((f: any) => {
+                    const cm = cuisineMatch(f, cuisineIntentRef.current);
+                    return cm !== null ? { ...f, tttv: rescoreWithPreference(f.tttv, cm, f.congestionLevel ?? 0) } : f;
+                  })
                   .sort(compareTttv);
               }
             } catch (e) {
@@ -757,8 +776,33 @@ export default function MainPage() {
     interpret: async (utterance, f) => {
       const filterMap: Record<string, string> = { '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area' };
       const type = f?.type || filterMap[activeFilter] || 'cafeteria';
+
+      // 주차장 전용: '공영' 필터 + 랜드마크('구미세무서 가까운') 근접은 임베딩 의미검색이 아니라 플래그/좌표로
+      // 로컬 처리한다(주차장은 cuisine 임베딩이 없어 백엔드 의미검색이 무력). 점수계산 이전 prefilter 라 가중치 불변.
+      if (type === 'parking') {
+        const wantPublic = /공영|공용|무료|시민/.test(utterance);
+        const lm = findLandmark(utterance);
+        if (wantPublic || lm) {
+          const origin = lm ? { lat: lm.lat, lng: lm.lng } : userLocation;
+          rankingOriginRef.current = lm ? origin : null; // 랜드마크가 있으면 그 좌표 기준으로 TTTV 거리 재정렬
+          cuisineIntentRef.current = null;
+          let pool = facilities.filter((x: any) => x.type === 'parking' && !rejectedIds.has(x.id) && !savedIds.has(x.id));
+          if (wantPublic) pool = pool.filter((x: any) => x.features?.is_public === true); // 공영(gumi_parking.csv: is_public=true)만
+          if (pool.length === 0) {
+            return { action: 'unknown', targetId: null, matchIds: [], spoken: wantPublic ? '근처에 공영주차장을 찾지 못했어요.' : null };
+          }
+          const ids = pool
+            .map((x: any) => ({ id: x.id, d: haversineMeters(origin.lat, origin.lng, x.latitude, x.longitude) }))
+            .sort((a, b) => a.d - b.d).slice(0, 6).map((o) => o.id);
+          const where = lm ? `${lm.name} 근처 ` : '';
+          const kind = wantPublic ? '공영주차장' : '주차장';
+          return { action: 'filter', targetId: null, matchIds: ids, spoken: `${where}${kind}으로 안내할게요.` };
+        }
+      }
+
+      rankingOriginRef.current = null; // 식당/일반 경로는 사용자 위치 기준 정렬
       const cands = expandGroups(facilities)
-        .filter((x: any) => x.type === type && !rejectedIds.has(x.id) && !savedIds.has(x.id)) // 메인 추천과 동일 필터(저장/거절 제외)
+        .filter((x: any) => x.type === type && !(type === 'cafeteria' && isBarFacility(x)) && !rejectedIds.has(x.id) && !savedIds.has(x.id)) // 식당이면 술집 제외
         .map((x: any) => ({
           id: x.id,
           name: x.name,
@@ -767,10 +811,10 @@ export default function MainPage() {
           distanceM: haversineMeters(userLocation.lat, userLocation.lng, x.latitude, x.longitude),
         }))
         .sort((a, b) => a.distanceM - b.distanceM) // 가까운 순 — 전문점(고기/국밥/피자)이 상위 N 밖으로 밀려 누락되지 않게
-        .slice(0, 16);                              // 12→16: 의미검색이 도달할 후보 폭 확대(백엔드 입력 상한 30 이내)
+        .slice(0, 16);                              // 의미검색 도달 후보 폭(백엔드 입력 상한 30 이내)
       const res = await voiceTurn(utterance, type, f?.name ?? null, cands);
-      // 음식 선호 발화(filter)면 그 발화를 음식 의도로 저장 → 이어지는 재랭킹/선호%가 음식종류를 반영.
-      if (res.action === 'filter') cuisineIntentRef.current = utterance;
+      // 음식 선호 발화(filter)는 '식당'일 때만 음식 의도로 저장(주차/회의/휴게 선호% 오염 방지).
+      if (res.action === 'filter' && type === 'cafeteria') cuisineIntentRef.current = utterance;
       return { action: res.action, targetId: res.targetFacilityId, matchIds: res.matchIds, spoken: res.spoken };
     },
   });

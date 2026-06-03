@@ -70,6 +70,8 @@ function _facilityCuisineTokens(facility: any): string[] {
 // 음식 의도와 시설의 매칭도(0~1). 의도가 없거나 인식 불가면 null → 호출측에서 카테고리 선호로 폴백.
 export function cuisineMatch(facility: any, intent: string | null | undefined): number | null {
   if (!intent) return null;
+  // 음식 매칭은 식당(cafeteria)에만 적용. 주차/회의/휴게는 null → 카테고리 선호로 폴백(비식당 선호% 오염 방지).
+  if (facility?.type && facility.type !== "cafeteria") return null;
   const it = String(intent).toLowerCase();
   const targetTags = new Set<string>();
   for (const grp of CUISINE_INTENT_MAP) {
@@ -124,6 +126,22 @@ function preferenceMatch(facility: any, preferredCategories: string[]): number {
   let dot = 0;
   for (let i = 0; i < 8; i++) dot += uf[i] * ff[i];
   return Math.max(0, Math.min(1, dot));
+}
+
+// 백엔드 TTTV(예측 대기·이동·incentive)를 '보존'하고 선호 항만 cuisineMatch 로 교체해 동일 가중치·산식으로
+// score 만 재유도한다. 라이브 by-type 경로에서 scoreFacility 통째 재계산이 백엔드 Vertex 예측값을 버려
+// 사유와 수치가 어긋나던 문제를 막는다. 비식당/미인식(cMatch=null)은 호출측이 이 함수를 안 부르고 백엔드 tttv 유지.
+export function rescoreWithPreference(t: Tttv, pref: number, congestionLevel: number): Tttv {
+  const w1 = 0.45, w2 = 0.25, w3 = 0.3;
+  const timeCost = Math.min(1.0, ((t.expectedWait || 0) + (t.expectedTravel || 0)) / 60.0);
+  const incentive = Math.max(0, BROWSE_BASELINE_CONGESTION - (congestionLevel ?? 0));
+  const raw = w1 * pref - w2 * timeCost + w3 * incentive;
+  const finalScore = Math.max(0, Math.min(1, (raw + w2) / (w1 + w2 + w3)));
+  return {
+    ...t, // expectedWait/expectedTravel/timeToService = 백엔드 예측 보존
+    score: isNaN(finalScore) ? t.score : Math.round(finalScore * 100),
+    preferencePercent: isNaN(pref) ? t.preferencePercent : Math.round(pref * 100),
+  };
 }
 
 export function scoreFacility(facility: any, opts: ScoreOpts): Tttv {

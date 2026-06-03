@@ -18,7 +18,7 @@ declare global {
 // 데모 회복탄력성: 백엔드/Gemini 사유가 없을 때(목업·폴백)도 추천 사유가 비지 않도록
 // 보여줄 결정적 한국어 사유를 생성한다. 백엔드 reason_service._build_template 와 어투를 맞춰 일관성 유지.
 function buildMockReason(name: string, waitMin: number, distanceM: number, congestionLevel: number = 0): string {
-  const walk = Math.max(1, Math.round(distanceM / 80)); // 80m/min ≈ 4.8km/h
+  const walk = Math.max(1, Math.round(distanceM / 66.67)); // 66.67m/min = 4km/h (백엔드 WALKING_SPEED_M_PER_MIN 와 일치)
   // 혼잡(>=0.75)이면 추천하지 않고 혼잡·대기를 솔직히 알린다.
   if (congestionLevel >= 0.75) {
     return `${name}: 도보 ${walk}분 거리지만 지금은 혼잡도 ${Math.round(congestionLevel * 100)}%로 붐벼 대기가 길 수 있어요.`;
@@ -1322,7 +1322,7 @@ function RecommendContent() {
           ) : recommendations.length > 0 ? (
             recommendations.map((rec, idx) => {
               const waitTime = rec.breakdown?.waitTime?.toFixed(1) || "--";
-              const travelTime = (rec.distanceM / 80).toFixed(1); // 80m/min (approx. 4.8 km/h)
+              const travelTime = (rec.breakdown?.travelTime ?? rec.distanceM / 66.67).toFixed(1); // 백엔드 TTTV travelTime 우선(66.67m/min=4km/h, 백엔드 일치), 없으면 거리환산
               const preferencePct = Math.round((rec.breakdown?.preference || 0) * 100);
               const isVoiceActive = assistantActive && idx === activeRecIndex; // 음성 비서가 지금 안내 중인 카드
 

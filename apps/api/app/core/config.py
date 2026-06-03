@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     #  margin 0.04 = '고깃집' 확장검색이 실제 고깃집 2곳만 집고 닭갈비/곱창집은 배제하는 지점)
     VOICE_VECTOR_MARGIN: float = 0.04
     VOICE_VECTOR_TOPK: int = 3
+    # 무관 꼬리 차단용 보수적 절대 코사인 하한(다국어 임베딩 대역 0.6~0.82 하단). 진짜 매칭은 거의 안 비우며
+    # 무관 후보만 자른다. 라이브 코사인 분포 로깅(embedding_filter_resolved.top) 후 0.68~0.72 로 상향 가능.
+    VOICE_VECTOR_MIN_COSINE: float = 0.60
+    # Gemini intent_category 와 시드 정밀분류(category)가 일치하는 후보에 주는 소프트 부스트(배타 게이트 아님 — category 없는 후보는 배제하지 않음).
+    VOICE_CATEGORY_BOOST: float = 0.05
 
     # Kakao Mobility Directions API (도보/차량 실거리·실시간 이동시간).
     # 비어 있으면 Haversine 직선거리 도보 환산으로 폴백(기본). 키가 있으면 실경로 호출.

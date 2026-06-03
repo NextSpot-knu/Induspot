@@ -230,11 +230,13 @@ async def enrich_candidates(candidates: list) -> list:
 # ────────────────────────────────────────────────────────────────────
 # 공개 API: 발화 의미에 맞는 후보 id 선택
 # ────────────────────────────────────────────────────────────────────
-async def filter_candidates(utterance: str, candidates: list, margin: float = None, top_k: int = None) -> list:
+async def filter_candidates(utterance: str, candidates: list, margin: float = None, top_k: int = None, intent_category: str = None) -> list:
     """발화('짜장면 먹고싶어')에 의미적으로 맞는 후보 id 들을 반환.
 
-    절대 임계값이 아니라 '최고 유사도 대비 margin' 안의 후보를 top_k 개까지(다국어 임베딩 코사인은
-    압축돼 있어 절대 임계값은 변별력이 없다 — 실측 보정). 매칭 실패/임베딩 미사용 시 빈 리스트.
+    '최고 유사도 대비 margin' 안의 후보를 top_k 개까지 + **보수적 절대 코사인 하한**(무관 꼬리 차단).
+    intent_category(Gemini 가 정한 시드 정밀분류, 예 '국밥집')가 주어지면 그 category 후보에 **소프트 부스트**를
+    줘 인접분류 leak(국밥↔순댓국↔찌개)을 억제한다 — 배타 게이트가 아니라 가산이라, category 없는(미시드/즉석)
+    후보는 배제하지 않아 폴백·빈손방지를 보존한다. 매칭 실패/임베딩 미사용 시 빈 리스트.
     """
     if not settings.EMBEDDING_ENABLED:
         return []
@@ -244,6 +246,8 @@ async def filter_candidates(utterance: str, candidates: list, margin: float = No
 
     margin = settings.VOICE_VECTOR_MARGIN if margin is None else margin
     top_k = settings.VOICE_VECTOR_TOPK if top_k is None else top_k
+    floor = settings.VOICE_VECTOR_MIN_COSINE
+    boost = settings.VOICE_CATEGORY_BOOST
 
     qvecs = await embed_texts([utterance], "RETRIEVAL_QUERY")
     if not qvecs:
@@ -251,16 +255,30 @@ async def filter_candidates(utterance: str, candidates: list, margin: float = No
     qv = qvecs[0]
 
     dvecs = await _doc_vectors(candidates)
+    cache = await _get_cache()  # 시드 정밀분류(category) 조회용
     scored = []
     for c in candidates:
-        v = dvecs.get(c.get("id"))
-        if v:
-            scored.append((_cosine(qv, v), c["id"]))
+        cid = c.get("id")
+        v = dvecs.get(cid)
+        if not v:
+            continue
+        s = _cosine(qv, v)
+        # 시드 정밀분류가 Gemini 의도분류와 정확히 일치하면 소프트 부스트(국밥집이 인접분류보다 확실히 우선).
+        if intent_category:
+            cat = (cache.get(cid) or {}).get("category")
+            if cat and cat == intent_category:
+                s += boost
+        scored.append((s, cid))
     if not scored:
         return []
 
     scored.sort(key=lambda x: x[0], reverse=True)
     top = scored[0][0]
-    selected = [cid for s, cid in scored if s >= top - margin][:top_k]
-    logger.info("embedding_filter_resolved", n_candidates=len(candidates), n_selected=len(selected), top=round(top, 3))
+    # 상대 margin(최고점 근방) + 보수적 절대 하한(무관 후보 차단). 둘 다 부스트 반영 점수 기준.
+    selected = [cid for s, cid in scored if s >= top - margin and s >= floor][:top_k]
+    logger.info(
+        "embedding_filter_resolved",
+        n_candidates=len(candidates), n_selected=len(selected),
+        top=round(top, 3), floor=floor, intent_category=intent_category,
+    )
     return selected
