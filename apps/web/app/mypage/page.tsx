@@ -21,7 +21,6 @@ interface UserProfile {
 
 export default function MyPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('MyPage');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userVector, setUserVector] = useState<number[] | null>(null);
@@ -90,12 +89,7 @@ export default function MyPage() {
     }
   };
 
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
-    if (tabId === 'Home') router.push('/main');
-    if (tabId === 'Saved') router.push('/saved');
-    if (tabId === 'MyPage') router.push('/mypage');
-  };
+
 
   return (
     <div className="relative w-full h-[100dvh] bg-[url('/bg.png')] bg-cover bg-center flex flex-col overflow-hidden">

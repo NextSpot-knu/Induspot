@@ -8,8 +8,8 @@ export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // 루트 경로나 지원하지 않는 경로에서는 네비게이션 바 숨김 처리 (필요시)
-  if (pathname === '/' || pathname.includes('/admin')) return null;
+  // 루트 경로나 지원하지 않는 경로에서는 네비게이션 바 숨김 처리
+  if (!pathname || pathname === '/' || pathname.includes('/admin') || pathname.includes('/setup')) return null;
 
   const tabs = [
     { id: 'Home', icon: Home, label: 'Home', path: '/main' },

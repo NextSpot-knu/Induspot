@@ -19,7 +19,6 @@ interface BookmarkData {
 
 export default function SavedPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('Saved');
   const [bookmarks, setBookmarks] = useState<BookmarkData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBookmark, setSelectedBookmark] = useState<BookmarkData | null>(null);
@@ -85,12 +84,7 @@ export default function SavedPage() {
     fetchBookmarks();
   }, []);
 
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
-    if (tabId === 'Home') router.push('/main');
-    if (tabId === 'Saved') router.push('/saved');
-    if (tabId === 'MyPage') router.push('/mypage');
-  };
+
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
