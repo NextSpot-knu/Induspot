@@ -589,7 +589,7 @@ function RecommendContent() {
           .filter(f => f.id !== facilityId && f.type === (originalFacilityTypeRef.current || "cafeteria"));
 
         const fallbacks: RecommendationResponse[] = filteredMock
-          .slice(0, 3)
+          .slice(0, 5)
           .map((f, i) => ({
             recommendationId: `mock-rec-id-${i}`,
             facility: {
@@ -632,7 +632,7 @@ function RecommendContent() {
   const buildMockRecommendations = (): RecommendationResponse[] => {
     const filteredMock = MOCK_SEED_FACILITIES
       .filter((f) => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"));
-    return filteredMock.slice(0, 3).map((f, i) => ({
+    return filteredMock.slice(0, 5).map((f, i) => ({
       recommendationId: `mock-rec-id-${i}`,
       facility: {
         id: f.id,
@@ -785,7 +785,7 @@ function RecommendContent() {
         .filter(f => f.id !== facilityId && f.type === (originalFacility?.type || "cafeteria"));
       
       const fallbacks: RecommendationResponse[] = filteredMock
-        .slice(0, 3)
+        .slice(0, 5)
         .map((f, i) => ({
           recommendationId: `mock-rec-id-${i}`,
           facility: {

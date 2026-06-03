@@ -178,9 +178,9 @@ async def get_recommendations(
 
     # 4. 스코어 기준 내림차순 정렬 및 상위 3개 선별
     recommendation_results.sort(key=lambda x: x["tttv_score"], reverse=True)
-    top_3 = recommendation_results[:3]
+    top_n = recommendation_results[:5]  # 추천 제안 개수(요청: 3 → 5)
 
-    # 4-1. WP3: 상위 N개(=top_3)에만 Gemini 사유 생성 (동시 호출, 실패 시 템플릿 폴백)
+    # 4-1. WP3: 상위 N개(=top_n)에만 Gemini 사유 생성 (동시 호출, 실패 시 템플릿 폴백)
     async def _reason_for(item: dict) -> str:
         bd = item["breakdown"]
         return await generate_reason({
@@ -194,7 +194,7 @@ async def get_recommendations(
             "incentive": bd.get("incentive"),
         })
 
-    reasons = await asyncio.gather(*[_reason_for(item) for item in top_3])
+    reasons = await asyncio.gather(*[_reason_for(item) for item in top_n])
 
     # 5. DB(recommendations)에 추천 이력 저장 후 recommendation_id 획득 및 응답 매핑
     #    상위 N개 INSERT 도 병렬로 처리(직렬 await 제거).
@@ -211,13 +211,13 @@ async def get_recommendations(
         )
 
     # return_exceptions=True: INSERT 1건이 일시 DB 오류로 실패해도 정상 처리된 나머지 추천까지 버리지 않는다.
-    # 실패 항목은 mock-rec-id 로 강등하되 '제거'하지 않는다 — top_3/reasons[idx] 인덱스 정렬을 유지해
+    # 실패 항목은 mock-rec-id 로 강등하되 '제거'하지 않는다 — top_n/reasons[idx] 인덱스 정렬을 유지해
     # 사유가 엉뚱한 시설에 붙는 것을 막는다.
-    db_results = await asyncio.gather(*[_persist(item) for item in top_3], return_exceptions=True)
+    db_results = await asyncio.gather(*[_persist(item) for item in top_n], return_exceptions=True)
 
     response_items = []
     total_count = len(recommendation_results)
-    for idx, (item, db_res) in enumerate(zip(top_3, db_results)):
+    for idx, (item, db_res) in enumerate(zip(top_n, db_results)):
         if isinstance(db_res, Exception):
             logger.warning(
                 "recommendation_persist_failed",
