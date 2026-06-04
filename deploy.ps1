@@ -155,7 +155,10 @@ if ($Backend) {
   & $Gcloud run services update $Service --region $Region --project $ProjectId --quiet `
       --remove-env-vars SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,JWT_SECRET,GCS_BUCKET_NAME
   if ($LASTEXITCODE -ne 0) { Write-Host "  (note) strip literal env vars skipped/no-op (new service, already secrets, or absent)" -ForegroundColor DarkGray }
-  & $Gcloud run deploy $Service --source apps/api --region $Region --project $ProjectId --quiet `
+  # --max-instances=8: 인프라 비용 가드. /voice/turn·/predict 는 무인증 공개라(데모 무세션) Vertex Gemini/임베딩을
+  #   호출하므로, 외부에서 대량 호출 시 인스턴스 오토스케일(기본 100)로 비용이 폭주할 수 있다. 데모 트래픽엔
+  #   8 인스턴스(×concurrency 80)면 충분하고, 최악의 abuse 비용 상한을 둔다. (입력 상한·타임아웃은 코드에 이미 존재.)
+  & $Gcloud run deploy $Service --source apps/api --region $Region --project $ProjectId --quiet --max-instances=8 `
       --update-env-vars VERTEX_ENDPOINT_ID=2992545745120264192,GEMINI_ENABLED=true,EMBEDDING_ENABLED=true,PUBSUB_PUSH_SERVICE_ACCOUNT=768699236852-compute@developer.gserviceaccount.com,PUBSUB_PUSH_AUDIENCE=https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub `
       --update-secrets SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,JWT_SECRET=JWT_SECRET:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest
   if ($LASTEXITCODE -ne 0) { throw "Cloud Run deploy failed (exit $LASTEXITCODE)" }

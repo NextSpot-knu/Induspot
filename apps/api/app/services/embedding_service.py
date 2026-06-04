@@ -19,6 +19,7 @@
 """
 
 import asyncio
+import time
 import math
 from typing import Optional
 
@@ -30,6 +31,8 @@ logger = structlog.get_logger()
 
 _model = None
 _model_init_attempted = False
+_model_init_ts = 0.0
+_INIT_RETRY_COOLDOWN = 60.0  # init 실패 시 다음 재시도까지 쿨다운(초) — transient 실패 후 영구 비활성 방지
 _fs_client = None
 _fs_init_attempted = False
 # 식당 문서 벡터 캐시: {facility_id: {"vector": [float], "name", "tags", "menu"}}
@@ -40,10 +43,13 @@ _doc_cache: Optional[dict] = None
 # Vertex 임베딩 모델 / Firestore 클라이언트 (지연 초기화 + 폴백)
 # ────────────────────────────────────────────────────────────────────
 def _get_model():
-    global _model, _model_init_attempted
-    if _model_init_attempted:
+    global _model, _model_init_attempted, _model_init_ts
+    if _model is not None:
         return _model
+    if _model_init_attempted and (time.monotonic() - _model_init_ts) < _INIT_RETRY_COOLDOWN:
+        return None  # 최근 init 실패 — 쿨다운 동안 재시도 안 함(요청마다 재시도 폭주 방지)
     _model_init_attempted = True
+    _model_init_ts = time.monotonic()
     if not settings.EMBEDDING_ENABLED:
         return None
     try:
@@ -279,7 +285,7 @@ async def enrich_candidates(candidates: list) -> list:
         if not c.get("address") and hit.get("address"):
             c["address"] = hit["address"]
         if hit.get("meta") and not c.get("meta"):
-            c["meta"] = hit["meta"]  # ev_charger/indoor/parking_type/is_public/price 등(프롬프트·답변 근거)
+            c["meta"] = dict(hit["meta"])  # 얕은 복사: 전역 캐시 dict 별칭 방지(후보 변형이 캐시 오염 안 하게)
     return candidates
 
 

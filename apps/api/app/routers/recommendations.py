@@ -261,7 +261,7 @@ class RecommendByTypeRequest(BaseModel):
     user_lat: float
     user_lng: float
     exclude_ids: list[str] = []
-    limit: int = 5
+    limit: int = Field(5, ge=1, le=20)  # 서버 상한: 후보 점수화(Vertex predict + Gemini reason) 호출량 폭증 방지
 
 
 @router.post("/recommendations/by-type", response_model=list[RecommendItem])

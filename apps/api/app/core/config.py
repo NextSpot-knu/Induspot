@@ -157,7 +157,8 @@ def load_gcp_secrets():
             "GCS_BUCKET_NAME"
         ]
         
-        print(f"Attempting to load secrets from GCP Secret Manager in project: {project_id}...")
+        # 보안 위생: 어떤 시크릿 키가 로드됐는지 이름을 로그에 나열하지 않는다(인프라 로그 정보 노출 최소화). 개수만.
+        loaded = 0
         for key in secret_keys:
             # Keep existing environment values if already defined
             if os.environ.get(key):
@@ -168,12 +169,14 @@ def load_gcp_secrets():
                 val = response.payload.data.decode("UTF-8").strip()
                 if val:
                     os.environ[key] = val
-                    print(f"Successfully loaded {key} from GCP Secret Manager.")
+                    loaded += 1
             except Exception:
                 # Fallback silently to .env/dotenv
                 pass
-    except Exception as e:
-        print(f"GCP Secret Manager client not loaded or failed: {e}")
+        print(f"Secret Manager: loaded {loaded} secret(s) into env (project {project_id}).")
+    except Exception:
+        # 클라이언트 미설치/권한없음 등 → .env/dotenv 폴백(에러 상세는 로그에 남기지 않음).
+        print("GCP Secret Manager unavailable; falling back to .env/dotenv.")
 
 # Load secrets from GCP Secret Manager before instantiating settings
 load_gcp_secrets()

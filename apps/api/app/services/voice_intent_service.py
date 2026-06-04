@@ -19,6 +19,7 @@ Gemini 통합 최적화(품질·신뢰성):
 """
 
 import asyncio
+import time
 import json
 import re
 from typing import Optional
@@ -80,15 +81,20 @@ _FEW_SHOT = (
 
 _model = None
 _model_init_attempted = False
+_model_init_ts = 0.0
+_INIT_RETRY_COOLDOWN = 60.0  # init 실패 시 다음 재시도까지 쿨다운(초) — transient 실패 후 영구 비활성 방지
 _gen_config = None       # GenerationConfig (lazy)
 _safety_settings = None  # list[SafetySetting] (lazy)
 
 
 def _get_model():
-    global _model, _model_init_attempted, _gen_config, _safety_settings
-    if _model_init_attempted:
+    global _model, _model_init_attempted, _model_init_ts, _gen_config, _safety_settings
+    if _model is not None:
         return _model
+    if _model_init_attempted and (time.monotonic() - _model_init_ts) < _INIT_RETRY_COOLDOWN:
+        return None  # 최근 init 실패 — 쿨다운 동안 재시도 안 함(요청마다 재시도 폭주 방지)
     _model_init_attempted = True
+    _model_init_ts = time.monotonic()
     if not settings.GEMINI_ENABLED:
         return None
     try:

@@ -18,6 +18,7 @@ Gemini 통합 최적화(품질·신뢰성):
 """
 
 import asyncio
+import time
 import json
 import math
 import re
@@ -79,15 +80,15 @@ _RESPONSE_SCHEMA = {
 
 # 폴백용 한국어 키워드 규칙
 _CATEGORY_KEYWORDS = {
-    "cafeteria": ["식당", "밥", "점심", "끼니", "먹", "구내식당", "카페테리아", "메뉴", "한식", "중식", "양식", "분식"],
-    "parking": ["주차", "차 ", "차를", "주차장", "전기차", "충전", "ev"],
+    "cafeteria": ["식당", "밥", "점심", "끼니", "먹을", "먹고", "먹는", "구내식당", "카페테리아", "메뉴", "한식", "중식", "양식", "분식"],
+    "parking": ["주차", "차 ", "차를", "주차장", "전기차", "충전", "ev충전"],
     "meeting_room": ["회의", "회의실", "미팅", "컨퍼런스", "회의공간"],
     "rest_area": ["휴게", "쉬", "쉴", "낮잠", "안마", "수면", "라운지", "휴식", "잠깐"],
 }
 _ATTR_KEYWORDS = {
     "vegetarian": ["채식", "비건", "샐러드", "베지"],
     "convenience": ["간편", "빠른", "빨리", "빠르게", "테이크아웃", "포장"],
-    "ev_charger": ["전기차", "충전", "ev"],
+    "ev_charger": ["전기차", "충전", "ev충전"],
     "quiet": ["조용", "한적", "방해", "집중"],
     "near": ["가까", "근처", "가깝", "인근", "주변"],
     "indoor": ["실내", "지하", "비 안", "비안", "실내주차"],
@@ -105,6 +106,8 @@ _FEW_SHOT = (
 
 _model = None
 _model_init_attempted = False
+_model_init_ts = 0.0
+_INIT_RETRY_COOLDOWN = 60.0  # init 실패 시 다음 재시도까지 쿨다운(초) — transient 실패 후 영구 비활성 방지
 _gen_config = None       # GenerationConfig (lazy)
 _safety_settings = None  # list[SafetySetting] (lazy)
 
@@ -176,10 +179,13 @@ def _coerce(parsed: dict) -> dict:
 
 
 def _get_model():
-    global _model, _model_init_attempted, _gen_config, _safety_settings
-    if _model_init_attempted:
+    global _model, _model_init_attempted, _model_init_ts, _gen_config, _safety_settings
+    if _model is not None:
         return _model
+    if _model_init_attempted and (time.monotonic() - _model_init_ts) < _INIT_RETRY_COOLDOWN:
+        return None  # 최근 init 실패 — 쿨다운 동안 재시도 안 함(요청마다 재시도 폭주 방지)
     _model_init_attempted = True
+    _model_init_ts = time.monotonic()
     if not settings.GEMINI_ENABLED:
         return None
     try:
@@ -324,8 +330,11 @@ async def parse_preference(text: str) -> dict:
         if not coerced["preferred_categories"]:
             kw = _coerce(_keyword_fallback(text))
             if kw["preferred_categories"]:
-                coerced = kw
+                # 카테고리만 폴백으로 보강하고, 모델이 뽑은 attributes 는 보존(있으면 우선).
+                coerced = {"preferred_categories": kw["preferred_categories"],
+                           "attributes": coerced["attributes"] or kw["attributes"]}
                 is_fallback = True
+                model_summary = None  # 보강 시 표시-적용 불일치 방지: 요약은 아래 _build_summary 로 재생성
     else:
         coerced = _coerce(_keyword_fallback(text))
 
