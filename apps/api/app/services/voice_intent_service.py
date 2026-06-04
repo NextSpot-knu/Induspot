@@ -146,7 +146,25 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         if menu:
             menu = " ".join(str(menu).split()[:3])  # 음성 답변 간결화: 대표메뉴는 3개까지만 노출
         menu_s = f" | 대표메뉴: {menu}" if menu else ""
-        lines.append(f"- id={c.get('id')} | {c.get('name')}{kind_s}{menu_s} | {cong_s} | {walk_s}")
+        # 부가정보(시드 enrich): 주소·전기차충전·실내·주차유형·공영·평균가격 — Gemini 가 '전기차 충전돼?/실내야?/주소?' 답변에 사용.
+        meta = c.get("meta") if isinstance(c.get("meta"), dict) else {}
+        info = []
+        if c.get("address"):
+            info.append(f"주소 {c.get('address')}")
+        if meta.get("ev_charger") is True:
+            info.append("전기차충전 가능")
+        elif meta.get("ev_charger") is False:
+            info.append("전기차충전 없음")
+        if meta.get("indoor") is True:
+            info.append("실내주차")
+        if meta.get("parking_type"):
+            info.append(f"{meta['parking_type']}주차")
+        if meta.get("is_public"):
+            info.append("공영주차장")
+        if meta.get("average_price"):
+            info.append(f"평균 {meta['average_price']}원")
+        info_s = (" | " + ", ".join(info)) if info else ""
+        lines.append(f"- id={c.get('id')} | {c.get('name')}{kind_s}{menu_s} | {cong_s} | {walk_s}{info_s}")
     cand_block = "\n".join(lines) if lines else "(후보 없음)"
     return (
         f"사용자는 '{facility_type_ko}' 추천을 음성으로 듣고 있습니다. 현재 추천: {current_name or '없음'}.\n"
@@ -165,8 +183,8 @@ def _build_prompt(utterance: str, facility_type_ko: str, current_name: Optional[
         "분류 규칙: 수락/가자/길안내 의사=accept. 다른 거/넘기기=next. 별로/싫어=reject. "
         "자세히/정보/메뉴/혼잡/얼마나 걸려 같은 질문=details. 그만/취소/중지=stop. "
         "details 일 때는 spoken 에 빈말('알려드릴게요') 대신 해당 시설의 '실제 데이터'를 담아 1~2문장으로 "
-        "구체적으로 답하세요 — 위 후보 목록의 종류·대표메뉴·혼잡도·도보시간을 활용(대표메뉴는 대표적인 3개까지만 언급, 길게 나열 금지). 어느 시설인지 모호하면 "
-        f"현재 추천('{current_name or '없음'}')을 기준으로 하세요. 데이터에 없는 값(가격·영업시간 등)은 지어내지 말고 "
+        "구체적으로 답하세요 — 위 후보 목록의 종류·대표메뉴·혼잡도·도보시간·주소·전기차충전·실내·공영·평균가격을 활용(대표메뉴는 대표적인 3개까지만 언급, 길게 나열 금지). 어느 시설인지 모호하면 "
+        f"현재 추천('{current_name or '없음'}')을 기준으로 하세요. 데이터에 없는 값(영업시간·평점 등 목록에 없는 항목)은 지어내지 말고 "
         "모른다고 솔직히 말하세요. "
         "특정 한 곳을 콕 집으면(예: '두 번째 거', '저 식당') select 로 target_facility_id 를 채우세요. "
         "메뉴·종류·분위기 등 선호로 좁히면(예: '짜장면 먹고싶어', '고깃집', '양식', '조용한 곳') filter 로 하세요. "

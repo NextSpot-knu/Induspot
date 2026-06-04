@@ -1425,7 +1425,10 @@
     "address_source": "web",
     "phone": null,
     "dong": "진평동",
-    "confidence": "high"
+    "confidence": "high",
+    "has_ev_charger": true,
+    "ev_charger_count": 3,
+    "ev_source": "kakao"
   },
   {
     "name": "삼성전자 구미 정문 주차장",
@@ -1437,7 +1440,10 @@
     "address_source": "web",
     "phone": "054-479-5114",
     "dong": "임수동",
-    "confidence": "medium"
+    "confidence": "medium",
+    "has_ev_charger": true,
+    "ev_charger_count": 4,
+    "ev_source": "kakao"
   },
   {
     "name": "공단동 공영주차장",
@@ -1449,7 +1455,10 @@
     "address_source": "inferred",
     "phone": null,
     "dong": "공단동",
-    "confidence": "low"
+    "confidence": "low",
+    "has_ev_charger": true,
+    "ev_charger_count": 6,
+    "ev_source": "kakao"
   },
   {
     "name": "SK실트론 직원 주차타워",
@@ -1461,7 +1470,10 @@
     "address_source": "web",
     "phone": null,
     "dong": "임수동",
-    "confidence": "medium"
+    "confidence": "medium",
+    "has_ev_charger": true,
+    "ev_charger_count": 4,
+    "ev_source": "kakao"
   },
   {
     "name": "산단로 노상주차장",
@@ -1473,7 +1485,10 @@
     "address_source": "inferred",
     "phone": null,
     "dong": "송정동",
-    "confidence": "low"
+    "confidence": "low",
+    "has_ev_charger": true,
+    "ev_charger_count": 15,
+    "ev_source": "kakao"
   },
   {
     "name": "하이테크밸리 통합주차장",
@@ -1485,7 +1500,10 @@
     "address_source": "web",
     "phone": null,
     "dong": "산동읍",
-    "confidence": "medium"
+    "confidence": "medium",
+    "has_ev_charger": false,
+    "ev_charger_count": null,
+    "ev_source": "kakao"
   },
   {
     "name": "2단지 임수동 공영주차장",
@@ -1497,7 +1515,10 @@
     "address_source": "inferred",
     "phone": null,
     "dong": "임수동",
-    "confidence": "medium"
+    "confidence": "medium",
+    "has_ev_charger": true,
+    "ev_charger_count": 4,
+    "ev_source": "kakao"
   },
   {
     "name": "도레이 방문객 주차장",
@@ -1509,7 +1530,10 @@
     "address_source": "web",
     "phone": null,
     "dong": "임수동",
-    "confidence": "medium"
+    "confidence": "medium",
+    "has_ev_charger": true,
+    "ev_charger_count": 1,
+    "ev_source": "kakao"
   },
   {
     "name": "3단지 정문 주차장",
@@ -1521,7 +1545,10 @@
     "address_source": "inferred",
     "phone": null,
     "dong": "산동읍",
-    "confidence": "low"
+    "confidence": "low",
+    "has_ev_charger": false,
+    "ev_charger_count": null,
+    "ev_source": "kakao"
   },
   {
     "name": "코오롱 화학공장 주차장",
@@ -1533,7 +1560,10 @@
     "address_source": "inferred",
     "phone": null,
     "dong": "임수동",
-    "confidence": "low"
+    "confidence": "low",
+    "has_ev_charger": true,
+    "ev_charger_count": 4,
+    "ev_source": "kakao"
   },
   {
     "name": "구미상공회의소 컨퍼런스룸",
@@ -1726,8 +1756,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 6,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1742,8 +1772,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 6,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1757,9 +1787,9 @@
     "address_source": "web",
     "phone": null,
     "dong": "공단동",
-    "has_ev_charger": false,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "has_ev_charger": true,
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1774,8 +1804,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 7,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1790,8 +1820,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1806,8 +1836,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1822,8 +1852,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1838,8 +1868,8 @@
     "phone": null,
     "dong": "진평동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1854,8 +1884,8 @@
     "phone": null,
     "dong": "진평동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1870,8 +1900,8 @@
     "phone": null,
     "dong": "진평동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1886,8 +1916,8 @@
     "phone": null,
     "dong": "시미동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "web",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1902,8 +1932,8 @@
     "phone": null,
     "dong": "시미동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "web",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1918,8 +1948,8 @@
     "phone": null,
     "dong": "시미동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "web",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1934,8 +1964,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 5,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1950,8 +1980,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 5,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1966,8 +1996,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 5,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1982,8 +2012,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -1998,8 +2028,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2014,8 +2044,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2030,8 +2060,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "high"
   },
@@ -2046,8 +2076,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "high"
   },
@@ -2062,8 +2092,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "high"
   },
@@ -2126,8 +2156,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2142,8 +2172,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2158,8 +2188,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2174,8 +2204,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2190,8 +2220,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2206,8 +2236,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2221,9 +2251,9 @@
     "address_source": "web",
     "phone": null,
     "dong": "시미동",
-    "has_ev_charger": true,
+    "has_ev_charger": false,
     "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2237,9 +2267,9 @@
     "address_source": "web",
     "phone": null,
     "dong": "시미동",
-    "has_ev_charger": true,
+    "has_ev_charger": false,
     "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2253,9 +2283,9 @@
     "address_source": "web",
     "phone": null,
     "dong": "시미동",
-    "has_ev_charger": true,
+    "has_ev_charger": false,
     "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2270,8 +2300,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2286,8 +2316,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2302,8 +2332,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2318,8 +2348,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 5,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2334,8 +2364,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2350,8 +2380,8 @@
     "phone": null,
     "dong": "임수동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 5,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "low"
   },
@@ -2366,8 +2396,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 3,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2398,8 +2428,8 @@
     "phone": null,
     "dong": "시미동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 2,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   },
@@ -2414,8 +2444,8 @@
     "phone": null,
     "dong": "공단동",
     "has_ev_charger": true,
-    "ev_charger_count": null,
-    "ev_source": "inferred",
+    "ev_charger_count": 1,
+    "ev_source": "kakao",
     "indoor": false,
     "confidence": "medium"
   }

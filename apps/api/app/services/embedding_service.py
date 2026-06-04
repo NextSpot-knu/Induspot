@@ -90,15 +90,65 @@ def cuisine_to_str(cuisine) -> str:
     return str(cuisine)
 
 
-def profile_text(name, cuisine, menu: Optional[str] = None) -> str:
-    """식당 문서 임베딩에 쓰는 표준 프로필 문장. seed/런타임이 동일 형식을 써야 벡터가 호환된다."""
+def profile_text(name, cuisine, menu: Optional[str] = None, extra: Optional[str] = None) -> str:
+    """시설 문서 임베딩에 쓰는 표준 프로필 문장. seed/런타임이 동일 형식을 써야 벡터가 호환된다.
+
+    extra: 부가 어휘(주소/EV충전/실내/공영/채식 등) — '전기차 충전 주차장' 같은 속성 발화의 의미검색을 또렷하게.
+    """
     parts = [str(name or "").strip()]
     tags = cuisine_to_str(cuisine)
     if tags:
         parts.append(f"종류: {tags}")
     if menu:
         parts.append(f"대표 메뉴: {menu}")
+    if extra:
+        parts.append(str(extra).strip())
     return ". ".join(p for p in parts if p)
+
+
+def build_facility_meta(ftype, features) -> tuple:
+    """시설 features → (임베딩 보강 어휘 extra, 저장/프롬프트용 meta dict).
+
+    AI(음성비서·의미검색)가 '전기차 충전돼?/실내야?/공영이야?/주소?/얼마?' 류 질문에 실제 데이터로 답하고,
+    속성 발화('전기차 충전 주차장')를 벡터로 또렷이 매칭하도록 시설 부가정보를 표준화한다.
+    """
+    f = features if isinstance(features, dict) else {}
+    meta: dict = {}
+    words: list = []
+    addr = f.get("address")
+    if addr:
+        meta["address"] = addr
+        words.append(str(addr))
+    t = (ftype or "").lower()
+    if t == "parking":
+        if f.get("has_ev_charger"):
+            meta["ev_charger"] = True
+            words.append("전기차 충전 가능 EV 충전소")
+        elif f.get("has_ev_charger") is False:
+            meta["ev_charger"] = False
+        if f.get("indoor"):
+            meta["indoor"] = True
+            words.append("실내 주차 지하주차장")
+        elif f.get("indoor") is False:
+            meta["indoor"] = False
+        if f.get("parking_type"):
+            meta["parking_type"] = f.get("parking_type")
+            words.append(f"{f.get('parking_type')} 주차장")
+        if f.get("is_public"):
+            meta["is_public"] = True
+            words.append("공영 공용 무료 주차장")
+        cap = f.get("max_capacity_vehicles") or f.get("capacity")
+        if cap:
+            meta["capacity"] = cap
+    else:
+        if f.get("average_price"):
+            meta["average_price"] = f.get("average_price")
+        if f.get("has_vegetarian"):
+            meta["vegetarian"] = True
+            words.append("채식 비건 가능")
+        if f.get("phone"):
+            meta["phone"] = f.get("phone")
+    return (" ".join(words), meta)
 
 
 def _embed_call(model, texts, task_type):
@@ -163,6 +213,8 @@ def _load_cache_sync() -> dict:
                     "name": data.get("name"),
                     "category": data.get("category"),
                     "menu": data.get("menu"),
+                    "address": data.get("address"),
+                    "meta": data.get("meta") or {},
                 }
     except Exception as e:
         logger.warning("embedding_cache_load_failed", error=str(e))
@@ -198,7 +250,7 @@ async def _doc_vectors(candidates) -> dict:
             for c, v in zip(missing, vecs):
                 out[c["id"]] = v
                 # 메모리 캐시만 데움(요청 경로에서 Firestore 쓰기는 하지 않는다).
-                cache[c["id"]] = {"vector": v, "name": c.get("name"), "category": None, "menu": None}
+                cache[c["id"]] = {"vector": v, "name": c.get("name"), "category": None, "menu": None, "address": None, "meta": {}}
     return out
 
 
@@ -224,6 +276,10 @@ async def enrich_candidates(candidates: list) -> list:
             c["category"] = hit["category"]
         if not c.get("menu") and hit.get("menu"):
             c["menu"] = hit["menu"]
+        if not c.get("address") and hit.get("address"):
+            c["address"] = hit["address"]
+        if hit.get("meta") and not c.get("meta"):
+            c["meta"] = hit["meta"]  # ev_charger/indoor/parking_type/is_public/price 등(프롬프트·답변 근거)
     return candidates
 
 

@@ -781,21 +781,23 @@ export default function MainPage() {
       // 로컬 처리한다(주차장은 cuisine 임베딩이 없어 백엔드 의미검색이 무력). 점수계산 이전 prefilter 라 가중치 불변.
       if (type === 'parking') {
         const wantPublic = /공영|공용|무료|시민/.test(utterance);
+        const wantEv = /전기차|충전|이브이|EV/i.test(utterance); // 전기차 충전 선호 발화
         const lm = findLandmark(utterance);
-        if (wantPublic || lm) {
+        if (wantPublic || wantEv || lm) {
           const origin = lm ? { lat: lm.lat, lng: lm.lng } : userLocation;
           rankingOriginRef.current = lm ? origin : null; // 랜드마크가 있으면 그 좌표 기준으로 TTTV 거리 재정렬
           cuisineIntentRef.current = null;
           let pool = facilities.filter((x: any) => x.type === 'parking' && !rejectedIds.has(x.id) && !savedIds.has(x.id));
           if (wantPublic) pool = pool.filter((x: any) => x.features?.is_public === true); // 공영(gumi_parking.csv: is_public=true)만
+          if (wantEv) pool = pool.filter((x: any) => x.features?.has_ev_charger === true); // 전기차 충전 가능 주차장만(features.has_ev_charger)
           if (pool.length === 0) {
-            return { action: 'unknown', targetId: null, matchIds: [], spoken: wantPublic ? '근처에 공영주차장을 찾지 못했어요.' : null };
+            return { action: 'unknown', targetId: null, matchIds: [], spoken: wantEv ? '근처에 전기차 충전이 되는 주차장을 찾지 못했어요.' : wantPublic ? '근처에 공영주차장을 찾지 못했어요.' : null };
           }
           const ids = pool
             .map((x: any) => ({ id: x.id, d: haversineMeters(origin.lat, origin.lng, x.latitude, x.longitude) }))
             .sort((a, b) => a.d - b.d).slice(0, 6).map((o) => o.id);
           const where = lm ? `${lm.name} 근처 ` : '';
-          const kind = wantPublic ? '공영주차장' : '주차장';
+          const kind = wantEv ? '전기차 충전 주차장' : wantPublic ? '공영주차장' : '주차장';
           return { action: 'filter', targetId: null, matchIds: ids, spoken: `${where}${kind}으로 안내할게요.` };
         }
       }

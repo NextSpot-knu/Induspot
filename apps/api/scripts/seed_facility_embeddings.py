@@ -40,7 +40,7 @@ import requests  # noqa: E402
 
 # app.core.config 임포트 시 load_gcp_secrets()가 Secret Manager 에서 SUPABASE_* 등을 채운다.
 from app.core.config import settings  # noqa: E402
-from app.services.embedding_service import profile_text  # noqa: E402
+from app.services.embedding_service import profile_text, build_facility_meta  # noqa: E402
 
 # ── 한국 외식 분류 택소노미 (연구 기반). 각 항목: (분류명, 이름신호, 카카오태그신호, 대표메뉴)
 # 한국 식당은 '고깃집(삼겹살·갈비)·곱창집·순댓국집·보쌈집·치킨집'이 서로 다른 목적지다. 그래서 태그를
@@ -237,7 +237,7 @@ def main():
     menu_fn = _gemini_menu_fn(enabled=not args.no_gemini)
 
     print("[2/4] 프로필 구성(이름 + 단일 정밀분류 + 대표메뉴)...")
-    rows = []  # (id, name, type, category, menu, profile)
+    rows = []  # (id, name, type, category, menu, profile, address, meta)
     for fac in facilities:
         fid = fac.get("id")
         name = fac.get("name") or ""
@@ -250,14 +250,17 @@ def main():
         # 대표메뉴 우선순위: ① features.signature_menu(식당별 실측·웹확인, scripts/enrich_facilities 가 채움; 권위)
         #                  → ② Gemini 분류 메뉴 → ③ 택소노미 기본값.
         # signature_menu 는 '그 가게 고유'라 카테고리 공통 나열(피자헛=제이미버거가 똑같던 버그)보다 정확하다.
-        sig = str(_features_of(fac).get("signature_menu") or "").strip()
+        feats = _features_of(fac)
+        sig = str(feats.get("signature_menu") or "").strip()
         if sig and default_menu is not None:
             menu = sig
         else:
             menu = (menu_fn(category) or default_menu) if default_menu is not None else None
-        # 프로필: 이름을 앞에 둬 이름 매칭을 살리고, 분류·메뉴로 의미를 좁힌다.
-        profile = profile_text(name, category, menu)
-        rows.append((fid, name, ftype, category, menu, profile))
+        # 프로필: 이름을 앞에 둬 이름 매칭을 살리고, 분류·메뉴로 의미를 좁힌다. + 주소·EV충전·실내·공영·채식 등
+        # 부가 어휘(extra)로 '전기차 충전 주차장'·'실내 주차장' 같은 속성 발화의 의미검색을 또렷하게 한다.
+        extra, meta = build_facility_meta(ftype, feats)
+        profile = profile_text(name, category, menu, extra)
+        rows.append((fid, name, ftype, category, menu, profile, feats.get("address"), meta))
 
     # 미리보기 샘플
     print("      예시:")
@@ -291,13 +294,15 @@ def main():
     # 문서별 개별 set(). 벡터(768-요소 배열)는 Firestore 가 원소마다 색인을 만들어, 여러 건을 한 배치로
     # 묶으면 색인 항목이 폭증해 'Transaction too big' 이 난다(147*768≈11만). 개별 쓰기로 회피(일회성 시드).
     n = 0
-    for (fid, name, ftype, category, menu, profile), vec in zip(rows, vectors):
+    for (fid, name, ftype, category, menu, profile, address, meta), vec in zip(rows, vectors):
         col.document(str(fid)).set({
             "vector": [float(x) for x in vec],
             "name": name,
             "type": ftype,
             "category": category,   # 단일 정밀 분류(고깃집/곱창집/순댓국…)
             "menu": menu,
+            "address": address,     # 실제 주소(카드/음성 답변·임베딩 보강)
+            "meta": meta,           # EV충전/실내/주차유형/공영/가격 등 부가정보(런타임 enrich 가 후보에 부착)
             "profile": profile,
             "model": settings.EMBEDDING_MODEL,
             "dim": dim,

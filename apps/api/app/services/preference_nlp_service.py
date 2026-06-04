@@ -157,14 +157,17 @@ def _keyword_fallback(text: str) -> dict:
 
 def _coerce(parsed: dict) -> dict:
     """모델/폴백 출력에서 허용 enum 만 남기고 중복 제거(환각·오타 방지)."""
+    # 방어: 모델이 스키마를 어겨 비-리스트(예: 단일 문자열/숫자)를 줘도 TypeError 로 안 깨지게 한다.
+    raw_c = parsed.get("preferred_categories")
+    raw_a = parsed.get("attributes")
     cats, seen = [], set()
-    for c in parsed.get("preferred_categories", []) or []:
+    for c in (raw_c if isinstance(raw_c, (list, tuple)) else []):
         c = str(c).strip().lower()
         if c in VALID_CATEGORIES and c not in seen:
             seen.add(c)
             cats.append(c)
     attrs, seen_a = [], set()
-    for a in parsed.get("attributes", []) or []:
+    for a in (raw_a if isinstance(raw_a, (list, tuple)) else []):
         a = str(a).strip().lower()
         if a in VALID_ATTRIBUTES and a not in seen_a:
             seen_a.add(a)
