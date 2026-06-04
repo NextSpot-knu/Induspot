@@ -7,7 +7,7 @@ import { Home, Bookmark, User, Search, Mic, Utensils, ParkingCircle, Building2, 
 import { RecommendationCard } from '@/components/RecommendationCard';
 import { createPublicClient } from '@/lib/supabase';
 import { getMarkerSvg } from '@/lib/utils';
-import { scoreFacility, compareTttv, rankFacilities, recToTttv, haversineMeters, cuisineMatch, rescoreWithPreference } from '@/lib/recommender';
+import { scoreFacility, compareTttv, rankFacilities, recToTttv, haversineMeters, cuisineMatch, rescoreWithPreference, filterReachable } from '@/lib/recommender';
 import { findLandmark } from '@/lib/landmarks';
 import { recommendByType, voiceTurn } from '@/lib/api-client';
 import { useVoiceAssistant } from '@/lib/useVoiceAssistant';
@@ -509,9 +509,9 @@ export default function MainPage() {
               realRanked = [];
             }
           }
-          // 백엔드 미가용/데모 모드: 실 후보도 클라 미러로 랭킹(동일 가중치)
+          // 백엔드 미가용/데모 모드: 실 후보도 클라 미러로 랭킹(동일 가중치). 도보 비현실 거리는 제외(가까운 순 폴백).
           if (realRanked.length === 0 && realCands.length > 0) {
-            realRanked = rankFacilities(realCands, scoreOpts);
+            realRanked = rankFacilities(filterReachable(realCands, userLocation), scoreOpts);
           }
           // 합성/데모 시설은 항상 클라 미러로 점수 부여
           const demoRanked = rankFacilities(demoCands, scoreOpts);

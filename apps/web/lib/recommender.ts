@@ -101,6 +101,23 @@ export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// 현실성 컷오프: 사용자 위치에서 도보 비현실 거리(기본 1.5km≈22분)의 시설을 추천 후보에서 제외.
+// 반경 내가 minKeep 미만이면 가까운 순으로 폴백(빈손/외곽 위치 방지). 백엔드 _MAX_RECO_DISTANCE_M 미러.
+// 지도 마커 전체 표시에는 영향 없음(추천 후보 랭킹 직전에만 적용).
+export const MAX_RECO_DISTANCE_M = 1500;
+export function filterReachable(
+  facilities: any[],
+  origin: { lat: number; lng: number },
+  maxM: number = MAX_RECO_DISTANCE_M,
+  minKeep: number = 5,
+): any[] {
+  const withD = facilities
+    .map((f) => ({ f, d: haversineMeters(origin.lat, origin.lng, f.latitude, f.longitude) }))
+    .sort((a, b) => a.d - b.d);
+  const reach = withD.filter((x) => x.d <= maxM).map((x) => x.f);
+  return reach.length >= minKeep ? reach : withD.slice(0, minKeep).map((x) => x.f);
+}
+
 function preferenceMatch(facility: any, preferredCategories: string[]): number {
   const userVec = [0, 0, 0, 0, 0, 0, 0, 0];
   let count = 0;

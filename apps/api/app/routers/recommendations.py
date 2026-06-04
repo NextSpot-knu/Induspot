@@ -248,6 +248,11 @@ async def get_recommendations(
 # 혼잡 분산 기준선(_BROWSE_BASELINE_CONGESTION)을 원본 혼잡도로 삼아 incentive 를 산출한다.
 # (클라 lib/recommender.ts 미러와 동일 기준선)
 _BROWSE_BASELINE_CONGESTION = 0.7
+# 현실성 필터: 도보로 닿기 힘든 거리의 시설은 추천에서 제외(사용자 위치 기준 직선거리, m).
+# 약 1.5km ≈ 도보 22분. 가중치(0.45/0.25/0.30)는 보존하되, time_cost 가 60분에서 캡되어 원거리
+# 페널티가 약한 점을 후보 단계의 reachability 컷오프로 보완한다. 후보가 limit 미만이면 가까운
+# 순으로 폴백해 빈손/엣지(사용자가 외곽) 위치에서도 추천이 끊기지 않게 한다.
+_MAX_RECO_DISTANCE_M = 1500.0
 
 
 class RecommendByTypeRequest(BaseModel):
@@ -281,6 +286,18 @@ async def recommend_by_type(
     ]
     if not candidates:
         return []
+
+    # 현실성 컷오프: 도보 비현실 거리 시설을 후보에서 제외(직선거리). 가까운 순 정렬 후 반경 내만 남기되,
+    # 반경 내가 limit 미만이면 가까운 순으로 폴백(빈손/외곽 위치 방지). 점수 산정 후보가 줄어 호출량도 감소.
+    _with_dist = sorted(
+        (
+            (f, calculate_haversine_distance(req.user_lat, req.user_lng, f["latitude"], f["longitude"]))
+            for f in candidates
+        ),
+        key=lambda x: x[1],
+    )
+    _reachable = [f for f, d in _with_dist if d <= _MAX_RECO_DISTANCE_M]
+    candidates = _reachable if len(_reachable) >= max(req.limit, 3) else [f for f, _ in _with_dist[: max(req.limit, 3)]]
 
     # 선호 벡터 1회 조회(없으면 Cold Start 생성 후 업서트) — get_recommendations 와 동일 패턴
     user_vector = await preference_vector_service.get_user_vector(req.user_id)
