@@ -45,7 +45,7 @@ export default function BottomNav() {
                 initial={false}
                 transition={{
                   type: "spring",
-                  stiffness: 500,
+                  stiffness: 350,
                   damping: 30
                 }}
               />
