@@ -88,6 +88,11 @@ async function main() {
     if (e.address) next.address = e.address;
     if (e.phone) next.phone = e.phone;
     if (e.signature_menu) next.signature_menu = e.signature_menu;
+    // 주차장 상세(있을 때만): EV 충전·실내 여부. 기존 parking_type/is_public 등은 보존됨.
+    if (typeof e.has_ev_charger === 'boolean') next.has_ev_charger = e.has_ev_charger;
+    if (typeof e.indoor === 'boolean') next.indoor = e.indoor;
+    if (e.ev_charger_count !== undefined && e.ev_charger_count !== null) next.ev_charger_count = e.ev_charger_count;
+    if (e.ev_source) next.ev_source = e.ev_source;
     // 메타(선택): 출처 추적. 데모 신뢰도 설명용.
     if (e.address_source) next.address_source = e.address_source;
     if (e.menu_source && e.menu_source !== 'none') next.menu_source = e.menu_source;
