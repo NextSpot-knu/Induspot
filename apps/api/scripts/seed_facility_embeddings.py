@@ -149,14 +149,19 @@ def _fetch_facilities(limit=None):
     return r.json()
 
 
-def _tags_of(fac):
+def _features_of(fac):
+    """facilities.features 를 dict 로 정규화(문자열 JSON 도 파싱)."""
     feats = fac.get("features")
     if isinstance(feats, str):
         try:
             feats = json.loads(feats)
         except Exception:
             feats = {}
-    feats = feats or {}
+    return feats or {}
+
+
+def _tags_of(fac):
+    feats = _features_of(fac)
     tags = feats.get("cuisine_tags") or []
     if isinstance(tags, str):
         tags = [tags]
@@ -240,9 +245,16 @@ def main():
         if not fid:
             continue
         tags = _tags_of(fac)
-        # 이름·태그 → 한국 외식 택소노미의 단일 정밀 분류(고깃집≠곱창집≠순댓국). 메뉴는 분류 기반.
+        # 이름·태그 → 한국 외식 택소노미의 단일 정밀 분류(고깃집≠곱창집≠순댓국).
         category, default_menu = _resolve_category(name, tags, ftype)
-        menu = (menu_fn(category) or default_menu) if default_menu is not None else None
+        # 대표메뉴 우선순위: ① features.signature_menu(식당별 실측·웹확인, scripts/enrich_facilities 가 채움; 권위)
+        #                  → ② Gemini 분류 메뉴 → ③ 택소노미 기본값.
+        # signature_menu 는 '그 가게 고유'라 카테고리 공통 나열(피자헛=제이미버거가 똑같던 버그)보다 정확하다.
+        sig = str(_features_of(fac).get("signature_menu") or "").strip()
+        if sig and default_menu is not None:
+            menu = sig
+        else:
+            menu = (menu_fn(category) or default_menu) if default_menu is not None else None
         # 프로필: 이름을 앞에 둬 이름 매칭을 살리고, 분류·메뉴로 의미를 좁힌다.
         profile = profile_text(name, category, menu)
         rows.append((fid, name, ftype, category, menu, profile))
