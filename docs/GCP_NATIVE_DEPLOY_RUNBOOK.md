@@ -115,12 +115,15 @@ curl -s -o /dev/null -w "%{http_code}\n" "https://induspot-gateway-9t4vof78.uc.g
 
 ## 3. Cloud Run 에 주입되는 환경변수 + 비밀
 
-### 3.1 `--update-env-vars` (단일 플래그, 4키 — 평문 env, merge)
+### 3.1 `--update-env-vars` (단일 플래그, 5키 — 평문 env, merge)
+
+> 단일 진실원: 이 5키는 `deploy.ps1` 상단의 `$ProdEnvVars` 변수 한 곳에 정의되어 배포 라인에서 참조됩니다(이전엔 배포 줄에 인라인 매직 문자열이었음). `.env.example` 이 같은 키를 로컬 개발용으로 문서화하고, `config.py` 는 안전한 OFF 기본값을 둬 주입이 누락돼도 graceful 폴백합니다.
 
 | Key | Value | 효과 |
 | --- | --- | --- |
 | `VERTEX_ENDPOINT_ID` | `2992545745120264192` | `/predict` 를 GCS-pickle 폴백 → 라이브 Vertex online RPC로 전환 |
 | `GEMINI_ENABLED` | `true` | Vertex Gemini 사유 생성 ON (실패 시 템플릿 폴백) |
+| `EMBEDDING_ENABLED` | `true` | 음성 메뉴 의미검색(Vertex 임베딩 + Firestore `facility_embeddings` 코사인) ON (폴백 = Gemini match_ids) |
 | `PUBSUB_PUSH_SERVICE_ACCOUNT` | `768699236852-compute@developer.gserviceaccount.com` | `/ingest/pubsub` OIDC SA email 검증 |
 | `PUBSUB_PUSH_AUDIENCE` | `https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub` | `/ingest/pubsub` OIDC audience 검증 |
 
@@ -192,6 +195,26 @@ bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM `knudc-henryseo711.induspo
 
 `congestion_logs` 스키마(공유 계약 = `core/bigquery.py` insert 계약):
 `facility_id STRING NULLABLE, congestion_level FLOAT64, current_count INT64, source STRING, timestamp TIMESTAMP` — 전부 NULLABLE(스트리밍 인서트 호환). ARIMA_PLUS 학습 SELECT는 `timestamp → ts`, `congestion_level → congestion` 으로 매핑.
+
+#### 4.4.1 BQML 예보 갱신 (stale 방지) — `refresh_forecast.{sql,py}` + 스케줄드 쿼리
+
+`congestion_forecast_lookup` 은 `forecast_timestamp` 키 사전계산 테이블이고, `/api/v1/forecast/*` 는
+`forecast_timestamp >= CURRENT_TIMESTAMP()` 행만 반환한다. 따라서 **예보 지평이 과거로 만료되면**(1회 계산 후 방치)
+엔드포인트가 조용히 `source=unavailable` 로 떨어진다(2026-06-05 실측: 06-02 계산분이 06-04 시점에 전부 과거 → unavailable).
+
+- **즉시 1회 갱신**(셸 인코딩 안전 — Python BigQuery 클라이언트로 스크립트 제출):
+  ```powershell
+  cd apps/api ; .venv\Scripts\python.exe scripts\refresh_forecast.py    # expect: BQML_OK, future_rows>0
+  ```
+  `refresh_forecast.sql` 은 ARIMA_PLUS 재학습 + lookup 재생성을 한다. 학습 SELECT는 10분 스트리밍 로그를
+  **시간 단위로 집계**(`TIMESTAMP_TRUNC(HOUR)+AVG`, `data_frequency='HOURLY'`)해 중복·초단위 지터를 제거한다 —
+  raw 지터 타임스탬프는 `AUTO_FREQUENCY` 에서 "All time series failed to fit" 로 학습이 실패한다.
+- **자동 갱신**(재만료 영구 방지): BigQuery 스케줄드 쿼리 `induspot-forecast-refresh` 가 **12시간마다** 위 SQL을 실행한다.
+  ```powershell
+  cd apps/api ; .venv\Scripts\python.exe scripts\setup_forecast_schedule.py    # expect: SCHEDULE_OK (every 12 hours)
+  ```
+  (스케줄드 쿼리는 `service_account_name=768699236852-compute@...` 로 실행 — 사용자 ADC 생성 시 실행 SA 지정 필수.
+   `google-cloud-bigquery-datatransfer` 필요. 콘솔: BigQuery → Scheduled queries 에서 확인/실행이력.)
 
 ### 4.5 Pub/Sub + Publisher Job/Scheduler (Stream B)
 

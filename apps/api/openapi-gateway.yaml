@@ -190,6 +190,22 @@ paths:
       responses:
         204: { description: "No Content" }
 
+  /api/v1/diagnostics:
+    get:
+      summary: "GCP backend live/wiring self-report (Vertex/Gemini/embeddings/BQML/PubSub/Firestore)"
+      operationId: "diagnostics"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/diagnostics"
+      responses:
+        200: { description: "Success" }
+    options:
+      summary: "CORS preflight"
+      operationId: "diagnosticsOptions"
+      x-google-backend:
+        address: "https://induspot-api-to7m2nnlca-du.a.run.app/api/v1/diagnostics"
+      responses:
+        204: { description: "No Content" }
+
   /predict:
     post:
       summary: "Single congestion prediction"

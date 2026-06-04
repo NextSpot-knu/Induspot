@@ -71,10 +71,18 @@ apps/api/deploy_vertex.log
 supabase/.temp/
 scratch/
 
+# capture_live_evidence.py scratch: raw gcloud/curl dumps + test payloads (regenerable).
+# The canonical committed artifacts are apps/api/evidence/{evidence.json,LIVE_EVIDENCE.md}.
+apps/api/evidence/raw/
+
 # GCP service-account key files (never commit plaintext SA keys).
 # Scoped to repo root so the broad dotted-JSON glob can't swallow nested config JSON that must stay tracked.
 /*-*.json
 /knudc-*.json
+# Belt-and-suspenders: the real SA key lives outside the repo (Docs/), but catch any SA key by name at ANY depth
+# so it can never be committed if copied in (the root-anchored globs above miss nested paths). SECURITY.md §3.2.
+**/knudc-*.json
+**/*-firebase-adminsdk-*.json
 
 # Stray env files beyond the committed .example templates (belt-and-suspenders; .env* already ignored above)
 *.env

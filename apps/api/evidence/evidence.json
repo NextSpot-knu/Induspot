@@ -1,0 +1,230 @@
+{
+  "captured_at": "2026-06-04T20:30:27.420683+00:00",
+  "project": "knudc-henryseo711",
+  "region": "asia-northeast3",
+  "bq_location": "us-central1",
+  "gateway": "https://induspot-gateway-9t4vof78.uc.gateway.dev",
+  "service": "induspot-api",
+  "results": [
+    {
+      "service": "Cloud Run + API Gateway",
+      "status": "LIVE",
+      "evidence": {
+        "http_status": 200,
+        "body": {
+          "status": "healthy",
+          "project": "InduSpot API",
+          "environment": "production"
+        },
+        "url": "https://induspot-gateway-9t4vof78.uc.gateway.dev/health"
+      },
+      "checked_at": "2026-06-04T20:30:28.170136+00:00"
+    },
+    {
+      "service": "Vertex AI 예측",
+      "status": "LIVE",
+      "evidence": {
+        "http_status": 200,
+        "request": {
+          "facility_type": "cafeteria",
+          "hour": 12,
+          "day_of_week": 2
+        },
+        "predicted_congestion": 0.09557280964496434,
+        "url": "https://induspot-gateway-9t4vof78.uc.gateway.dev/predict"
+      },
+      "checked_at": "2026-06-04T20:30:29.668527+00:00"
+    },
+    {
+      "service": "Gemini (voice/turn)",
+      "status": "LIVE",
+      "evidence": {
+        "http_status": 200,
+        "request_utterance": "고향순대 메뉴 뭐 있는지 자세히 알려줘",
+        "action": "details",
+        "spoken": "고향순대는 순댓국, 순대국밥, 모듬순대, 모듬수육을 대표 메뉴로 하고 있으며, 혼잡도는 28%이고 도보로 2분 거리에 있습니다.",
+        "url": "https://induspot-gateway-9t4vof78.uc.gateway.dev/api/v1/voice/turn"
+      },
+      "checked_at": "2026-06-04T20:30:32.498041+00:00"
+    },
+    {
+      "service": "BQML 예보(forecast/heatmap)",
+      "status": "LIVE",
+      "evidence": {
+        "http_status": 200,
+        "source": "bqml",
+        "points_count": 3528,
+        "url": "https://induspot-gateway-9t4vof78.uc.gateway.dev/api/v1/forecast/heatmap?hours=24"
+      },
+      "checked_at": "2026-06-04T20:30:36.381826+00:00"
+    },
+    {
+      "service": "Cloud Run(describe)",
+      "status": "LIVE",
+      "evidence": {
+        "service": "induspot-api",
+        "region": "asia-northeast3",
+        "url": "https://induspot-api-to7m2nnlca-du.a.run.app",
+        "latest_ready_revision": "induspot-api-00041-8b9",
+        "env": [
+          {
+            "name": "VERTEX_ENDPOINT_ID",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "VERTEX_LOCATION",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "GEMINI_ENABLED",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "GEMINI_MODEL",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "PUBSUB_PUSH_SERVICE_ACCOUNT",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "PUBSUB_PUSH_AUDIENCE",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "SUPABASE_URL",
+            "source": "secret",
+            "secret": "SUPABASE_URL"
+          },
+          {
+            "name": "SUPABASE_ANON_KEY",
+            "source": "secret",
+            "secret": "SUPABASE_ANON_KEY"
+          },
+          {
+            "name": "SUPABASE_SERVICE_ROLE_KEY",
+            "source": "secret",
+            "secret": "SUPABASE_SERVICE_ROLE_KEY"
+          },
+          {
+            "name": "JWT_SECRET",
+            "source": "secret",
+            "secret": "JWT_SECRET"
+          },
+          {
+            "name": "EMBEDDING_ENABLED",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "GCS_BUCKET_NAME",
+            "source": "secret",
+            "secret": "GCS_BUCKET_NAME"
+          },
+          {
+            "name": "EMBEDDING_SEEDED",
+            "source": "value",
+            "has_value": true
+          },
+          {
+            "name": "EMBEDDING_SEEDED_AT",
+            "source": "value",
+            "has_value": true
+          }
+        ],
+        "mounted_secrets": [
+          "GCS_BUCKET_NAME",
+          "JWT_SECRET",
+          "SUPABASE_ANON_KEY",
+          "SUPABASE_SERVICE_ROLE_KEY",
+          "SUPABASE_URL"
+        ]
+      },
+      "checked_at": "2026-06-04T20:30:40.489879+00:00"
+    },
+    {
+      "service": "Secret Manager",
+      "status": "LIVE",
+      "evidence": {
+        "count": 5,
+        "secrets": [
+          "GCS_BUCKET_NAME",
+          "JWT_SECRET",
+          "SUPABASE_ANON_KEY",
+          "SUPABASE_SERVICE_ROLE_KEY",
+          "SUPABASE_URL"
+        ]
+      },
+      "checked_at": "2026-06-04T20:30:41.968870+00:00"
+    },
+    {
+      "service": "Pub/Sub",
+      "status": "LIVE",
+      "evidence": {
+        "topics": [
+          "projects/knudc-henryseo711/topics/induspot-congestion"
+        ],
+        "subscriptions": [
+          {
+            "name": "projects/knudc-henryseo711/subscriptions/induspot-congestion-dataflow",
+            "push_endpoint": ""
+          },
+          {
+            "name": "projects/knudc-henryseo711/subscriptions/induspot-congestion-push",
+            "push_endpoint": "https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub"
+          }
+        ]
+      },
+      "checked_at": "2026-06-04T20:30:45.663450+00:00"
+    },
+    {
+      "service": "Cloud Scheduler",
+      "status": "LIVE",
+      "evidence": {
+        "count": 1,
+        "jobs": [
+          {
+            "name": "induspot-publisher-cron",
+            "schedule": "*/10 * * * *",
+            "state": "ENABLED"
+          }
+        ]
+      },
+      "checked_at": "2026-06-04T20:30:47.827850+00:00"
+    },
+    {
+      "service": "Firestore",
+      "status": "LIVE",
+      "evidence": {
+        "name": "projects/knudc-henryseo711/databases/(default)",
+        "location_id": "asia-northeast3",
+        "type": "FIRESTORE_NATIVE"
+      },
+      "checked_at": "2026-06-04T20:30:49.093716+00:00"
+    },
+    {
+      "service": "BigQuery(congestion_logs + forecast_lookup)",
+      "status": "LIVE",
+      "evidence": {
+        "congestion_logs": {
+          "cnt": "50679",
+          "facilities": "147",
+          "max_ts": "2026-06-04 20:30:14"
+        },
+        "forecast_lookup": {
+          "cnt": "7056",
+          "max_computed": "2026-06-04 20:23:42",
+          "max_ft": "2026-06-06 20:00:00",
+          "min_ft": "2026-06-04 21:00:00"
+        }
+      },
+      "checked_at": "2026-06-04T20:30:57.239721+00:00"
+    }
+  ]
+}

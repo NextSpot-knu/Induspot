@@ -23,7 +23,9 @@ param(
   [switch]$WithStreaming,
   [switch]$SkipReseed,
   [string]$Gcloud = "C:\Users\samsung-user\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd",
-  [string]$SaKey  = "C:\Users\samsung-user\Desktop\Google_Challenge\knudc-henryseo711-775e5ed806b7.json"
+  # SA key actual location is Docs\ (was previously the repo-parent root; corrected so frontend deploy / SA-pinned
+  # provisioning don't silently no-op). SECURITY.md tracks removing this local key (WIF / CI-only Firebase deploy).
+  [string]$SaKey  = "C:\Users\samsung-user\Desktop\Google_Challenge\Docs\knudc-henryseo711-775e5ed806b7.json"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +39,19 @@ $GatewayId       = "induspot-gateway"
 $GatewayLocation = "us-central1"
 $BackendAuthSA   = "768699236852-compute@developer.gserviceaccount.com"
 $GatewayUrl      = "https://induspot-gateway-9t4vof78.uc.gateway.dev"
+$IngestAudience  = "https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub"
+
+# Canonical production env injected into Cloud Run (SINGLE SOURCE OF TRUTH for the live AI/OIDC activation flags).
+# Previously these were a magic inline string on the deploy line; hoisted here so the live activation state is
+# reviewable in one committed place. .env.example documents the same keys for local dev; config.py holds safe
+# OFF defaults so a missing injection degrades gracefully (Vertex->GCS, Gemini->template, embeddings->Gemini ids).
+$ProdEnvVars = @(
+  "VERTEX_ENDPOINT_ID=2992545745120264192",                 # WP1: GCS-pickle fallback -> live Vertex online RPC
+  "GEMINI_ENABLED=true",                                     # WP3: Vertex Gemini reasoning (fallback = template)
+  "EMBEDDING_ENABLED=true",                                  # voice menu semantic search (Vertex embeddings + Firestore)
+  "PUBSUB_PUSH_SERVICE_ACCOUNT=$BackendAuthSA",              # WP4: OIDC verify identity on /ingest/pubsub
+  "PUBSUB_PUSH_AUDIENCE=$IngestAudience"                     # WP4: expected OIDC audience (empty would skip verify)
+) -join ","
 
 # Move to repo root (this script's directory)
 Set-Location $PSScriptRoot
@@ -159,7 +174,7 @@ if ($Backend) {
   #   호출하므로, 외부에서 대량 호출 시 인스턴스 오토스케일(기본 100)로 비용이 폭주할 수 있다. 데모 트래픽엔
   #   8 인스턴스(×concurrency 80)면 충분하고, 최악의 abuse 비용 상한을 둔다. (입력 상한·타임아웃은 코드에 이미 존재.)
   & $Gcloud run deploy $Service --source apps/api --region $Region --project $ProjectId --quiet --max-instances=8 `
-      --update-env-vars VERTEX_ENDPOINT_ID=2992545745120264192,GEMINI_ENABLED=true,EMBEDDING_ENABLED=true,PUBSUB_PUSH_SERVICE_ACCOUNT=768699236852-compute@developer.gserviceaccount.com,PUBSUB_PUSH_AUDIENCE=https://induspot-api-to7m2nnlca-du.a.run.app/ingest/pubsub `
+      --update-env-vars $ProdEnvVars `
       --update-secrets SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_ANON_KEY=SUPABASE_ANON_KEY:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,JWT_SECRET=JWT_SECRET:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest
   if ($LASTEXITCODE -ne 0) { throw "Cloud Run deploy failed (exit $LASTEXITCODE)" }
   Ok "Cloud Run deployed"

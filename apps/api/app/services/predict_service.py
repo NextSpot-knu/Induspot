@@ -214,11 +214,13 @@ def _predict_with_vertex(norm_type: str, hour: int, dow: int) -> Optional[float]
         return None
 
 
-def predict_congestion(facility_type: str, hour: int, day_of_week: int) -> float:
-    """도착 예상 시점 기준 혼잡도를 [0,1]로 반환.
+def predict_congestion_with_source(facility_type: str, hour: int, day_of_week: int) -> Tuple[float, str]:
+    """도착 예상 시점 기준 혼잡도와 그 '출처'를 함께 반환.
 
-    시그니처/반환 타입 불변 (score.py가 무수정 호출).
-    경로: vertex → gcs → local → 0.5. 어느 경로를 탔는지 로깅한다.
+    출처(source): "vertex" | "gcs" | "local" | "default".
+    경로: vertex → gcs → local → 0.5. Vertex 타임아웃/콜드스타트 시 조용히 GCS/local 로
+    강등되는데, 호출자가 그 강등을 구분 못 하면 폴백이 '라이브 Vertex'로 오인된다(관측가능성 부재).
+    그래서 값과 함께 어느 경로를 탔는지 노출한다. 값만 필요하면 predict_congestion() 사용.
     """
     norm_type = normalize_facility_type(facility_type)
 
@@ -226,7 +228,7 @@ def predict_congestion(facility_type: str, hour: int, day_of_week: int) -> float
     result = _predict_with_vertex(norm_type, hour, day_of_week)
     if result is not None:
         logger.info("congestion_predicted", source="vertex", facility_type=norm_type, value=result)
-        return result
+        return result, "vertex"
 
     # (b) GCS 인메모리
     gcs = _load_gcs_artifacts()
@@ -234,7 +236,7 @@ def predict_congestion(facility_type: str, hour: int, day_of_week: int) -> float
         result = _predict_with_artifacts(gcs, norm_type, hour, day_of_week)
         if result is not None:
             logger.info("congestion_predicted", source="gcs", facility_type=norm_type, value=result)
-            return result
+            return result, "gcs"
 
     # (c) 로컬 인메모리
     local = _load_local_artifacts()
@@ -242,8 +244,18 @@ def predict_congestion(facility_type: str, hour: int, day_of_week: int) -> float
         result = _predict_with_artifacts(local, norm_type, hour, day_of_week)
         if result is not None:
             logger.info("congestion_predicted", source="local", facility_type=norm_type, value=result)
-            return result
+            return result, "local"
 
     # (d) 전부 실패/미학습 타입
     logger.info("congestion_predicted", source="default", facility_type=norm_type, value=DEFAULT_CONGESTION)
-    return DEFAULT_CONGESTION
+    return DEFAULT_CONGESTION, "default"
+
+
+def predict_congestion(facility_type: str, hour: int, day_of_week: int) -> float:
+    """도착 예상 시점 기준 혼잡도를 [0,1]로 반환.
+
+    시그니처/반환 타입 불변 (score.py 가 무수정 호출). 추론 '출처'가 필요하면
+    predict_congestion_with_source() 를 쓴다(폴백 마스킹 방지).
+    """
+    value, _source = predict_congestion_with_source(facility_type, hour, day_of_week)
+    return value
