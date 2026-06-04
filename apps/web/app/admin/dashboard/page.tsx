@@ -8,6 +8,7 @@ import { AdminSidebar } from '@/components/AdminSidebar';
 import { DashboardCharts, DashboardHeatmap } from '@/components/admin/DashboardCharts';
 import { FacilityTable } from '@/components/admin/FacilityTable';
 import { SimulatePeakButton } from '@/components/admin/SimulatePeakButton';
+import { DemandDistributionSim } from '@/components/admin/DemandDistributionSim';
 
 import { createPublicClient } from '@/lib/supabase';
 
@@ -86,12 +87,12 @@ function generateClientFallbackData(realFacilities?: any[]) {
     });
   } else {
     // 2. DB 연결 실패 시 최후의 폴백 (하드코딩 더미 장소)
-    const facilityTypes = ['cafeteria', 'parking', 'meeting_room', 'loading_dock'];
+    const facilityTypes = ['cafeteria', 'parking', 'meeting_room', 'rest_area'];
     const baseNames: Record<string, string[]> = {
       cafeteria: ['중앙식당', '서브카페', '구내식당 A', '구내식당 B'],
       parking: ['A1 주차장', 'B2 주차타워', '야외 주차장', '화물 주차구역'],
       meeting_room: ['대회의실 1', '소회의실 A', '컨퍼런스룸', '세미나실 B'],
-      loading_dock: ['남부 하역장 A', '북부 하역장 B', '중앙 대기소']
+      rest_area: ['남부 휴게실', '북부 휴게실', '중앙 라운지']
     };
 
     facilityTypes.forEach((type) => {
@@ -335,6 +336,18 @@ async function fetchRealDashboard(supabaseClient: any) {
   return { hasLogs, avgCongestion, anomalyCount, heatmap, anomalies, acceptRate, activeUsers };
 }
 
+// 히트맵(시설×시간)에서 시설별 '피크 혼잡'을 도출(수요 분산 시뮬레이션 입력). value=null(데이터 없음)은 제외.
+function computeFacilityPeaks(heatmap: any[]): { facility: string; facilityType: string; peak: number }[] {
+  const m: Record<string, { facility: string; facilityType: string; peak: number }> = {};
+  for (const c of heatmap || []) {
+    if (!c || c.value == null || typeof c.value !== 'number') continue;
+    const k = c.facility;
+    if (!m[k]) m[k] = { facility: c.facility, facilityType: c.facilityType, peak: c.value };
+    else if (c.value > m[k].peak) m[k].peak = c.value;
+  }
+  return Object.values(m);
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -385,6 +398,8 @@ export default function DashboardPage() {
           distribution: fallback.distribution,
           // 실측 이상 알림이 있으면 그것을, 없으면 합성 알림으로 패널이 비지 않게.
           anomalies: real.anomalies && real.anomalies.length ? real.anomalies : fallback.anomalies,
+          // 수요 분산 시뮬레이션의 '실측/합성' 라벨 정직성: heatmap 이 실측 로그에서 왔는지 표시(아니면 합성).
+          heatmapIsReal: !!(real.heatmap && real.heatmap.length),
         };
         if (active) setData(merged);
       } catch (err) {
@@ -412,6 +427,7 @@ export default function DashboardPage() {
   }
 
   const { kpi, heatmap, distribution, anomalies } = data;
+  const facilityPeaks = computeFacilityPeaks(heatmap);
 
   // 정적 export 에는 서버 라우트(/api/admin/export)가 없으므로, 현재 로드된 데이터로
   // 클라이언트에서 CSV 를 생성해 다운로드한다(엑셀 한글 깨짐 방지를 위해 BOM 부착).
@@ -559,6 +575,11 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* 수요 분산 시뮬레이션 (전/후) — 발표 슬라이드 08 핵심: 현재 쏠림 → 추천 수용 시 도달 가능한 균형 */}
+          <div className="grid grid-cols-4 gap-6">
+            <DemandDistributionSim peaks={facilityPeaks} isRealData={!!data.heatmapIsReal} />
           </div>
 
           {/* Charts Row (Client Components) */}
