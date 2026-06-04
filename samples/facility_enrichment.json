@@ -533,7 +533,7 @@
     "type": "restaurant",
     "signature_menu": "제일국밥 제일순대국밥 순대만국밥 돼지국밥 야채순대 수육 술국",
     "menu_source": "web",
-    "address": "경상북도 구미시 1공단로 일대 (공단동, 파라디아상가, 순천향병원 인근)",
+    "address": "경상북도 구미시 1공단로 197-7",
     "address_source": "web",
     "phone": "054-464-9007",
     "dong": "공단동",
@@ -909,7 +909,7 @@
     "address_source": "inferred",
     "phone": null,
     "dong": "비산동",
-    "confidence": "low"
+    "confidence": "medium"
   },
   {
     "name": "히어로선산곱창",
@@ -1059,12 +1059,12 @@
     "name": "뱃나루터 구미본점",
     "source": "restaurants",
     "type": "restaurant",
-    "signature_menu": "조개찜 조개구이 조돌탕 매콤새우찜 바지락칼국수",
+    "signature_menu": "조돌탕 조개찜 매콤새우찜 조개구이",
     "menu_source": "web",
-    "address": "경상북도 구미시 비산동",
+    "address": "경상북도 구미시 인동26길 31",
     "address_source": "web",
     "phone": null,
-    "dong": "비산동",
+    "dong": "진평동",
     "confidence": "medium"
   },
   {
@@ -1085,11 +1085,11 @@
     "type": "restaurant",
     "signature_menu": "한돈 생삼겹살 소금구이 한우등심 한우특수부위 갈비살 된장찌개",
     "menu_source": "inferred",
-    "address": "경상북도 구미시 송정동",
-    "address_source": "inferred",
+    "address": "경상북도 구미시 구미중앙로39길 9",
+    "address_source": "web",
     "phone": null,
-    "dong": "송정동",
-    "confidence": "low"
+    "dong": "원평동",
+    "confidence": "high"
   },
   {
     "name": "장수돼지국밥 본점",
@@ -1229,10 +1229,10 @@
     "type": "restaurant",
     "signature_menu": "보리칼국수 보리밥 멸치칼국수 보리비빔밥 손칼국수 겉절이 수육",
     "menu_source": "inferred",
-    "address": "경상북도 구미시 형곡동",
+    "address": "경상북도 구미시 도량동",
     "address_source": "inferred",
     "phone": null,
-    "dong": "형곡동",
+    "dong": "도량동",
     "confidence": "low"
   },
   {
