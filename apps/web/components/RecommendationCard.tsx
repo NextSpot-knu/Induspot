@@ -102,22 +102,26 @@ export function RecommendationCard({
     try {
       const ps = new window.kakao.maps.services.Places();
       ps.keywordSearch(title, (data: any, status: any) => {
-        if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
-          const place = data[0];
+        // 동명 체인이 타지로 잡히는 것을 차단: '지코바 송정점'→부산 해운대, '선비꼬마김밥'→서울 본사 처럼
+        // 카카오 1순위가 다른 도시일 수 있다. '구미' 주소를 가진 첫 결과만 채택하고, 없으면 우리 DB(구미) 주소로 폴백.
+        const place = (status === window.kakao.maps.services.Status.OK && Array.isArray(data))
+          ? data.find((p: any) => ((p.road_address_name || p.address_name || '').includes('구미')))
+          : null;
+        if (place) {
           // Stable mock rating and reviews based on place ID
           const seed = place.id ? parseInt(place.id) : 10;
           const mockRating = 4.0 + (seed % 10) / 10;
           const mockReviews = 10 + (seed % 90);
-          
+
           setPlaceInfo({
             address: place.road_address_name || place.address_name,
-            phone: place.phone || '전화번호 정보 없음',
+            phone: place.phone || facility?.features?.phone || '전화번호 정보 없음',
             rating: parseFloat(mockRating.toFixed(1)),
             reviewCount: mockReviews,
             url: place.place_url
           });
         } else {
-          // Fallback if no search match
+          // 구미 매칭 결과가 없으면(타지 체인만 잡히거나 검색 실패) 우리 데이터의 구미 주소로 폴백.
           setPlaceInfo({
             address: facility?.features?.address || '경상북도 구미시 산단로',
             phone: facility?.features?.phone || '054-123-4567',

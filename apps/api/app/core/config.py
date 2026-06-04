@@ -74,7 +74,9 @@ class Settings(BaseSettings):
     # (다국어 임베딩 코사인은 0.6~0.82 로 압축돼 절대 임계값은 변별력이 없음 — 실측 보정값.
     #  margin 0.04 = '고깃집' 확장검색이 실제 고깃집 2곳만 집고 닭갈비/곱창집은 배제하는 지점)
     VOICE_VECTOR_MARGIN: float = 0.04
-    VOICE_VECTOR_TOPK: int = 3
+    # 자유발화(분류 미상) 의미검색 결과 상한. 정밀분류가 잡히면(중식/고깃집 등) filter_candidates 가
+    # 그 분류 후보를 '전부' 반환하므로(대안 리밋 해제) 이 값은 분류 미상 케이스에만 적용된다.
+    VOICE_VECTOR_TOPK: int = 10
     # 무관 꼬리 차단용 보수적 절대 코사인 하한(다국어 임베딩 대역 0.6~0.82 하단). 진짜 매칭은 거의 안 비우며
     # 무관 후보만 자른다. 라이브 코사인 분포 로깅(embedding_filter_resolved.top) 후 0.68~0.72 로 상향 가능.
     VOICE_VECTOR_MIN_COSINE: float = 0.60

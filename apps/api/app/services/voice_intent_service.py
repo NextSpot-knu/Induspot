@@ -272,13 +272,17 @@ def _coerce(parsed: dict, valid_ids: set) -> dict:
             seen.add(m)
             match_ids.append(m)
     # select 인데 유효 후보 id 가 없으면 next 로 강등(엉뚱한 선택 방지)
-    if action == "select" and not tid:
+    _demoted_select = action == "select" and not tid
+    if _demoted_select:
         action = "next"
     # filter 는 여기서 강등하지 않는다. 어떤 후보가 맞는지는 라우터의 임베딩 의미검색이 정하고,
     # 벡터·Gemini 둘 다 빈값일 때만 라우터가 next 로 강등한다(선택지 폐기 아님, 우선순위만 조정).
     spoken = parsed.get("spoken")
     # details 답변(메뉴·혼잡 등)은 한 문장보다 길 수 있어 200자까지 허용.
     spoken = spoken.strip()[:200] if isinstance(spoken, str) and spoken.strip() else None
+    # select→next 강등 시 'select 멘트'(예: 그곳으로 안내할게요)가 잔존해 실제 next 동작과 어긋나는 것을 막는다(프런트 자체 멘트 사용).
+    if _demoted_select:
+        spoken = None
     # search_query: filter 일 때 임베딩 의미검색에 쓸 확장 검색어(고깃집→삼겹살·갈비…). 그 외엔 None.
     sq = parsed.get("search_query")
     sq = sq.strip()[:200] if isinstance(sq, str) and sq.strip() else None

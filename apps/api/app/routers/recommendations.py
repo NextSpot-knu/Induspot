@@ -405,12 +405,27 @@ async def voice_turn(req: VoiceTurnRequest):
         except Exception:
             vids = []
         match = vids or result.get("match_ids") or []  # 벡터 우선, Gemini match_ids 가 폴백
+        # 분류 게이트(누설 차단): Gemini 가 정밀분류(intent_category)를 정했고 풀에 그 분류 후보가 있으면,
+        # 최종 후보를 그 분류로 강제한다. 벡터가 비활성/실패해 Gemini match_ids 로 폴백한 경우의 누설까지
+        # 막는다('중식'→어탕칼국수 방지). category 는 enrich_voice_candidates 가 시드에서 채운 값.
+        ic = (result.get("intent_category") or "").strip()
+        if ic and match:
+            cat_of = {c.get("id"): c.get("category") for c in candidates}
+            # 분류정보가 하나라도 채워졌을 때만 게이트(enrich 가 시드 캐시에서 채움). 전부 None(Firestore 불가/미시드)이면
+            # 게이트를 건너뛰어 match(벡터·Gemini 폴백)를 그대로 신뢰 — 분류정보 없을 때 거짓 next 강등 방지.
+            if any(cat_of.values()):
+                if any(v == ic for v in cat_of.values()):
+                    match = [m for m in match if cat_of.get(m) == ic]
+                else:
+                    match = []  # 분류정보는 있는데 그 분류 후보가 풀에 없음 → 억지 매칭 금지(누설 차단)
         if match:
             result["match_ids"] = match
         else:
-            # 벡터·Gemini 둘 다 빈손이면 next 로만 강등(선택지 폐기 아님, 우선순위만 유지·조정).
+            # 그 분류가 근처에 없거나 매칭 실패 → next 로만 강등(선택지 폐기 아님). 엉뚱 추천보다 정직한 안내.
             result["action"] = "next"
             result["match_ids"] = []
+            if ic:
+                result["spoken"] = f"근처에 {ic} 후보가 없어 다른 곳을 보여드릴게요."
     # search_query 는 내부용(응답 스키마에 없음) — 제거 후 응답 구성.
     return VoiceTurnResponse(
         action=result["action"],

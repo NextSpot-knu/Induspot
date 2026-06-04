@@ -811,7 +811,7 @@ export default function MainPage() {
           distanceM: haversineMeters(userLocation.lat, userLocation.lng, x.latitude, x.longitude),
         }))
         .sort((a, b) => a.distanceM - b.distanceM) // 가까운 순 — 전문점(고기/국밥/피자)이 상위 N 밖으로 밀려 누락되지 않게
-        .slice(0, 16);                              // 의미검색 도달 후보 폭(백엔드 입력 상한 30 이내)
+        .slice(0, 30);                              // 의미검색 도달 후보 폭(백엔드 입력 상한 30). 분류별(중식 등) 후보 포함 확률↑
       const res = await voiceTurn(utterance, type, f?.name ?? null, cands);
       // 음식 선호 발화(filter)는 '식당'일 때만 음식 의도로 저장(주차/회의/휴게 선호% 오염 방지).
       if (res.action === 'filter' && type === 'cafeteria') cuisineIntentRef.current = utterance;

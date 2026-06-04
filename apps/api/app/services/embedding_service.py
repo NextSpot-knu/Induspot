@@ -257,28 +257,44 @@ async def filter_candidates(utterance: str, candidates: list, margin: float = No
     dvecs = await _doc_vectors(candidates)
     cache = await _get_cache()  # 시드 정밀분류(category) 조회용
     scored = []
+    cat_of: dict = {}
     for c in candidates:
         cid = c.get("id")
         v = dvecs.get(cid)
         if not v:
             continue
         s = _cosine(qv, v)
+        cat = (cache.get(cid) or {}).get("category")
+        cat_of[cid] = cat
         # 시드 정밀분류가 Gemini 의도분류와 정확히 일치하면 소프트 부스트(국밥집이 인접분류보다 확실히 우선).
-        if intent_category:
-            cat = (cache.get(cid) or {}).get("category")
-            if cat and cat == intent_category:
-                s += boost
+        if intent_category and cat and cat == intent_category:
+            s += boost
         scored.append((s, cid))
     if not scored:
         return []
 
     scored.sort(key=lambda x: x[0], reverse=True)
+
+    # 분류 게이트(엉뚱 분류 누설 차단 + 리밋 해제): Gemini 가 정한 정밀분류(intent_category)가 분명하면,
+    #   · 그 분류 후보가 풀에 있으면 → 그 분류 후보를 '전부'(코사인 순) 반환(top_k 캡 없음 = 대안 리밋 해제).
+    #     ('중식' 발화에 어탕칼국수(국수)·백숙(한식)이 섞이던 누설을 원천 차단. margin/floor 우회.)
+    #   · 그 분류 후보가 풀에 없으면 → 빈 리스트(없는데 억지 매칭 금지; 라우터가 next 로 강등).
+    # 분류 미상(자유발화)일 때만 코사인 margin/floor + top_k 동작을 쓴다.
+    if intent_category and any(cat_of.values()):
+        # 분류정보가 하나라도 채워진 경우에만 게이트(시드 분류 신뢰). 그 분류 후보를 코사인 순 '전부' 반환.
+        # (Firestore 불가/미시드라 cat 이 전부 None 이면 게이트하지 않고 아래 코사인 폴백으로 진행 → 거짓 빈손 방지.)
+        same = [cid for _s, cid in scored if cat_of.get(cid) == intent_category]
+        logger.info(
+            "embedding_filter_resolved", mode="category_gate",
+            n_candidates=len(candidates), n_selected=len(same), intent_category=intent_category,
+        )
+        return same
+
     top = scored[0][0]
-    # 상대 margin(최고점 근방) + 보수적 절대 하한(무관 후보 차단). 둘 다 부스트 반영 점수 기준.
+    # 상대 margin(최고점 근방) + 보수적 절대 하한(무관 후보 차단).
     selected = [cid for s, cid in scored if s >= top - margin and s >= floor][:top_k]
     logger.info(
-        "embedding_filter_resolved",
-        n_candidates=len(candidates), n_selected=len(selected),
-        top=round(top, 3), floor=floor, intent_category=intent_category,
+        "embedding_filter_resolved", mode="vector_margin",
+        n_candidates=len(candidates), n_selected=len(selected), top=round(top, 3), floor=floor,
     )
     return selected
