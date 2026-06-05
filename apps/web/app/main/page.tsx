@@ -39,7 +39,7 @@ export default function MainPage() {
   const activeOverlayRef = useRef<any>(null);
 
   const [activeTab, setActiveTab] = useState('Home');
-  const [activeFilter, setActiveFilter] = useState('주차장');
+  const [activeFilter, setActiveFilter] = useState('식당'); // 첫 접속 시 식당 세션을 먼저 표시(탭 순서와 일치)
   const [facilities, setFacilities] = useState<any[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
   // 음성 선호 필터(예: '양식 먹고 싶어'→양식 식당 id들). null이면 필터 없음.
