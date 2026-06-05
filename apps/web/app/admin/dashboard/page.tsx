@@ -377,10 +377,20 @@ export default function DashboardPage() {
             anomalyCount:
               real.hasLogs && real.anomalyCount != null ? real.anomalyCount : fallback.kpi.anomalyCount,
           },
-          // 오늘자 로그가 있으면 실측 히트맵, 없으면 합성 히트맵.
-          // (?? 는 빈 배열 []을 통과시키므로 length 검사 — anomalies 병합과 동일 패턴. 조인 이름이 전부 null 이라
-          //  heatmap=[]가 되는 경계에서 빈 히트맵이 그대로 렌더되는 것을 막는다.)
-          heatmap: real.heatmap && real.heatmap.length ? real.heatmap : fallback.heatmap,
+          // 오늘자 로그가 있으면 실측 히트맵을 사용하되, 실측 데이터가 없는 시간대(예: 14시 이후 미래 시간대)는 fallback 생성기의 가상 데이터로 채웁니다.
+          heatmap: (() => {
+            if (!real.heatmap || !real.heatmap.length) return fallback.heatmap;
+            return real.heatmap.map((rCell: any) => {
+              if (rCell.value !== null) return rCell;
+              const fCell = fallback.heatmap.find(
+                (f: any) => f.facility === rCell.facility && f.hour === rCell.hour
+              );
+              return {
+                ...rCell,
+                value: fCell ? fCell.value : null
+              };
+            });
+          })(),
           // 30일 수요 분산 효과는 장기 A/B 추이라 일관된 합성 추이를 유지(데모 가독성).
           distribution: fallback.distribution,
           // 실측 이상 알림이 있으면 그것을, 없으면 합성 알림으로 패널이 비지 않게.
