@@ -2,13 +2,13 @@ import logging
 import sys
 import structlog
 
-def add_gcp_severity(logger, name, event_dict):
+def add_log_severity(logger, name, event_dict):
     """
-    structlog의 level을 GCP Cloud Logging이 인식하는 severity 필드로 복사 및 매핑합니다.
+    structlog의 level을 표준 severity 필드(DEBUG/INFO/WARNING/ERROR/CRITICAL)로 복사 및 매핑합니다.
     """
     level = event_dict.get("level")
     if level:
-        # GCP Cloud Logging severity mapping
+        # 표준 severity 매핑
         mapping = {
             "debug": "DEBUG",
             "info": "INFO",
@@ -43,8 +43,8 @@ def setup_logging():
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            # GCP Cloud Logging severity 필드 추가
-            add_gcp_severity,
+            # severity 필드 추가
+            add_log_severity,
             # JSON 로그 형식으로 내보내기
             structlog.processors.JSONRenderer()
         ],

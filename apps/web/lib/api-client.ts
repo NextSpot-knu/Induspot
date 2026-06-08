@@ -43,7 +43,8 @@ export function keysToSnake(o: any): any {
   return o;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || process.env.NEXT_PUBLIC_FASTAPI_URL || "/api/proxy";
+// 로컬 전용: FastAPI 백엔드 직접 호출(기본 http://localhost:8000). 대회용 API Gateway 경유는 제거됨.
+const BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_URL || "http://localhost:8000";
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;

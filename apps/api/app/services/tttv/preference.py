@@ -47,10 +47,10 @@ async def calculate_preference_similarity(
     user_vector: list[float] | None = None,
 ) -> float:
     """
-    Pinecone에서 사용자 선호 벡터를 획득(없으면 Cold Start 벡터 생성 후 적재)하고,
+    선호 벡터 저장소에서 사용자 선호 벡터를 획득(없으면 Cold Start 벡터 생성 후 적재)하고,
     후보 시설의 특성 벡터 간 코사인 유사도를 계산합니다.
 
-    user_vector 가 주어지면(추천 루프에서 1회만 조회해 전달) Pinecone 재조회를 생략한다.
+    user_vector 가 주어지면(추천 루프에서 1회만 조회해 전달) 선호 벡터 저장소 재조회를 생략한다.
     """
     # 1. 사용자 선호 벡터 조회 (호출측에서 미리 넘겨줬으면 재사용)
     if user_vector is None:

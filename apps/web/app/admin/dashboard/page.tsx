@@ -193,7 +193,7 @@ function joinedFacility(log: any): { name: string | null; type: string | null } 
   return { name: o?.name ?? null, type: o?.type ?? null };
 }
 
-// 정적 export(Firebase 호스팅) 환경에서는 서버 라우트가 없으므로, 관리자 대시보드의 실데이터는
+// 정적 export 환경에서는 서버 라우트가 없으므로, 관리자 대시보드의 실데이터는
 // 로그인된 admin 세션을 실은 publicClient 로 브라우저에서 직접 조회한다.
 //  - congestion_logs/facilities: RLS 가 authenticated 에 USING(true) → 실데이터.
 //  - recommendations/user_feedback: 같은 회사 admin 에게만 열려 있어, 데모 계정 권한 밖이면 빈 배열 → null 반환.

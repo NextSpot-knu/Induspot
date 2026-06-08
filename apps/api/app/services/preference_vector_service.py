@@ -1,52 +1,38 @@
-# pyrefly: ignore [missing-import]
+"""사용자 8차원 선호 벡터 저장소 — Supabase 백엔드.
+
+(대회 종료 후 GCP Firestore 백엔드를 제거하고 Supabase 테이블 `user_preference_vectors` 로 이전.)
+
+설계 노트: 이 저장소는 ANN(최근접 이웃) 검색이 아니라 **user_id 로 벡터를 저장/조회(KV)** 하는 용도다.
+(코사인 유사도는 tttv/preference.py 가 CATEGORY_VECTORS 와 로컬 계산.)
+
+폴백 우선: Supabase 미가용/실패(예: 테이블 미생성) 시 프로세스 메모리 dict 로 graceful 폴백.
+외부 인터페이스(_normalize_vector / get_user_vector / upsert_user_vector /
+adjust_user_vector_on_feedback / available)는 시그니처 호환을 위해 그대로 유지한다(백엔드만 교체).
+"""
+
 import asyncio
 import math
+
 import structlog
-from app.core.config import settings
+
+from app.core.supabase import supabase_admin
 
 logger = structlog.get_logger()
 
-# Firestore 클라이언트는 lazy/폴백 원칙에 따라 import 자체가 앱을 죽이지 않게 보호한다.
-try:
-    # pyrefly: ignore [missing-import]
-    from google.cloud import firestore
-except Exception:  # 라이브러리 미설치 등
-    firestore = None
+_TABLE = "user_preference_vectors"
 
 
 class PreferenceVectorStore:
-    """사용자 8차원 선호 벡터 저장소 — GCP Firestore 백엔드.
-
-    설계 노트: 이 저장소는 ANN(최근접 이웃) 검색이 아니라 **user_id 로 벡터를 저장/조회(KV)**
-    하는 용도다(코사인 유사도는 tttv/preference.py 가 CATEGORY_VECTORS 와 로컬 계산). 따라서
-    Vertex AI Vector Search 가 아니라 Firestore 문서 저장이 정확하고 안정적인 GCP 대체재다.
-    (Vector Search 는 인덱스 콜드스타트·streaming upsert 의 eventual consistency 때문에
-     "피드백 직후 같은 벡터를 즉시 읽어야 하는" 이 패턴에 부적합하다.)
-
-    폴백 우선: Firestore 미가용/실패 시 get→None, upsert→no-op (벡터 저장소 미설정 시 무해한 동작).
-    외부 인터페이스(_normalize_vector / get_user_vector / upsert_user_vector /
-    adjust_user_vector_on_feedback)는 시그니처 호환을 위해 그대로 유지한다(내부 백엔드만 Firestore).
-    """
-
     def __init__(self):
-        self.client = None
-        if firestore is not None and settings.GCP_PROJECT_ID:
-            try:
-                db = settings.FIRESTORE_DATABASE
-                if db and db != "(default)":
-                    self.client = firestore.Client(project=settings.GCP_PROJECT_ID, database=db)
-                else:
-                    self.client = firestore.Client(project=settings.GCP_PROJECT_ID)
-            except Exception as e:
-                logger.warning("firestore_init_failed", error=str(e))
+        # service_role 클라이언트(RLS 우회) — 백엔드 신뢰 경로에서 적재/조회.
+        self.client = supabase_admin
+        # Supabase 실패/테이블 미생성 시 폴백(프로세스 메모리, 비영속).
+        self._memory: dict[str, list[float]] = {}
 
     @property
     def available(self) -> bool:
-        """저장소 사용 가능 여부(벡터 백엔드 클라이언트 초기화 성공 여부)."""
+        """저장소 사용 가능 여부(클라이언트 초기화 성공 여부)."""
         return self.client is not None
-
-    def _doc(self, user_id: str):
-        return self.client.collection(settings.FIRESTORE_COLLECTION).document(str(user_id))
 
     def _normalize_vector(self, vector: list[float]) -> list[float]:
         """L2 정규화를 통해 벡터 크기를 1로 조절합니다."""
@@ -58,36 +44,40 @@ class PreferenceVectorStore:
         return [x / norm for x in vector]
 
     async def get_user_vector(self, user_id: str) -> list[float] | None:
-        """Firestore에서 사용자 선호도 벡터를 비동기적으로 조회합니다."""
-        if not self.client:
-            return None
-        try:
-            snap = await asyncio.to_thread(self._doc(user_id).get)
-            if snap.exists:
-                data = snap.to_dict() or {}
-                vec = data.get("vector")
-                if vec and len(vec) == 8:
-                    return [float(x) for x in vec]
-                if vec:
-                    # 문서는 있으나 차원 불일치(외부 오염/스키마 변경). 상위가 콜드스타트로 조용히 덮어쓰기 전에
-                    # 가시화한다(관측성만 추가 — 복구 동작은 그대로 두는 게 안전).
-                    logger.warning("firestore_vector_dim_mismatch", user_id=user_id, dim=len(vec))
-        except Exception as e:
-            logger.warning("firestore_get_user_vector_failed", user_id=user_id, error=str(e))
-        return None
+        """Supabase 에서 사용자 선호도 벡터를 비동기적으로 조회합니다."""
+        uid = str(user_id)
+        if self.client is not None:
+            try:
+                res = await asyncio.to_thread(
+                    self.client.table(_TABLE).select("vector").eq("user_id", uid).limit(1).execute
+                )
+                if res.data:
+                    vec = res.data[0].get("vector")
+                    if vec and len(vec) == 8:
+                        return [float(x) for x in vec]
+                    if vec:
+                        # 문서는 있으나 차원 불일치(외부 오염/스키마 변경) — 가시화만 하고 콜드스타트로 덮어쓰게 둔다.
+                        logger.warning("pref_vector_dim_mismatch", user_id=uid, dim=len(vec))
+                return None
+            except Exception as e:
+                # 테이블 미생성/네트워크 실패 → 메모리 폴백
+                logger.warning("pref_vector_get_failed", user_id=uid, error=str(e))
+                return self._memory.get(uid)
+        return self._memory.get(uid)
 
     async def upsert_user_vector(self, user_id: str, vector: list[float]):
-        """사용자 선호도 벡터를 정규화하여 Firestore에 저장합니다."""
-        if not self.client:
-            return
+        """사용자 선호도 벡터를 정규화하여 Supabase 에 저장합니다."""
+        uid = str(user_id)
         normalized = self._normalize_vector(vector)
-        try:
-            await asyncio.to_thread(
-                self._doc(user_id).set,
-                {"vector": normalized, "type": "user"},
-            )
-        except Exception as e:
-            logger.warning("firestore_upsert_user_vector_failed", user_id=user_id, error=str(e))
+        if self.client is not None:
+            try:
+                await asyncio.to_thread(
+                    self.client.table(_TABLE).upsert({"user_id": uid, "vector": normalized}).execute
+                )
+                return
+            except Exception as e:
+                logger.warning("pref_vector_upsert_failed", user_id=uid, error=str(e))
+        self._memory[uid] = normalized
 
     async def adjust_user_vector_on_feedback(self, user_id: str, facility_vector: list[float], action: str):
         """사용자 피드백에 따라 선호도 벡터를 점진적으로 업데이트합니다.
@@ -117,5 +107,5 @@ class PreferenceVectorStore:
         await self.upsert_user_vector(user_id, new_vector)
 
 
-# 싱글톤 인스턴스 (GCP 네이티브 Firestore 백엔드; 시그니처 호환 유지)
+# 싱글톤 인스턴스 (Supabase 백엔드; 시그니처 호환 유지)
 preference_vector_service = PreferenceVectorStore()

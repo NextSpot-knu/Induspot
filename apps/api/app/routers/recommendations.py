@@ -35,7 +35,7 @@ class RecommendItem(BaseModel):
     tttv_score: float
     breakdown: dict
     distance_m: float
-    reason: str | None = None  # WP3: Gemini 생성 사유(실패 시 템플릿 폴백)
+    reason: str | None = None  # WP3: 백엔드 생성 사유(실패 시 템플릿 폴백)
     rank: int
     total_candidates: int
 
@@ -138,7 +138,7 @@ async def get_recommendations(
 
     logger.info("candidates_filtered", count=len(candidates), max_radius_m=150)
 
-    # 사용자 선호 벡터는 요청당 1개뿐이므로 후보마다 Pinecone 를 재조회하지 않도록 여기서 1회만 조회한다.
+    # 사용자 선호 벡터는 요청당 1개뿐이므로 후보마다 선호 벡터 저장소 를 재조회하지 않도록 여기서 1회만 조회한다.
     # (없으면 Cold Start 벡터 생성 후 1회 업서트)
     user_vector = await preference_vector_service.get_user_vector(req.user_id)
     if not user_vector:
@@ -180,7 +180,7 @@ async def get_recommendations(
     recommendation_results.sort(key=lambda x: x["tttv_score"], reverse=True)
     top_n = recommendation_results[:5]  # 추천 제안 개수(요청: 3 → 5)
 
-    # 4-1. WP3: 상위 N개(=top_n)에만 Gemini 사유 생성 (동시 호출, 실패 시 템플릿 폴백)
+    # 4-1. WP3: 상위 N개(=top_n)에만 백엔드 사유 생성 (동시 호출, 실패 시 템플릿 폴백)
     async def _reason_for(item: dict) -> str:
         bd = item["breakdown"]
         return await generate_reason({
@@ -261,7 +261,7 @@ class RecommendByTypeRequest(BaseModel):
     user_lat: float
     user_lng: float
     exclude_ids: list[str] = []
-    limit: int = Field(5, ge=1, le=20)  # 서버 상한: 후보 점수화(Vertex predict + Gemini reason) 호출량 폭증 방지
+    limit: int = Field(5, ge=1, le=20)  # 서버 상한: 후보 점수화(예측 + 사유 생성) 호출량 폭증 방지
 
 
 @router.post("/recommendations/by-type", response_model=list[RecommendItem])
@@ -364,8 +364,8 @@ async def recommend_by_type(
     ]
 
 
-# --- 음성 비서 1턴 해석(Vertex Gemini): 발화→의도 + 후보 선호매칭 선택 + 한국어 응답 ---
-# 무인증(텍스트/후보만 처리, 사용자 데이터 미접근). /predict 처럼 Cloud Run IAM + 게이트웨이가 보호.
+# --- 음성 비서 1턴 해석(키워드 분류): 발화→의도 + 후보 선호매칭 선택 + 한국어 응답 ---
+# 무인증(텍스트/후보만 처리, 사용자 데이터 미접근). 로컬 전용.
 class VoiceTurnRequest(BaseModel):
     # 무인증 엔드포인트 — 입력 크기 제한(과대 페이로드/프롬프트 비대화 방지). 출력은 _coerce 가 enum·후보 id 로 강제.
     utterance: str = Field("", max_length=500)
@@ -378,7 +378,7 @@ class VoiceTurnResponse(BaseModel):
     action: str  # accept|next|reject|details|select|filter|stop|unknown
     target_facility_id: str | None = None  # select 일 때 후보 id
     match_ids: list[str] = []  # filter 일 때 선호에 맞는 후보 id들(예: '양식' → 양식 식당들)
-    spoken: str | None = None  # Gemini 생성 한국어 응답(없으면 프런트가 자체 멘트)
+    spoken: str | None = None  # 백엔드 생성 한국어 응답(없으면 프런트가 자체 멘트)
 
 
 _VOICE_TYPE_KO = {"cafeteria": "식당", "parking": "주차장", "meeting_room": "회의실", "rest_area": "휴게실"}
@@ -388,31 +388,31 @@ _VOICE_TYPE_KO = {"cafeteria": "식당", "parking": "주차장", "meeting_room":
 async def voice_turn(req: VoiceTurnRequest):
     type_ko = _VOICE_TYPE_KO.get(req.facility_type, "시설")
     candidates = req.candidates or []
-    # 0) 후보에 시드된 분류·대표메뉴를 채워 Gemini 가 '자세히/메뉴/혼잡' 질문에 실제 데이터로 답하게 한다.
+    # 0) 후보에 시드된 분류·대표메뉴를 채워 백엔드 가 '자세히/메뉴/혼잡' 질문에 실제 데이터로 답하게 한다.
     try:
         candidates = await enrich_voice_candidates(candidates)
     except Exception:
         pass
-    # 1) Gemini: 의도 분류 + 한국어 응답 + search_query(선호를 구체 메뉴로 확장)(역할 분리의 '대화' 쪽).
+    # 1) 백엔드: 의도 분류 + 한국어 응답 + search_query(선호를 구체 메뉴로 확장)(역할 분리의 '대화' 쪽).
     result = await interpret_turn(req.utterance, type_ko, req.current_name, candidates)
     # 2) 임베딩 의미검색: '선호 필터'로 분류되면 어떤 후보가 맞는지는 벡터가 결정(retrieval).
-    #    Gemini 가 확장한 search_query("고깃집"→"삼겹살 갈비 숯불구이…")로 검색해 곱창집·순댓국과 섞이지 않게 한다.
+    #    백엔드 가 확장한 search_query("고깃집"→"삼겹살 갈비 숯불구이…")로 검색해 곱창집·순댓국과 섞이지 않게 한다.
     if result["action"] == "filter":
         query = result.get("search_query") or req.utterance
         try:
-            # Gemini 가 정한 정밀분류(intent_category)를 함께 넘겨, 시드 category 일치 후보를 소프트 부스트(국밥→국밥집).
+            # 백엔드 가 정한 정밀분류(intent_category)를 함께 넘겨, 시드 category 일치 후보를 소프트 부스트(국밥→국밥집).
             vids = await vector_filter_candidates(query, candidates, intent_category=result.get("intent_category"))
         except Exception:
             vids = []
-        match = vids or result.get("match_ids") or []  # 벡터 우선, Gemini match_ids 가 폴백
-        # 분류 게이트(누설 차단): Gemini 가 정밀분류(intent_category)를 정했고 풀에 그 분류 후보가 있으면,
-        # 최종 후보를 그 분류로 강제한다. 벡터가 비활성/실패해 Gemini match_ids 로 폴백한 경우의 누설까지
+        match = vids or result.get("match_ids") or []  # 벡터 우선, 백엔드 match_ids 가 폴백
+        # 분류 게이트(누설 차단): 백엔드 가 정밀분류(intent_category)를 정했고 풀에 그 분류 후보가 있으면,
+        # 최종 후보를 그 분류로 강제한다. 벡터가 비활성/실패해 백엔드 match_ids 로 폴백한 경우의 누설까지
         # 막는다('중식'→어탕칼국수 방지). category 는 enrich_voice_candidates 가 시드에서 채운 값.
         ic = (result.get("intent_category") or "").strip()
         if ic and match:
             cat_of = {c.get("id"): c.get("category") for c in candidates}
-            # 분류정보가 하나라도 채워졌을 때만 게이트(enrich 가 시드 캐시에서 채움). 전부 None(Firestore 불가/미시드)이면
-            # 게이트를 건너뛰어 match(벡터·Gemini 폴백)를 그대로 신뢰 — 분류정보 없을 때 거짓 next 강등 방지.
+            # 분류정보가 하나라도 채워졌을 때만 게이트. 전부 None(미시드)이면
+            # 게이트를 건너뛰어 match(벡터·백엔드 폴백)를 그대로 신뢰 — 분류정보 없을 때 거짓 next 강등 방지.
             if any(cat_of.values()):
                 if any(v == ic for v in cat_of.values()):
                     match = [m for m in match if cat_of.get(m) == ic]
@@ -452,7 +452,7 @@ async def submit_feedback(
     recommendation = rec_res.data[0]
     user_id = recommendation["user_id"]
 
-    # 소유권 가드: 타인의 추천 기록에 피드백을 넣어 그 사람의 Pinecone 선호벡터를 오염시키는 것을 차단.
+    # 소유권 가드: 타인의 추천 기록에 피드백을 넣어 그 사람의 선호 벡터 저장소 선호벡터를 오염시키는 것을 차단.
     if user_id != current_user["id"]:
         raise HTTPException(status_code=403, detail="해당 추천 기록에 대한 권한이 없습니다.")
 
@@ -479,7 +479,7 @@ async def submit_feedback(
             .execute
         )
 
-    # 4. Pinecone 사용자 선호도 벡터 학습 보정
+    # 4. 선호 벡터 저장소 사용자 선호도 벡터 학습 보정
     # 시설 특성 및 카테고리에 맞는 기본 벡터 획득
     facility_type = facility["type"]
     facility_vector = CATEGORY_VECTORS.get(facility_type, [0.0] * 8)

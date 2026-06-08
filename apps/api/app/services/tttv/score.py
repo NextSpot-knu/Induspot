@@ -24,7 +24,7 @@ async def calculate_tttv_score(
     candidate_congestion_level: float,
     user_lat: float,
     user_lng: float,
-    user_vector: list[float] | None = None,  # 호출측에서 1회 조회해 넘기면 후보마다 Pinecone 재조회 안 함
+    user_vector: list[float] | None = None,  # 호출측에서 1회 조회해 넘기면 후보마다 선호 벡터 저장소 재조회 안 함
 ) -> TTTVScoreResult:
     """
     사용자 정보, 원본 시설 혼잡 정보, 후보 대안 시설 정보 및 사용자 현재 위치를 입력받아
@@ -70,8 +70,8 @@ async def calculate_tttv_score(
     arrival_dt = datetime.now(timezone.utc) + timedelta(minutes=travel_time_min)
     arrival_hour = arrival_dt.hour
     arrival_dow = arrival_dt.weekday()
-    # predict_congestion 은 동기 함수이며 내부에서 Vertex Endpoint 를 블로킹 호출(최대 VERTEX_TIMEOUT_SECONDS)한다.
-    # async 컨텍스트의 이벤트 루프를 막지 않도록 워커 스레드로 오프로드한다.
+    # predict_congestion 은 동기 함수(로컬 sklearn 추론)이므로, async 컨텍스트의 이벤트 루프를
+    # 막지 않도록 워커 스레드로 오프로드한다.
     predicted_congestion = await asyncio.to_thread(
         predict_congestion,
         candidate_facility["type"],

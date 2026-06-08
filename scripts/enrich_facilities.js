@@ -13,9 +13,7 @@
 //   node --env-file=.env.local scripts/enrich_facilities.js            # 실제 적용
 //   node --env-file=.env.local scripts/enrich_facilities.js --dry-run  # 미리보기(쓰기 없음)
 //
-// 적용 후: 음성비서 대표메뉴를 반영하려면 apps/api/scripts/seed_facility_embeddings.py 를 재실행해
-//   Firestore facility_embeddings 의 menu 를 갱신하고(EMBEDDING_ENABLED=true), 백엔드 재배포(또는 인스턴스 교체).
-//   주소(features.address)는 RecommendationCard 가 즉시 읽으므로 별도 재배포 불필요.
+// 적용 후: features.signature_menu/address 는 프런트(RecommendationCard 등)가 즉시 읽으므로 별도 재배포 불필요.
 
 const fs = require('fs');
 const path = require('path');

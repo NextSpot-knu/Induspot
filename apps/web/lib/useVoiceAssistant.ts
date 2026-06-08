@@ -8,39 +8,17 @@
 // 폴백 우선: TTS/STT 미지원·마이크 거부 시 graceful(데모 무중단).
 import { useEffect, useRef, useState } from "react";
 
-// ── Google Cloud Text-to-Speech (REST) ──
-// 정적 프론트에서 리퍼러 제한 API 키로 직접 호출(백엔드 재배포 불필요). 키 미설정 시 비활성 →
-// 브라우저 speechSynthesis 폴백(데모 무중단). ko-KR Neural2/Chirp3-HD 등 고품질 보이스 사용.
-const CLOUD_TTS_KEY = process.env.NEXT_PUBLIC_GOOGLE_TTS_API_KEY || "";
-const CLOUD_TTS_VOICE = process.env.NEXT_PUBLIC_GOOGLE_TTS_VOICE || "ko-KR-Neural2-A";
-
-async function synthesizeCloudTTS(text: string): Promise<string | null> {
-  if (!CLOUD_TTS_KEY) return null;
-  const res = await fetch(
-    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(CLOUD_TTS_KEY)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: { text },
-        voice: { languageCode: "ko-KR", name: CLOUD_TTS_VOICE },
-        audioConfig: { audioEncoding: "MP3", speakingRate: 1.05, pitch: 0 },
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`cloud-tts ${res.status}`);
-  const data = await res.json();
-  return data?.audioContent ? `data:audio/mp3;base64,${data.audioContent}` : null;
-}
+// TTS 는 브라우저 내장 speechSynthesis 만 사용한다.
+// (대회용 Google Cloud Text-to-Speech 연동은 제거됨 — 로컬 전용·외부 의존성 0.)
 
 export type VoiceState = "idle" | "speaking" | "listening" | "thinking";
 
-/** 백엔드(Vertex Gemini)가 해석한 음성 1턴 결과 */
+/** 백엔드(키워드 분류기)가 해석한 음성 1턴 결과 */
 export interface VoiceTurn {
   action: string; // accept|next|reject|details|select|filter|stop|unknown
   targetId?: string | null; // select 일 때 고른 시설 id
   matchIds?: string[]; // filter 일 때 선호에 맞는 후보 id들
-  spoken?: string | null; // Gemini 생성 한국어 응답
+  spoken?: string | null; // 백엔드 생성 한국어 응답
 }
 
 export interface VoiceAssistantOptions<T> {
@@ -96,8 +74,7 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
   const repromptRef = useRef(0);
   const itemRef = useRef<T | null>(null);
   const koVoiceWarnedRef = useRef(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null); // Cloud TTS 재생용
-  const speakSeqRef = useRef(0); // 발화 시퀀스 — 진행 중 fetch/콜백 무효화(취소·대체)
+  const speakSeqRef = useRef(0); // 발화 시퀀스 — 취소/대체 시 이전 발화의 onEnd 체인 무효화
 
   const setVoiceState = (s: VoiceState) => { stateRef.current = s; setVoiceStateRaw(s); };
   const setActiveBoth = (v: boolean) => { activeRef.current = v; setActive(v); };
@@ -107,7 +84,7 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     if (typeof window === "undefined") return;
     const synthOk = "speechSynthesis" in window;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    setTtsSupported(synthOk || !!CLOUD_TTS_KEY); // Cloud TTS만 있어도 발화 가능
+    setTtsSupported(synthOk);
     setSttSupported(!!SR);
     if (!synthOk) return; // 브라우저 보이스 캐싱은 speechSynthesis 있을 때만
     const loadVoices = () => { voicesRef.current = window.speechSynthesis.getVoices() || []; };
@@ -126,7 +103,6 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     return () => {
       document.removeEventListener("visibilitychange", onHide);
       if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-      try { audioRef.current?.pause?.(); } catch { /* noop */ }
       try { recRef.current?.abort?.(); } catch { /* noop */ }
       if (listenTimerRef.current) clearTimeout(listenTimerRef.current);
       if (followupRef.current) clearTimeout(followupRef.current);
@@ -156,7 +132,6 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
   // 진행 중 발화 정리(Cloud 오디오 + 브라우저 합성). seq 증가로 in-flight fetch/콜백 무효화.
   const cancelSpeech = () => {
     speakSeqRef.current++;
-    try { if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; audioRef.current.onerror = null; } } catch { /* noop */ }
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   };
 
@@ -179,34 +154,12 @@ export function useVoiceAssistant<T>(opts: VoiceAssistantOptions<T>): VoiceAssis
     } catch { onEnd?.(); }
   };
 
-  // 1순위 Cloud TTS(고품질) → 실패/미설정 시 브라우저 TTS. onEnd는 어느 경로든 정확히 1회.
-  // 첫 발화는 오브 탭(제스처) 직후라 sticky activation으로 오디오 재생 허용; 막히면 브라우저 폴백.
+  // 브라우저 내장 TTS 로 발화. onEnd는 정확히 1회. 첫 발화는 오브 탭(제스처) 직후라 자동재생 정책 통과.
   const speak = (text: string, onEnd?: () => void) => {
     if (typeof window === "undefined") { onEnd?.(); return; }
     const seq = ++speakSeqRef.current;
-    try { if (audioRef.current) audioRef.current.pause(); } catch { /* noop */ }
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-
-    if (CLOUD_TTS_KEY) {
-      if (!audioRef.current) audioRef.current = new Audio();
-      // settled 가드로 done(정상 종료)/fallback(브라우저 폴백)을 정확히 1회만 — onerror+play().catch 이중 호출 방지.
-      let settled = false;
-      const done = () => { if (settled) return; settled = true; if (seq === speakSeqRef.current) onEnd?.(); };
-      const fallback = () => { if (settled) return; settled = true; if (seq === speakSeqRef.current) browserSpeak(text, onEnd, seq); };
-      synthesizeCloudTTS(text)
-        .then((url) => {
-          if (seq !== speakSeqRef.current) { settled = true; return; } // 취소/대체됨 — 체인 중단
-          const a = audioRef.current;
-          if (!url || !a) { fallback(); return; }
-          a.src = url;
-          a.onended = () => done();
-          a.onerror = () => fallback();
-          a.play().catch(() => fallback());
-        })
-        .catch(() => fallback());
-    } else {
-      browserSpeak(text, onEnd, seq);
-    }
+    browserSpeak(text, onEnd, seq);
   };
 
   const clearTimers = () => {

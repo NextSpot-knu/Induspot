@@ -1,48 +1,22 @@
-# --- Build Stage ---
-FROM python:3.11-slim AS builder
+# --- InduSpot API 컨테이너 (로컬/배포 공용, 비-GCP) ---
+# 단일 스테이지 + pip(requirements.txt). 대회용 Poetry/Cloud Run 빌드 경로는 제거됨.
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Poetry 설치를 위한 필수 시스템 패키지 설치
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Poetry 설치
-# poetry.lock 이 lock-version 2.1(Poetry 2.x 생성)이라 1.7.x 로는 읽지 못한다 → 생성 버전과 정합.
-ENV POETRY_VERSION=2.4.1
-ENV POETRY_HOME=/opt/poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="${POETRY_HOME}/bin:${PATH}"
-
-# Poetry 2.0+ 부터 export 는 코어에서 분리되어 별도 플러그인 설치가 필요하다.
-RUN poetry self add poetry-plugin-export
-
-# 설정 파일 복사
-COPY pyproject.toml poetry.lock* ./
-
-# Poetry를 사용하여 requirements.txt 생성
-RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
-
-# --- Production Stage ---
-FROM python:3.11-slim AS runner
-
-WORKDIR /app
-
-# builder에서 생성된 requirements.txt 복사 및 패키지 설치
-COPY --from=builder /app/requirements.txt .
+# 의존성 먼저 설치(레이어 캐시 활용)
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 코드 복사
 COPY . .
 
-# 실행 환경 변수 기본값 설정 (GCP 표준 포트 반영)
+# 실행 환경 변수 기본값
 ENV ENV=production
 ENV PORT=8080
 
-# 포트 개방 메타데이터 설정
+# 포트 개방 메타데이터
 EXPOSE 8080
 
-# 실제 구동 파일 경로인 app.main:app 으로 정밀 매핑 수행
+# 구동: app.main:app (docker-compose 는 호스트 8000 → 컨테이너 8080 매핑)
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

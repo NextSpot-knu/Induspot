@@ -22,7 +22,7 @@ def _create_client(url: str, key: str, *, role: str) -> Client:
 # 1. Supabase Python Client 초기화 (BFF 및 백엔드 직접 DB 조회/CUD용)
 supabase_client: Client = _create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, role="anon")
 
-# 1-1. 서버→서버 신뢰 경로용 클라이언트(WP4 Pub/Sub 적재 등).
+# 1-1. 서버→서버 신뢰 경로용 클라이언트(관리자 시뮬레이트 등).
 #      service_role 키가 있으면 RLS 를 우회해 congestion_logs 에 insert 할 수 있다.
 #      (없으면 anon 으로 폴백 — 기존 동작과 동일.)
 supabase_admin: Client = _create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY, role="service_role")
@@ -94,39 +94,24 @@ def get_current_user(
         )
 
 
-def require_firebase_admin(request: Request) -> dict:
-    """관리자 전용 가드 — GCP 베이스(Firebase Authentication).
+def require_admin(request: Request) -> dict:
+    """관리자 전용 가드 — 로컬 데모용 공유 토큰 검증(비-GCP).
 
-    워커 경로(Supabase JWT, get_current_user)와 분리된다. 관리자 프런트(admin/*)는 Firebase Auth 로
-    로그인하고 Firebase ID 토큰을 X-Admin-Authorization 헤더로 보낸다. 여기서 google-auth 로 그 토큰을
-    검증한다(issuer=securetoken.google.com/<project>, audience=<project>). 게이트웨이가 Authorization 을
-    백엔드 인증용 OIDC 로 덮어쓰므로 admin 토큰은 별도 헤더로 받는다.
-    프로토타입 정책: 인증된 Firebase 사용자를 관리자로 간주한다(보안강화 불요 — 사용자 결정).
+    워커 경로(Supabase JWT, get_current_user)와 분리된다. 관리자 프런트(admin/*)는 로컬 세션 토큰을
+    X-Admin-Authorization 헤더(Bearer)로 보내고, 여기서 settings.ADMIN_API_TOKEN 과 단순 비교한다.
+    (대회용 Firebase Authentication 가드를 제거하고 GCP 의존성 없는 토큰 검증으로 대체.)
+    ⚠️ 데모 게이트일 뿐 강한 보안 경계가 아니다 — 사용자 결정.
     """
     auth = request.headers.get("x-admin-authorization") or request.headers.get("authorization") or ""
     if not auth.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="관리자 인증 토큰(Firebase ID token)이 없습니다.",
+            detail="관리자 인증 토큰이 없습니다.",
         )
-    token = auth.split(" ", 1)[1]
-    try:
-        # pyrefly: ignore [missing-import]
-        from google.oauth2 import id_token as google_id_token
-        # pyrefly: ignore [missing-import]
-        from google.auth.transport import requests as g_requests
-
-        claims = google_id_token.verify_firebase_token(
-            token, g_requests.Request(), audience=settings.GCP_PROJECT_ID
-        )
-    except Exception as e:
+    token = auth.split(" ", 1)[1].strip()
+    if not token or token != settings.ADMIN_API_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Firebase 토큰 검증 실패: {e}",
+            detail="유효하지 않은 관리자 토큰입니다.",
         )
-    if not claims:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="유효하지 않은 Firebase 토큰입니다.",
-        )
-    return claims
+    return {"role": "admin"}

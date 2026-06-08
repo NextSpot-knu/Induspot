@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.routers import recommendations, infrastructures, predict, ingest, preferences, forecast
+from app.routers import recommendations, infrastructures, predict, preferences
 
 
 # 로깅 설정 초기화
@@ -39,9 +39,7 @@ app.add_middleware(
 app.include_router(recommendations.router)
 app.include_router(infrastructures.router)
 app.include_router(predict.router, prefix="/predict")
-app.include_router(ingest.router)  # WP4: POST /ingest/pubsub
-app.include_router(preferences.router)  # 자연어 선호 → Gemini 파싱 → 추천 반영
-app.include_router(forecast.router)  # WP2: GET /api/v1/forecast/congestion, /api/v1/forecast/heatmap (BQML lookup)
+app.include_router(preferences.router)  # 자연어 선호 → 키워드 파싱 → 추천 반영
 
 # 1. Health Check Endpoint
 @app.get("/")
