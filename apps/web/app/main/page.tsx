@@ -516,6 +516,10 @@ export default function MainPage() {
           // 합성/데모 시설은 항상 클라 미러로 점수 부여
           const demoRanked = rankFacilities(demoCands, scoreOpts);
           all = [...realRanked, ...demoRanked].sort(compareTttv);
+          all.forEach((f, i) => { 
+            f.apiRank = i + 1; 
+            f.totalCandidates = all.length; 
+          });
         }
 
         if (cancelled) return;
@@ -1111,18 +1115,21 @@ export default function MainPage() {
       {selectedFacility && (() => {
         try {
           const targetType = selectedFacility.type;
-          // 순위 = handleAdvanceRank 와 동일한 '안정 랭킹 풀'에서의 위치.
-          // 음성 '다음'은 폐기하지 않으므로 풀이 그대로 유지돼 1→2→3 순위가 고정된다(거절/저장만 제외, 음성필터 반영).
-          const activeCandidates = expandGroups(facilities.filter(f => f.type === targetType))
-            .filter((f: any) => (!voiceFilterIds || voiceFilterIds.has(f.id)) && !rejectedIds.has(f.id) && !savedIds.has(f.id));
-          const activeScored = activeCandidates.map(f => ({
-            ...f,
-            tttv: calculateTTTV(f)
-          })).sort(compareFacilities);
+          let rank = selectedFacility.apiRank;
+          let totalCandidates = selectedFacility.totalCandidates;
+          
+          if (!rank) {
+            const activeCandidates = expandGroups(facilities.filter(f => f.type === targetType))
+              .filter((f: any) => (!voiceFilterIds || voiceFilterIds.has(f.id)) && !rejectedIds.has(f.id) && !savedIds.has(f.id));
+            const activeScored = activeCandidates.map(f => ({
+              ...f,
+              tttv: calculateTTTV(f)
+            })).sort(compareFacilities);
 
-          const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
-          const rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
-          const totalCandidates = activeScored.length;
+            const rankIndex = activeScored.findIndex(f => f.id === selectedFacility.id);
+            rank = rankIndex !== -1 ? rankIndex + 1 : undefined;
+            totalCandidates = activeScored.length;
+          }
 
           const tttv = selectedFacility.tttv || calculateTTTV(selectedFacility);
           // 사유: 자동 추천된 실 시설은 백엔드 Gemini 사유, 마커 직접 클릭/데모는 미러 사유로 폴백
