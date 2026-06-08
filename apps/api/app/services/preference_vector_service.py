@@ -30,7 +30,7 @@ class PreferenceVectorStore:
 
     def __init__(self):
         self.client = None
-        if firestore is not None:
+        if firestore is not None and settings.GCP_PROJECT_ID:
             try:
                 db = settings.FIRESTORE_DATABASE
                 if db and db != "(default)":

@@ -70,6 +70,8 @@ def _get_fs():
     if _fs_init_attempted:
         return _fs_client
     _fs_init_attempted = True
+    if not settings.GCP_PROJECT_ID:
+        return None
     try:
         from google.cloud import firestore
 

@@ -84,6 +84,11 @@ def _load_gcs_artifacts() -> Optional[Tuple[Any, Any]]:
     with _init_lock:
         if _gcs_loaded:
             return _gcs_artifacts
+        
+        if not settings.GCP_PROJECT_ID or not settings.GCS_BUCKET_NAME:
+            _gcs_loaded = True
+            return None
+
         try:
             from google.cloud import storage  # lazy import
 
