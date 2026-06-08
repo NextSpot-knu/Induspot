@@ -616,8 +616,10 @@ export default function MainPage() {
     const nextSavedIds = new Set(savedIds);
     nextSavedIds.add(fac.id);
     const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
-    
-    // rankedFacilities (백엔드 순위) 기준 탐색
+
+    // rankedFacilities (백엔드 순위) 기준 탐색: 방금 저장한 항목 제외
+    let nextCandidates = rankedFacilities.filter(voicePass).filter((f: any) => !nextSavedIds.has(f.id));
+    // 모두 소진되면 음성 필터만 유지해 루프백
     if (nextCandidates.length === 0) {
       nextCandidates = rankedFacilities.filter(voicePass);
     }
@@ -670,6 +672,11 @@ export default function MainPage() {
         sessionStorage.removeItem('induspot_selected_facility_id');
       } catch (e) {}
     }
+
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
+    };
+    const targetType = filterMap[activeFilter];
 
     // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
     const nextRejectedIds = new Set(rejectedIds);
