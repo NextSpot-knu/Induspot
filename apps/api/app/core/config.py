@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # --- GCP / Vertex AI Settings (WP1) ---
     # 공통 GCP 프로젝트 (비밀 아님 → 기본값 허용)
-    GCP_PROJECT_ID: str = "knudc-henryseo711"
+    GCP_PROJECT_ID: str = ""
     # Vertex/BigQuery/Pub-Sub 리소스 리전 (기존 Cloud Run 리전과 통일)
     VERTEX_LOCATION: str = "us-central1"
     # 배포된 혼잡 예측 Endpoint의 숫자 ID. 비어 있으면 WP1 비활성화(=GCS 폴백 경로 사용).
@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # --- Gemini Settings (WP3) ---
     # 추천 사유 생성 모델. 비어 있으면 WP3 비활성화(=템플릿 폴백).
     GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    GEMINI_API_KEY: str = ""
     GEMINI_ENABLED: bool = False
     # 콜드 스타트(Cloud Run 스케일제로 후 첫 호출)는 모델 첫 추론이 4초를 넘겨 timeout→unknown 이 된다.
     # 워밍업 후엔 ~1~2초라 평소 영향 없음. 첫 호출 안정성 위해 헤드룸 확보.
@@ -133,50 +134,8 @@ def _resolve_adc_path() -> str:
 
 
 def load_gcp_secrets():
-    # Only load if we can resolve GCP project ID or fallback to standard project
-    project_id = "knudc-henryseo711"
-    adc_path = _resolve_adc_path()
-    if os.path.exists(adc_path):
-        try:
-            with open(adc_path, "r", encoding="utf-8") as f:
-                cred = json.load(f)
-                if "quota_project_id" in cred:
-                    project_id = cred["quota_project_id"]
-        except Exception:
-            pass
-
-    try:
-        from google.cloud import secretmanager
-        client = secretmanager.SecretManagerServiceClient()
-        
-        secret_keys = [
-            "SUPABASE_URL",
-            "SUPABASE_ANON_KEY",
-            "SUPABASE_SERVICE_ROLE_KEY",
-            "JWT_SECRET",
-            "GCS_BUCKET_NAME"
-        ]
-        
-        # 보안 위생: 어떤 시크릿 키가 로드됐는지 이름을 로그에 나열하지 않는다(인프라 로그 정보 노출 최소화). 개수만.
-        loaded = 0
-        for key in secret_keys:
-            # Keep existing environment values if already defined
-            if os.environ.get(key):
-                continue
-            try:
-                name = f"projects/{project_id}/secrets/{key}/versions/latest"
-                response = client.access_secret_version(request={"name": name})
-                val = response.payload.data.decode("UTF-8").strip()
-                if val:
-                    os.environ[key] = val
-                    loaded += 1
-            except Exception:
-                # Fallback silently to .env/dotenv
-                pass
-        print(f"Secret Manager: loaded {loaded} secret(s) into env (project {project_id}).")
-    except Exception:
-        # 클라이언트 미설치/권한없음 등 → .env/dotenv 폴백(에러 상세는 로그에 남기지 않음).
-        print("GCP Secret Manager unavailable; falling back to .env/dotenv.")
+    # Disabled for Zero-Cost migration. Secrets are loaded directly from .env.
+    pass
 
 # Load secrets from GCP Secret Manager before instantiating settings
 load_gcp_secrets()

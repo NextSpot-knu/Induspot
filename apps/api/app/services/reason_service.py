@@ -104,22 +104,16 @@ def _get_model():
     _model_init_attempted = True
     _model_init_ts = time.monotonic()
 
-    if not settings.GEMINI_ENABLED:
+    if not settings.GEMINI_ENABLED or not getattr(settings, "GEMINI_API_KEY", ""):
         return None
     try:
-        import vertexai
-        from vertexai.generative_models import (
-            GenerativeModel,
-            GenerationConfig,
-            HarmBlockThreshold,
-            HarmCategory,
-            SafetySetting,
-        )
+        import google.generativeai as genai
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-        vertexai.init(project=settings.GCP_PROJECT_ID, location=settings.VERTEX_LOCATION)
+        genai.configure(api_key=settings.GEMINI_API_KEY)
         # 사유는 '입력 수치의 한국어 재진술'이라 결정성 위주. top_p/candidate_count 명시,
         # 한국어 멀티바이트 절단 방지를 위해 max_output_tokens 헤드룸(192) 확보.
-        _gen_config = GenerationConfig(
+        _gen_config = genai.types.GenerationConfig(
             temperature=0.2,
             top_p=0.9,
             candidate_count=1,
@@ -127,18 +121,15 @@ def _get_model():
         )
         # 혼잡/식당 관련 한국어 정상 발화가 기본 안전필터에 과차단돼 .text 접근 불가→항상 템플릿 폴백
         # 되는 것을 방지(보안강화가 아니라 '폴백이 항상 타는' 안정성 결함 해소). 극단 유해입력은 여전히 차단.
-        _safety_settings = [
-            SafetySetting(category=c, threshold=HarmBlockThreshold.BLOCK_ONLY_HIGH)
-            for c in (
-                HarmCategory.HARM_CATEGORY_HARASSMENT,
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            )
-        ]
-        _model = GenerativeModel(
-            settings.GEMINI_MODEL,
-            system_instruction=[_SYSTEM_INSTRUCTION],
+        _safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        }
+        _model = genai.GenerativeModel(
+            model_name=settings.GEMINI_MODEL,
+            system_instruction=_SYSTEM_INSTRUCTION,
         )
         logger.info("gemini_model_initialized", model=settings.GEMINI_MODEL)
     except Exception as e:
