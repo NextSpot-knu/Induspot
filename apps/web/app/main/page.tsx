@@ -270,6 +270,7 @@ export default function MainPage() {
     }));
   }, [mockHour]);
 
+  const [rankedFacilities, setRankedFacilities] = useState<any[]>([]);
   const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 36.1198, lng: 128.3471 });
@@ -371,6 +372,7 @@ export default function MainPage() {
       } catch (e) {
         console.error("Failed to load saved IDs from localStorage:", e);
       }
+
 
       try {
         const rejected = sessionStorage.getItem('induspot_rejected_ids');
@@ -483,6 +485,7 @@ export default function MainPage() {
           let realRanked: any[] = [];
           if (liveMode && realCands.length > 0) {
             try {
+              // 백엔드에는 rejectedIds와 savedIds를 제외하고 요청
               const recs = await recommendByType(targetType, userLocation, [...rejectedIds, ...savedIds]);
               const byId = new Map(realCands.map(f => [f.id, f]));
               realRanked = recs
@@ -498,7 +501,7 @@ export default function MainPage() {
                 // 백엔드 TTTV(예측 대기·이동·incentive) 보존 + 선호항만 cuisineMatch 로 교체해 재점수.
                 // 비식당/미인식(cm=null)은 백엔드 tttv 그대로 유지 → 통째 재계산이 사유·수치를 어긋나게 하던 문제 해소.
                 realRanked = realRanked
-                  .map((f: any) => {
+                  .map(f => {
                     const cm = cuisineMatch(f, cuisineIntentRef.current);
                     return cm !== null ? { ...f, tttv: rescoreWithPreference(f.tttv, cm, f.congestionLevel ?? 0) } : f;
                   })
@@ -523,6 +526,7 @@ export default function MainPage() {
         }
 
         if (cancelled) return;
+        setRankedFacilities(all);
         if (all.length === 0) {
           setSelectedFacility(null);
           return;
@@ -539,8 +543,9 @@ export default function MainPage() {
 
     return () => { cancelled = true; };
     // voiceFilterIds 는 dep로 두지 않는다(필터 변경은 onFilter가 직접 처리; effect는 ref로 최신값 읽음 → 더블셋/경합 방지).
+    // rejectedIds, savedIds 도 dep에서 제외하여 거절/저장 시 불필요한 백엔드 API 재호출(점수/순위 리셋 현상)을 방지.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facilities, activeFilter, rejectedIds, savedIds, userLocation, preferredCategories, mockHour]);
+  }, [facilities, activeFilter, userLocation, preferredCategories, mockHour]);
 
   // Action Button Handlers
   const handleAccept = (fac: any) => {
@@ -603,34 +608,28 @@ export default function MainPage() {
       } catch (e) {}
     }
 
-    // ★ Compute next facility BEFORE state update to avoid async race condition
     const filterMap: Record<string, string> = {
       '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
     };
     const targetType = filterMap[activeFilter];
-    // Next candidates: exclude already-saved (prev savedIds + current fac) and rejected
+
     const nextSavedIds = new Set(savedIds);
     nextSavedIds.add(fac.id);
     const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
-    let nextCandidates = expandGroups(facilities.filter(f => f.type === targetType))
-      .filter((f: any) => voicePass(f) && !rejectedIds.has(f.id) && !nextSavedIds.has(f.id));
-
-    // Loop back if all exhausted (음성 필터는 그대로 유지)
+    
+    // rankedFacilities (백엔드 순위) 기준 탐색
     if (nextCandidates.length === 0) {
-      nextCandidates = expandGroups(facilities.filter(f => f.type === targetType)).filter(voicePass);
+      nextCandidates = rankedFacilities.filter(voicePass);
     }
 
     if (nextCandidates.length > 0) {
-      const nextScored = nextCandidates.map(f => ({ ...f, tttv: calculateTTTV(f) }));
-      nextScored.sort(compareFacilities);
-      setSelectedFacility(nextScored[0]);
-      if (mapInstanceRef.current) {
-        panToVisible(nextScored[0].latitude, nextScored[0].longitude);
+      setSelectedFacility(nextCandidates[0]);
+      if (mapInstanceRef.current && typeof nextCandidates[0].latitude === 'number') {
+        panToVisible(nextCandidates[0].latitude, nextCandidates[0].longitude);
       }
     } else {
       setSelectedFacility(null);
     }
-    // ★ Force card open so the next recommendation is visible
 
     setSavedIds(prev => {
       const next = new Set(prev);
@@ -672,11 +671,6 @@ export default function MainPage() {
       } catch (e) {}
     }
 
-    // ★ Compute next facility BEFORE state update to avoid async race condition
-    const filterMap: Record<string, string> = {
-      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
-    };
-    const targetType = filterMap[activeFilter];
     // Next candidates: exclude already-rejected (prev rejectedIds + current fac) and saved
     const nextRejectedIds = new Set(rejectedIds);
     nextRejectedIds.add(fac.id);
