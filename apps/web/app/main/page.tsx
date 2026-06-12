@@ -277,6 +277,8 @@ export default function MainPage() {
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
+  const apiRecsCacheRef = useRef<{ key: string, recs: any[] }>({ key: "", recs: [] });
+
   // Load user profile & current location
   useEffect(() => {
     async function loadUser() {
@@ -485,12 +487,18 @@ export default function MainPage() {
           let realRanked: any[] = [];
           if (liveMode && realCands.length > 0) {
             try {
-              // 백엔드에는 rejectedIds와 savedIds를 제외하고 요청
-              const recs = await recommendByType(targetType, userLocation, [...rejectedIds, ...savedIds]);
+              // 라이브 데이터 갱신 시 백엔드를 불필요하게 재호출하지 않도록 캐싱
+              const cacheKey = `${targetType}-${userLocation.lat.toFixed(4)}-${userLocation.lng.toFixed(4)}-${mockHour}`;
+              if (apiRecsCacheRef.current.key !== cacheKey) {
+                const recs = await recommendByType(targetType, userLocation, []);
+                apiRecsCacheRef.current = { key: cacheKey, recs };
+              }
+              const recs = apiRecsCacheRef.current.recs;
+
               const byId = new Map(realCands.map(f => [f.id, f]));
               realRanked = recs
-                .filter(r => byId.has(r.facility.id))
-                .map(r => {
+                .filter((r: any) => byId.has(r.facility.id))
+                .map((r: any) => {
                   const base = byId.get(r.facility.id);
                   const tttv = recToTttv(r);
                   return { ...base, tttv, reason: r.reason || "" }; // 백엔드 Gemini 사유만
@@ -531,11 +539,22 @@ export default function MainPage() {
           setSelectedFacility(null);
           return;
         }
-        const top = all[0];
-        setSelectedFacility(top);
-        if (mapInstanceRef.current && typeof top.latitude === 'number') {
-          panToVisible(top.latitude, top.longitude);
-        }
+
+        // 혼잡도 갱신 시 기존 선택 유지 (갑자기 1등으로 점프하는 버그 방지)
+        setSelectedFacility((prev: any) => {
+          if (prev) {
+            const updated = all.find(f => f.id === prev.id);
+            if (updated) return updated; // 기존 시설이 유지되면 데이터만 갱신
+          }
+          
+          // 처음이거나 탭 변경 등으로 새 목록이 로드된 경우 1등을 띄우고 지도 이동
+          if (mapInstanceRef.current && typeof all[0].latitude === 'number') {
+            setTimeout(() => {
+              panToVisible(all[0].latitude, all[0].longitude);
+            }, 50);
+          }
+          return all[0];
+        });
       } catch (err) {
         console.error("Error in recommendation synchronization effect:", err);
       }
@@ -616,9 +635,8 @@ export default function MainPage() {
     const nextSavedIds = new Set(savedIds);
     nextSavedIds.add(fac.id);
     const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
-
-    // rankedFacilities (백엔드 순위) 기준 탐색: 방금 저장한 항목 제외
-    let nextCandidates = rankedFacilities.filter(voicePass).filter((f: any) => !nextSavedIds.has(f.id));
+    // rankedFacilities (백엔드 순위) 기준 탐색: 방금 저장한 항목 및 거절 항목 제외
+    let nextCandidates = rankedFacilities.filter((f: any) => voicePass(f) && !nextSavedIds.has(f.id) && !rejectedIds.has(f.id));
     // 모두 소진되면 음성 필터만 유지해 루프백
     if (nextCandidates.length === 0) {
       nextCandidates = rankedFacilities.filter(voicePass);
@@ -682,7 +700,11 @@ export default function MainPage() {
     const nextRejectedIds = new Set(rejectedIds);
     nextRejectedIds.add(fac.id);
     const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
-    let nextCandidates = expandGroups(facilities.filter(f => f.type === targetType))
+    const filterMap: Record<string, string> = {
+      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
+    };
+    const targetType = filterMap[activeFilter];
+    let nextCandidates = expandGroups(facilities.filter((f: any) => f.type === targetType))
       .filter((f: any) => voicePass(f) && !nextRejectedIds.has(f.id) && !savedIds.has(f.id));
 
     // Loop back if all exhausted (음성 필터는 그대로 유지)
