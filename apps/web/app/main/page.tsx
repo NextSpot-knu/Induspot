@@ -700,10 +700,7 @@ export default function MainPage() {
     const nextRejectedIds = new Set(rejectedIds);
     nextRejectedIds.add(fac.id);
     const voicePass = (f: any) => !voiceFilterIds || voiceFilterIds.has(f.id); // 음성 선호 필터 유지
-    const filterMap: Record<string, string> = {
-      '식당': 'cafeteria', '주차장': 'parking', '회의실': 'meeting_room', '휴게실': 'rest_area'
-    };
-    const targetType = filterMap[activeFilter];
+
     let nextCandidates = expandGroups(facilities.filter((f: any) => f.type === targetType))
       .filter((f: any) => voicePass(f) && !nextRejectedIds.has(f.id) && !savedIds.has(f.id));
 
